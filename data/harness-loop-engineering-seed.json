@@ -1,0 +1,11 @@
+{
+  "version": "cv1-engineering-initiatives",
+  "channel": "engineering",
+  "channel_id": "C0BGU0STURX",
+  "initiatives": [
+    {"id":"ENG-214","company_reference":"Harness","intent":"internal developer portal","owner":"Vikram Rao","status":"pilot_running","messages":["We keep rebuilding ownership directories in docs. Proposal: one developer portal with a canonical service catalog, owners, dependencies, runbooks and production tier.","Harness IDP scorecards are useful, but the goal is behaviour change rather than another dashboard. Start with five checks: owner, runbook, rollback, SLO and dependency freshness.","Decision for ENG-214: continue the Backstage-based pilot and evaluate Harness patterns for scorecards and paved deployment paths before considering a vendor change."]},
+    {"id":"LOOP-42","company_reference":"Loop Engineering","intent":"progressive delivery guardrails","owner":"Leena Rao","status":"implementation_approved","messages":["Loop initiative: standardise feature flags and canary cohorts for high-risk releases. Automated health verification must be part of the release path, not a separate checklist.","Do not build another flag wrapper. packages/release-guard already owns cohort assignment, health checks and rollback hooks; extend that contract."]},
+    {"id":"LOOP-57","company_reference":"Loop Engineering","intent":"engineering effectiveness metrics","owner":"Maya Singh","status":"baseline_complete","messages":["DORA baseline is complete by service tier: deployment frequency, lead time, change failure rate and time to restore. These are system signals, never individual developer scores.","Pattern so far: tier-one services with current runbooks recover 38% faster. The next action is improving readiness metadata, not adding more metrics."]},
+    {"id":"LOOP-63","company_reference":"Loop Engineering","intent":"incident learning retrieval","owner":"Kabir Malhotra","status":"pilot_running","messages":["Postmortems disappear after review. LOOP-63 links incidents to services, owners, runbooks and repeated failure modes so future designs can retrieve operational lessons.","Code note: incident-linker already extracts service IDs and failure taxonomy from Markdown postmortems. Reuse it before proposing another incident knowledge parser."]}
+  ]
+}

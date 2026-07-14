@@ -1,0 +1,16 @@
+{
+  "product":"ReLoop",
+  "posted_live":true,
+  "messages":[
+    {"channel":"product-lab","intent":"risk_adjusted_deposit","text":"Repeat renters keep asking why we block the full deposit after five clean returns. Could a trust tier reduce the hold without presenting it as a loyalty coupon?"},
+    {"channel":"product-lab","intent":"backup_size","text":"For low-confidence sizing, hold an adjacent size against the same wedding itinerary. Universal two-size ordering will destroy contribution margin."},
+    {"channel":"gtm-ideas","intent":"wedding_itinerary","text":"Wedding customers plan haldi, mehendi, sangeet and reception looks. Campaign landing should start from an event itinerary, not a generic bundle discount."},
+    {"channel":"gtm-ideas","intent":"cleaning_transparency","text":"Show when and how a garment was cleaned plus the warehouse inspection state. Professionally cleaned alone feels like marketing copy."},
+    {"channel":"sales-floor","intent":"risk_adjusted_deposit","text":"A repeat customer abandoned after a ₹4,500 hold on a ₹2,700 rental. Her last four returns were spotless."},
+    {"channel":"sales-floor","intent":"wedding_itinerary","text":"An enterprise wedding planner wants one timeline for every outfit, accessory, delivery and return—not separate confirmations."},
+    {"channel":"customer-voice","intent":"backup_size","text":"Three fit complaints were brand measurement mismatches. Customers asked whether the next size can be kept ready without two independent rentals."},
+    {"channel":"customer-voice","intent":"late_return_prevention","text":"Late returns came from confusion about courier pickup versus warehouse receipt. Reminder copy must use event date and pickup slot."},
+    {"channel":"engineering","intent":"availability_ranking","text":"Rental search should hard-filter inventory that cannot finish inspection, cleaning and delivery before the event. Popularity ranks only feasible inventory."},
+    {"channel":"engineering","intent":"risk_adjusted_deposit","text":"Trust score features: successful returns, late-return rate, damage claim value, payment failures and account age. Return multiplier and reason codes."}
+  ]
+}

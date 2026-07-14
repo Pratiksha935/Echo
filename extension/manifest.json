@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "EchoCheck — Organisational Memory",
+  "version": "0.1.0",
+  "description": "Surfaces relevant organisational knowledge while you browse.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "EchoCheck"
+  }
+}

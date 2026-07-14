@@ -1,0 +1,11 @@
+export default function DemoArticle(){return <main className="demoArticle">
+  <header className="demoPublisher"><a href="/">THE PLATFORM REVIEW</a><nav>ENGINEERING&nbsp;&nbsp; AI&nbsp;&nbsp; STRATEGY</nav><button>SUBSCRIBE</button></header>
+  <article>
+    <p className="demoKicker">PLATFORM ENGINEERING · 8 MIN READ</p>
+    <h1>What Harness Engineering gets right about the internal developer portal</h1>
+    <p className="demoStandfirst">Service catalogs, scorecards and golden paths are becoming the control plane for modern engineering organisations. The real opportunity is not another dashboard—it is a shared model of ownership and operational maturity.</p>
+    <div className="demoByline"><span>BY MAYA SEN</span><span>JULY 10, 2026</span></div>
+    <div className="demoHeroArt"><b>HARNESS<br/>ENGINEERING</b><span>01 / SERVICE CATALOG<br/>02 / SCORECARDS<br/>03 / GOLDEN PATHS</span></div>
+    <div className="demoCopy"><aside>“A portal becomes valuable when it changes engineering behaviour, not when it merely lists services.”</aside><div><p>Harness has been expanding its software delivery platform toward a broader internal developer portal. The direction reflects a familiar problem: teams cannot improve what they cannot reliably discover, assign or measure.</p><p>A useful portal starts with a service catalog that records ownership, dependencies, operational documentation and production health. Scorecards then turn that metadata into visible standards. Instead of asking every team to invent a maturity model, platform engineering can publish a small number of paved roads.</p><h2>The feature opportunity</h2><p>For growing companies, this creates a compelling product initiative: combine a searchable service catalog with engineering maturity scorecards and reusable deployment pipeline templates. Teams could see which services lack owners, documentation, rollback policies or current dependencies.</p><p>The biggest implementation risk is duplication. Developer experience, observability and infrastructure teams often build separate versions of the same catalog. Before launching another portal initiative, organisations should inspect existing Backstage experiments, CI/CD templates, Jira epics and architecture documents.</p></div></div>
+  </article>
+</main>}

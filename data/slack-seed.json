@@ -1,0 +1,128 @@
+{
+  "version": "cv1",
+  "workspace": "EchoCheck Demo",
+  "channels": [
+    {
+      "name": "product-lab",
+      "purpose": "Early product ideas and discovery",
+      "messages": [
+        {
+          "signal_id": "SIG-A",
+          "source_ref": "C0BGNPR7PK7/p1783839769503379",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGNPR7PK7/p1783839769503379",
+          "author": "Arjun Mehta",
+          "text": "I keep hearing the same beta feedback in calls but it lives everywhere. What if we automatically grouped comments into themes before the Friday product review? Could save the PMs a few hours.",
+          "expected": "no_match",
+          "action": "logged_only"
+        },
+        {
+          "signal_id": "SIG-D",
+          "source_ref": "C0BGNPR7PK7/p1783839769852519",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGNPR7PK7/p1783839769852519",
+          "author": "Leena Rao",
+          "text": "For onboarding, could we personalise the checklist by company size and role? Enterprise admins need a very different first week from individual contributors.",
+          "expected": "tangential",
+          "action": "logged_only"
+        }
+      ]
+    },
+    {
+      "name": "gtm-ideas",
+      "purpose": "Go-to-market experiments and campaign decisions",
+      "messages": [
+        {
+          "signal_id": "SIG-B",
+          "source_ref": "C0BGVQAPU0L/p1783839789492229",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGVQAPU0L/p1783839789492229",
+          "author": "Maya Singh",
+          "text": "Could we mine sales calls and support notes, cluster what customers keep asking for, then send the top patterns into our weekly launch brief? Different source, but it might stop us manually tagging every comment.",
+          "expected": "same_idea",
+          "matches": "SIG-A",
+          "action": "notified"
+        },
+        {
+          "signal_id": "SIG-GTM-2",
+          "source_ref": "C0BGVQAPU0L/p1783839789886609",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGVQAPU0L/p1783839789886609",
+          "author": "Nisha Kapoor",
+          "text": "Decision: keep the Q3 launch focused on operations teams. Broad productivity messaging tested weaker in the last two customer sessions.",
+          "expected": "no_match",
+          "action": "logged_only"
+        }
+      ]
+    },
+    {
+      "name": "sales-floor",
+      "purpose": "Deal learnings, objections and sales decisions",
+      "messages": [
+        {
+          "signal_id": "SIG-C",
+          "source_ref": "C0BGVQC999S/p1783839807580699",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807580699",
+          "author": "Kabir Malhotra",
+          "text": "We should auto-cluster beta feedback into themes for the Friday product review instead of tagging it manually.",
+          "expected": "exact",
+          "matches": "SIG-A",
+          "action": "notified"
+        },
+        {
+          "signal_id": "SIG-SALES-2",
+          "source_ref": "C0BGVQC999S/p1783839807897629",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629",
+          "author": "Rhea Bose",
+          "text": "Decision from pipeline review: do not offer a free pilot by default. Use a paid 30-day proof of value with a written success metric.",
+          "expected": "no_match",
+          "action": "logged_only"
+        }
+      ]
+    },
+    {
+      "name": "customer-voice",
+      "purpose": "Support patterns and customer experience",
+      "messages": [
+        {
+          "signal_id": "SIG-CX-1",
+          "source_ref": "C0BGS38TA5Q/p1783839820554739",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGS38TA5Q/p1783839820554739",
+          "author": "Maya Singh",
+          "text": "Thinking aloud: urgent support requests could be routed using sentiment plus account tier. We should test whether this catches churn risk earlier than the current FIFO queue.",
+          "expected": "no_match",
+          "action": "logged_only"
+        },
+        {
+          "signal_id": "SIG-CX-2",
+          "source_ref": "C0BGS38TA5Q/p1783839820871199",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGS38TA5Q/p1783839820871199",
+          "author": "Devika Iyer",
+          "text": "A customer asked for dark mode again. Logging it, but this is not connected to the onboarding checklist work.",
+          "expected": "tangential",
+          "action": "logged_only"
+        }
+      ]
+    },
+    {
+      "name": "engineering",
+      "purpose": "Technical decisions and implementation notes",
+      "messages": [
+        {
+          "signal_id": "SIG-ENG-1",
+          "source_ref": "C0BGU0STURX/p1783839843913859",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGU0STURX/p1783839843913859",
+          "author": "Rohan Shah",
+          "text": "Decision: store the extracted intent and source permalink separately. The source platform owns the full conversation; EchoCheck owns the durable decision record and match trail.",
+          "expected": "no_match",
+          "action": "logged_only"
+        },
+        {
+          "signal_id": "SIG-IGNORE",
+          "source_ref": "C0BGU0STURX/p1783839844303259",
+          "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGU0STURX/p1783839844303259",
+          "author": "Rohan Shah",
+          "text": "Lunch at 1? React with +1 if you want dosa.",
+          "expected": "not_worth_checking",
+          "action": "none"
+        }
+      ]
+    }
+  ]
+}

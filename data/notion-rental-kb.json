@@ -1,0 +1,14 @@
+{
+  "product": "ReLoop",
+  "description": "A Myntra-like fashion rental marketplace for India",
+  "hub": "https://app.notion.com/p/39b630edf61f812ebe0fc74f1e252e67",
+  "documents": [
+    {"title":"Dynamic security deposits for trusted renters","owner":"Rohan Desai","status":"experiment_approved","url":"https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507"},
+    {"title":"Fit confidence and backup-size reservation","owner":"Ananya Sharma","status":"discovery_complete","url":"https://app.notion.com/p/39b630edf61f81428907d392653ae37f"},
+    {"title":"Wardrobe partner supply programme","owner":"Kabir Malhotra","status":"pilot_running","url":"https://app.notion.com/p/39b630edf61f81ec9129d8199a799c0f"},
+    {"title":"Wedding-event bundle and coordinated delivery","owner":"Meera Iyer","status":"concept_validated","url":"https://app.notion.com/p/39b630edf61f8124b64bfea945a04a87"},
+    {"title":"Cleaning transparency and garment readiness score","owner":"Sana Khan","status":"in_implementation","url":"https://app.notion.com/p/39b630edf61f8143b5c1fee3575d49bb"},
+    {"title":"Late-return prevention through event-aware reminders","owner":"Kabir Malhotra","status":"experiment_designed","url":"https://app.notion.com/p/39b630edf61f81c38937db2a0e1a3cdb"},
+    {"title":"Search ranking for rental availability, not catalogue popularity","owner":"Ananya Sharma","status":"backlog","url":"https://app.notion.com/p/39b630edf61f817e9623c28336bfe901"}
+  ]
+}

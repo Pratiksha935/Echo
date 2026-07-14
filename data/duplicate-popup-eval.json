@@ -1,0 +1,12 @@
+{
+  "policy": "Run prior-art detection only for authored proposals, decisions, tickets or documents. Never run it for ordinary catalogue searches or navigation queries.",
+  "cases": [
+    {"input":"Could loyal renters get a smaller refundable hold after three successful returns?","surface":"central_platform_compose","should_popup":true,"match":"Dynamic security deposits for trusted renters","reason":"Same policy intent in different language."},
+    {"input":"We should reserve a second size when we are uncertain about brand fit.","surface":"jira_create","should_popup":true,"match":"Fit confidence and backup-size reservation","reason":"Same intervention."},
+    {"input":"Can we rank only pieces that can finish cleaning before the wedding date?","surface":"central_platform_compose","should_popup":true,"match":"Search ranking for rental availability, not catalogue popularity","reason":"Same fulfilment-aware ranking proposal."},
+    {"input":"red saree under ₹2,000","surface":"catalogue_search","should_popup":false,"match":null,"reason":"Ordinary customer search, not a knowledge contribution."},
+    {"input":"designer lehenga delivery in Mumbai","surface":"catalogue_search","should_popup":false,"match":null,"reason":"Service query, not a proposal."},
+    {"input":"Let's build virtual try-on so users can see the drape.","surface":"jira_create","should_popup":false,"match":null,"reason":"Related to fit but not the same underlying intervention."},
+    {"input":"Offer 10% off when three items are in the cart.","surface":"central_platform_compose","should_popup":false,"match":null,"reason":"Tangential to wedding bundles; no duplicate warning."}
+  ]
+}

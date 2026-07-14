@@ -1,0 +1,16 @@
+{
+  "version": "cv1-context",
+  "purpose": "Naturalistic context scattered around the explicit evaluation signals",
+  "messages": [
+    {"channel":"product-lab","text":"Raw note from beta review: Acme called the export flow fragile, Northstar said hard to trust, and Bellwether asked for an audit trail. These may be one reliability theme, not three requests."},
+    {"channel":"product-lab","text":"Should a theme need evidence from three accounts before it enters the weekly brief? Prefer missing a weak signal over flooding the roadmap with noisy clusters."},
+    {"channel":"gtm-ideas","text":"The launch brief is assembled from call snippets, support tags and PM notes. The same objection appears under security, trust and governance."},
+    {"channel":"gtm-ideas","text":"Preserve links to the original call or thread in every generated insight. A summary without provenance will not be trusted by Sales."},
+    {"channel":"sales-floor","text":"Two prospects described the same pain differently: repeat discovery versus nobody remembers old experiments."},
+    {"channel":"sales-floor","text":"Enterprise buyers asked for the original discussion, owner and decision date instead of another dashboard screenshot."},
+    {"channel":"customer-voice","text":"A neutral-looking message from a large account sat for six hours; prior threads contained cancellation language that a single-message classifier missed."},
+    {"channel":"customer-voice","text":"Score urgency from current sentiment, account tier and recent conversation history, with human override."},
+    {"channel":"engineering","text":"Signal record includes source_ref, raw_text_hash, extracted_intent, author, observed_at, confidence_tier and matched_signal_id."},
+    {"channel":"engineering","text":"Use cosine retrieval to shortlist, then an LLM judge for exact, same-idea, tangential or no-match. Never notify on tangential."}
+  ]
+}

@@ -1,0 +1,115 @@
+{
+  "project": {"key":"RLP","name":"ReLoop Product"},
+  "tickets": [
+    {
+      "key":"RLP-101",
+      "type":"Epic",
+      "summary":"Risk-adjusted deposit limits for repeat customers",
+      "description":"Calculate a deposit multiplier from successful returns, late events, damage claims, payment failures and account age. Show the final amount and explanation during checkout.",
+      "owner":"Rohan Desai",
+      "status":"In Progress",
+      "notion_url":"https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507",
+      "expected_match":"exact",
+      "canonical_intent":"Reduce or waive security deposits for trustworthy repeat renters."
+    },
+    {
+      "key":"RLP-102",
+      "type":"Story",
+      "summary":"Reserve an adjacent garment size when fit confidence is low",
+      "description":"For selected wedding inventory, hold one backup size under the same itinerary and release it after fit confirmation.",
+      "owner":"Ananya Sharma",
+      "status":"Backlog",
+      "notion_url":"https://app.notion.com/p/39b630edf61f81428907d392653ae37f",
+      "expected_match":"same_idea",
+      "canonical_intent":"Reduce fit failures by reserving a backup size for uncertain orders."
+    },
+    {
+      "key":"RLP-103",
+      "type":"Task",
+      "summary":"Show cleaning and inspection provenance on product detail page",
+      "description":"Expose last cleaning date, method, repair state and warehouse inspection completion for Bengaluru inventory.",
+      "owner":"Sana Khan",
+      "status":"In Progress",
+      "notion_url":"https://app.notion.com/p/39b630edf61f8143b5c1fee3575d49bb",
+      "expected_match":"exact",
+      "canonical_intent":"Increase rental trust through visible cleaning and readiness evidence."
+    },
+    {
+      "key":"RLP-104",
+      "type":"Experiment",
+      "summary":"Predictive pickup nudges before customers miss return windows",
+      "description":"Use wear date and courier capacity to send WhatsApp reminders and offer one-tap pickup rescheduling.",
+      "owner":"Kabir Malhotra",
+      "status":"Selected for Development",
+      "notion_url":"https://app.notion.com/p/39b630edf61f81c38937db2a0e1a3cdb",
+      "expected_match":"same_idea",
+      "canonical_intent":"Prevent late returns with event-aware reminders and flexible pickup."
+    },
+    {
+      "key":"RLP-105",
+      "type":"Story",
+      "summary":"Rank only inventory that can be cleaned and delivered before event date",
+      "description":"Availability and serviceability must gate retrieval before style relevance and popularity scoring.",
+      "owner":"Vikram Rao",
+      "status":"Backlog",
+      "notion_url":"https://app.notion.com/p/39b630edf61f817e9623c28336bfe901",
+      "expected_match":"exact",
+      "canonical_intent":"Rank rental inventory using event-date fulfilment feasibility."
+    },
+    {
+      "key":"RLP-106",
+      "type":"Spike",
+      "summary":"Evaluate virtual try-on SDKs for sarees and lehengas",
+      "description":"Compare pose estimation and drape rendering vendors for a styling preview.",
+      "owner":"Vikram Rao",
+      "status":"Open",
+      "notion_url":"https://app.notion.com/p/39b630edf61f81428907d392653ae37f",
+      "expected_match":"tangential",
+      "canonical_intent":"Preview how a garment may look on a customer."
+    },
+    {
+      "key":"RLP-107",
+      "type":"Story",
+      "summary":"Apply 10% discount when customers add three items",
+      "description":"Generic multi-item cart discount for campaign traffic.",
+      "owner":"Meera Iyer",
+      "status":"Open",
+      "notion_url":"https://app.notion.com/p/39b630edf61f8124b64bfea945a04a87",
+      "expected_match":"tangential",
+      "canonical_intent":"Increase basket size with a volume discount."
+    },
+    {
+      "key":"RLP-108",
+      "type":"Bug",
+      "summary":"Red saree filter resets after changing delivery city",
+      "description":"Preserve selected colour and price filters when serviceability location changes.",
+      "owner":"Vikram Rao",
+      "status":"Open",
+      "notion_url":"https://app.notion.com/p/39b630edf61f817e9623c28336bfe901",
+      "expected_match":"no_match",
+      "canonical_intent":"Fix lost search-filter state."
+    },
+    {
+      "key":"RLP-109",
+      "type":"Task",
+      "summary":"Automate boutique partner payouts after return inspection",
+      "description":"Release owner revenue share when the garment passes post-return inspection and all cost deductions are known.",
+      "owner":"Kabir Malhotra",
+      "status":"To Do",
+      "notion_url":"https://app.notion.com/p/39b630edf61f81ec9129d8199a799c0f",
+      "expected_match":"same_idea",
+      "canonical_intent":"Automate settlement for wardrobe supply partners."
+    },
+    {
+      "key":"RLP-110",
+      "type":"Story",
+      "summary":"Create a multi-event wedding outfit itinerary",
+      "description":"Connect looks, accessories, delivery dates and pickup windows across haldi, mehendi, sangeet and reception.",
+      "owner":"Meera Iyer",
+      "status":"Design",
+      "notion_url":"https://app.notion.com/p/39b630edf61f8124b64bfea945a04a87",
+      "expected_match":"exact",
+      "canonical_intent":"Coordinate multiple rental looks as one wedding event plan."
+    }
+  ]
+}

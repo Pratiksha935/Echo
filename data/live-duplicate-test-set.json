@@ -1,0 +1,82 @@
+{
+  "instructions": "Type these into the centralized platform's proposal composer. Only the true duplicate cases should trigger a prior-art popup. Catalogue searches and tangential ideas must remain silent.",
+  "tests": [
+    {
+      "id": "LIVE-01",
+      "type_this": "What if customers who have returned five rentals without damage only pay a small deposit, instead of blocking the full amount every time?",
+      "should_popup": true,
+      "expected_owner": "Rohan Desai",
+      "expected_title": "Dynamic security deposits for trusted renters",
+      "expected_sources": ["Notion", "Slack", "Jira RLP-101"],
+      "expected_message": "Rohan Desai has already explored risk-adjusted deposits for trusted repeat renters. Check the pilot and implementation status before starting new work."
+    },
+    {
+      "id": "LIVE-02",
+      "type_this": "Could we keep one neighbouring size on hold when we are not confident about how a brand fits, so the customer does not place two separate orders?",
+      "should_popup": true,
+      "expected_owner": "Ananya Sharma",
+      "expected_title": "Fit confidence and backup-size reservation",
+      "expected_sources": ["Notion", "Slack", "Jira RLP-102"],
+      "expected_message": "Ananya Sharma documented the same backup-size intervention. Review the category limits and margin guardrails."
+    },
+    {
+      "id": "LIVE-03",
+      "type_this": "Search should hide outfits that cannot be inspected, cleaned and delivered before the customer’s wedding date, even if they are very popular.",
+      "should_popup": true,
+      "expected_owner": "Ananya Sharma",
+      "expected_title": "Search ranking for rental availability, not catalogue popularity",
+      "expected_sources": ["Notion", "Slack", "Jira RLP-105"]
+    },
+    {
+      "id": "LIVE-04",
+      "type_this": "We should send pickup reminders using the customer’s event date and let them reschedule if courier capacity is available.",
+      "should_popup": true,
+      "expected_owner": "Kabir Malhotra",
+      "expected_title": "Late-return prevention through event-aware reminders",
+      "expected_sources": ["Notion", "Slack", "Jira RLP-104"]
+    },
+    {
+      "id": "LIVE-05",
+      "type_this": "red designer saree under ₹2,000 available in Bengaluru next Saturday",
+      "surface": "catalogue_search",
+      "should_popup": false,
+      "reason": "Ordinary shopping query, not a proposal or decision."
+    },
+    {
+      "id": "LIVE-06",
+      "type_this": "Let’s build virtual try-on so customers can preview how a lehenga will drape.",
+      "should_popup": false,
+      "reason": "Tangential to fit-confidence work but not the same intervention."
+    },
+    {
+      "id": "LIVE-07",
+      "type_this": "Give shoppers ten percent off when they add three garments to the cart.",
+      "should_popup": false,
+      "reason": "Tangential to wedding-event bundles; this is a generic discount."
+    },
+    {
+      "id": "LIVE-08",
+      "type_this": "Let's go for lunch.",
+      "surface": "slack_normal_message",
+      "should_popup": false,
+      "expected_behavior": "silent",
+      "reason": "Casual coordination must be rejected before retrieval."
+    },
+    {
+      "id": "LIVE-09",
+      "type_this": "Thanks, got it.",
+      "surface": "slack_normal_message",
+      "should_popup": false,
+      "expected_behavior": "silent",
+      "reason": "Acknowledgement is not organisational knowledge."
+    },
+    {
+      "id": "LIVE-10",
+      "type_this": "Good morning team!",
+      "surface": "slack_normal_message",
+      "should_popup": false,
+      "expected_behavior": "silent",
+      "reason": "Greeting must not trigger retrieval or a response."
+    }
+  ]
+}
