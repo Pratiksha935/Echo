@@ -23,6 +23,7 @@ export type WorkspaceKnowledgeRecord = {
   externalId: string;
   source: string;
   sourceUrl: string;
+  status: string;
   title: string;
 };
 
@@ -41,6 +42,7 @@ type KnowledgeRow = {
   source: string;
   source_url: string;
   title: string;
+  metadata: { status?: string } | null;
 };
 
 export async function getFoundWorkspace(requestedOrganisationId?: string): Promise<WorkspaceMembership | null> {
@@ -94,7 +96,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
   const context = await getSupabaseAuthContext();
   if (!context) return [];
   const query = new URLSearchParams({
-    select: "source,external_id,title,author_name,department,source_url",
+    select: "source,external_id,title,author_name,department,source_url,metadata",
     organisation_id: `eq.${organisationId}`,
     order: "source_updated_at.desc",
     limit: String(Math.min(Math.max(limit, 1), 200)),
@@ -106,6 +108,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
     externalId: row.external_id,
     source: row.source,
     sourceUrl: row.source_url,
+    status: row.metadata?.status ?? "Indexed",
     title: row.title,
   }));
 }

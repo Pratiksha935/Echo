@@ -15,6 +15,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (user) redirect(returnTo);
 
   const configured = Boolean(getSupabasePublicConfig());
+  const demoAccessEnabled = Boolean(process.env.DEMO_ACCESS_EMAIL && process.env.DEMO_ACCESS_CODE);
   const email = single(params.email) ?? "";
   const verify = single(params.step) === "verify" && email;
   const error = single(params.error);
@@ -31,7 +32,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <input type="hidden" name="email" value={email}/><input type="hidden" name="return_to" value={returnTo}/>
           <label>Verification code<input name="token" inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={8} required placeholder="000000"/></label>
           <button type="submit">Verify and continue ↗</button><Link href={`/login?return_to=${encodeURIComponent(returnTo)}`}>Use another email</Link>
-        </form> : <form action="/auth/email" method="post"><input type="hidden" name="return_to" value={returnTo}/><label>Work email<input type="email" name="email" required autoComplete="email" placeholder="you@company.com"/></label><button type="submit">Continue with email ↗</button></form>}
+        </form> : <>
+          <form action="/auth/email" method="post"><input type="hidden" name="return_to" value={returnTo}/><label>Work email<input type="email" name="email" required autoComplete="email" placeholder="you@company.com"/></label><button type="submit">Continue with email ↗</button></form>
+          {demoAccessEnabled && <><div className="loginDivider"><span>DEMO TESTING</span></div><form action="/auth/demo" method="post"><input type="hidden" name="return_to" value={returnTo}/><label>Private demo access code<input type="password" name="code" required autoComplete="off" placeholder="Enter temporary code"/></label><button type="submit">Open my test workspace ↗</button></form></>}
+        </>}
         <small>One Found login. Slack and Google Workspace are approved separately after sign-in, and nothing is indexed until you review the scope.</small>
       </div>
     </section>
@@ -46,5 +50,6 @@ function humanError(code: string): string {
   if (code === "invalid_code") return "That code is invalid or expired. Request a new one and try again.";
   if (code === "oauth_failed") return "Google sign-in could not be completed. Please try again.";
   if (code === "email_failed") return "The verification email could not be sent. Please try again.";
+  if (code === "demo_failed") return "That demo access code is invalid or the test account is unavailable.";
   return "Sign-in could not be completed.";
 }

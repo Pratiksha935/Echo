@@ -64,6 +64,7 @@ The `data/` directory contains fictional records for the ReLoop Indian fashion-r
 2. Add the values from `.env.example` to Netlify's environment-variable settings. Keep `SUPABASE_SERVICE_ROLE_KEY` and `HERMES_API_TOKEN` server-only.
 3. In Supabase Authentication, enable email OTP and Google, and add the hosted `/auth/callback` URL to the redirect allowlist.
 4. Generate `INTEGRATION_ENCRYPTION_KEY` with `openssl rand -base64 32` and store it only in Netlify.
+5. For short-lived demo testing only, `DEMO_ACCESS_EMAIL` and a high-entropy `DEMO_ACCESS_CODE` enable a server-side test login. Remove both before onboarding external users or real company data.
 5. Register the provider callbacks below and add each provider's server-side credentials to Netlify:
    - Slack: `/auth/slack/callback`
    - Notion: `/auth/integrations/notion/callback`
