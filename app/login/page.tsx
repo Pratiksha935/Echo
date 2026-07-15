@@ -31,12 +31,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <input type="hidden" name="email" value={email}/><input type="hidden" name="return_to" value={returnTo}/>
           <label>Verification code<input name="token" inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={8} required placeholder="000000"/></label>
           <button type="submit">Verify and continue ↗</button><Link href={`/login?return_to=${encodeURIComponent(returnTo)}`}>Use another email</Link>
-        </form> : <>
-          <Link className="googleLogin" href={`/auth/google?return_to=${encodeURIComponent(returnTo)}`}>Continue with Google <b>G</b></Link>
-          <div className="loginDivider"><span>OR</span></div>
-          <form action="/auth/email" method="post"><input type="hidden" name="return_to" value={returnTo}/><label>Work email<input type="email" name="email" required autoComplete="email" placeholder="you@company.com"/></label><button type="submit">Email me a code ↗</button></form>
-        </>}
-        <small>By continuing, you agree to your company’s workspace policies. Provider credentials never enter this page.</small>
+        </form> : <form action="/auth/email" method="post"><input type="hidden" name="return_to" value={returnTo}/><label>Work email<input type="email" name="email" required autoComplete="email" placeholder="you@company.com"/></label><button type="submit">Continue with email ↗</button></form>}
+        <small>One Found login. Slack and Google Workspace are approved separately after sign-in, and nothing is indexed until you review the scope.</small>
       </div>
     </section>
   </main>;
@@ -52,4 +48,3 @@ function humanError(code: string): string {
   if (code === "email_failed") return "The verification email could not be sent. Please try again.";
   return "Sign-in could not be completed.";
 }
-
