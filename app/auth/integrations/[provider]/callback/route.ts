@@ -5,6 +5,7 @@ import { getFoundWorkspace } from "../../../../../lib/auth/workspace";
 import { encryptIntegrationSecret } from "../../../../../lib/integrations/secrets";
 import { exchangeGitHubInstallation, exchangeIntegrationCode, isConnectableProvider, type OAuthProvider } from "../../../../../lib/integrations/oauth";
 import { saveIntegrationConnection } from "../../../../../lib/integrations/store";
+import { syncGoogleWorkspace } from "../../../../../lib/integrations/google-sync";
 import { INTEGRATION_ORG_COOKIE, INTEGRATION_PROVIDER_COOKIE, INTEGRATION_STATE_COOKIE } from "../route";
 
 type RouteContext = { params: Promise<{ provider: string }> };
@@ -46,13 +47,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       const code = request.nextUrl.searchParams.get("code");
       if (!code) return fail(destination, `${provider}_authorization_failed`);
       const installation = await exchangeIntegrationCode(provider as OAuthProvider, code);
-      await saveIntegrationConnection({
+      const connectionId = await saveIntegrationConnection({
         organisationId,
         provider,
         externalWorkspaceId: installation.externalWorkspaceId,
         externalWorkspaceName: installation.externalWorkspaceName,
         grantedScopes: installation.grantedScopes,
       }, await encryptIntegrationSecret(JSON.stringify(installation.credential)));
+      if (provider === "google") {
+        await syncGoogleWorkspace(organisationId, connectionId, installation.credential);
+      }
     }
   } catch {
     return fail(destination, "connection_storage_failed");

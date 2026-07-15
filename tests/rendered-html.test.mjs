@@ -85,9 +85,7 @@ test("renders the centralized workspace for an authenticated user", async () => 
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /GENERAL INTELLIGENCE OF YOUR COMPANY/);
-  assert.match(html, /PRODUCT MEMORY/);
-  assert.match(html, /GTM INTELLIGENCE/);
-  assert.match(html, /ENGINEERING MEMORY/);
-  assert.match(html, /LINK DUMP/);
-  assert.match(html, /BROWSER INTELLIGENCE/);
+  assert.match(html, /PRIVATE WORKSPACE/);
+  assert.match(html, /Connect a source to begin/);
+  assert.doesNotMatch(html, /DEMO MEMORY/);
 });

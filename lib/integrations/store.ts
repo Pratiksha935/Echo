@@ -12,7 +12,7 @@ type ConnectionWrite = {
 export async function saveIntegrationConnection(
   input: ConnectionWrite,
   secret: { ciphertext: string; iv: string },
-): Promise<void> {
+): Promise<string> {
   const rows = await serviceRest<{ id: string }[]>(
     "/integration_connections?on_conflict=organisation_id,provider,external_workspace_id",
     {
@@ -40,6 +40,7 @@ export async function saveIntegrationConnection(
       body: JSON.stringify({ connection_id: connectionId, ...secret, key_version: 1 }),
     },
   );
+  return connectionId;
 }
 
 async function serviceRest<T = unknown>(path: string, init: RequestInit): Promise<T> {
