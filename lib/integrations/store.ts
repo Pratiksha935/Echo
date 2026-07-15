@@ -1,11 +1,12 @@
 import { requireSupabaseServiceConfig } from "../auth/config";
+import type { IntegrationProvider } from "./catalog";
 
 type ConnectionWrite = {
   externalWorkspaceId: string;
   externalWorkspaceName: string;
   grantedScopes: string[];
   organisationId: string;
-  provider: "slack";
+  provider: Exclude<IntegrationProvider, "read_ai">;
 };
 
 export async function saveIntegrationConnection(

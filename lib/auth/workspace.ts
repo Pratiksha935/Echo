@@ -17,6 +17,15 @@ export type IntegrationConnection = {
   status: "pending" | "connected" | "attention" | "disconnected";
 };
 
+export type WorkspaceKnowledgeRecord = {
+  authorName: string | null;
+  department: string | null;
+  externalId: string;
+  source: string;
+  sourceUrl: string;
+  title: string;
+};
+
 type MembershipRow = { organisation_id: string; role: FoundRole };
 type OrganisationRow = { id: string; name: string; slug: string };
 type ConnectionRow = {
@@ -24,6 +33,14 @@ type ConnectionRow = {
   last_synced_at: string | null;
   provider: string;
   status: IntegrationConnection["status"];
+};
+type KnowledgeRow = {
+  author_name: string | null;
+  department: string | null;
+  external_id: string;
+  source: string;
+  source_url: string;
+  title: string;
 };
 
 export async function getFoundWorkspace(requestedOrganisationId?: string): Promise<WorkspaceMembership | null> {
@@ -70,6 +87,26 @@ export async function listIntegrationConnections(organisationId: string): Promis
     lastSyncedAt: row.last_synced_at,
     provider: row.provider,
     status: row.status,
+  }));
+}
+
+export async function listWorkspaceKnowledgeRecords(organisationId: string, limit = 100): Promise<WorkspaceKnowledgeRecord[]> {
+  const context = await getSupabaseAuthContext();
+  if (!context) return [];
+  const query = new URLSearchParams({
+    select: "source,external_id,title,author_name,department,source_url",
+    organisation_id: `eq.${organisationId}`,
+    order: "source_updated_at.desc",
+    limit: String(Math.min(Math.max(limit, 1), 200)),
+  });
+  const rows = await userRest<KnowledgeRow[]>(`/knowledge_records?${query}`, context.accessToken);
+  return rows.map(row => ({
+    authorName: row.author_name,
+    department: row.department,
+    externalId: row.external_id,
+    source: row.source,
+    sourceUrl: row.source_url,
+    title: row.title,
   }));
 }
 

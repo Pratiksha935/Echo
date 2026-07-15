@@ -60,11 +60,19 @@ The `data/` directory contains fictional records for the ReLoop Indian fashion-r
 
 ### Activate public login
 
-1. Create a Supabase project and run `supabase/migrations/0001_found_foundation.sql` in its SQL editor.
+1. Create a Supabase project and run `supabase/migrations/0001_found_foundation.sql`, then `supabase/migrations/0002_found_control_plane.sql`, in its SQL editor.
 2. Add the values from `.env.example` to Netlify's environment-variable settings. Keep `SUPABASE_SERVICE_ROLE_KEY` and `HERMES_API_TOKEN` server-only.
 3. In Supabase Authentication, enable email OTP and Google, and add the hosted `/auth/callback` URL to the redirect allowlist.
 4. Generate `INTEGRATION_ENCRYPTION_KEY` with `openssl rand -base64 32` and store it only in Netlify.
-5. Add `https://sage-profiterole-3b1c22.netlify.app/auth/slack/callback` under **OAuth & Permissions → Redirect URLs** in the Slack app, then add its client ID and secret to Netlify.
-6. Redeploy from the connected GitHub repository. The integration screen will show only connection records that exist for the signed-in organisation.
+5. Register the provider callbacks below and add each provider's server-side credentials to Netlify:
+   - Slack: `/auth/slack/callback`
+   - Notion: `/auth/integrations/notion/callback`
+   - Atlassian Jira: `/auth/integrations/jira/callback`
+   - Google Workspace: `/auth/integrations/google/callback`
+   - GitHub App setup: `/auth/integrations/github/callback`
+6. Set `GITHUB_APP_INSTALL_URL`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` from a GitHub App configured to request user authorization on install. The callback exchanges the code and verifies the installation belongs to that user before storing the encrypted credential envelope.
+7. Redeploy from the connected GitHub repository. The integration screen will show only connection records that exist for the signed-in organisation.
 
 Slack uses the minimum CV1 bot scopes needed for approved-channel ingestion and threaded replies: `channels:history`, `channels:read`, `groups:history`, `groups:read`, `users:read`, and `chat:write`. OAuth state is checked before exchange, tokens are encrypted with AES-256-GCM, and only the Supabase service role can read the encrypted credential row. The implementation follows Slack’s OAuth v2 flow and supplies the same HTTPS redirect URI during authorization and code exchange.
+
+Notion, Jira, and Google Workspace use server-side authorization-code flows with short-lived state cookies. Notion and Google refresh tokens, Jira offline tokens, and provider access tokens are encrypted as one credential envelope before persistence. GitHub is intentionally modelled as a GitHub App rather than a broad `repo` OAuth grant. Read AI remains an explicit API/export adapter because it does not share the same public OAuth contract as the other providers; the UI does not claim it is connected until a real adapter record exists.
