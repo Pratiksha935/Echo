@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { chatGPTSignInPath, getChatGPTUser } from "./chatgpt-auth";
 import { getSupabasePublicConfig } from "../lib/auth/config";
-import { getSupabaseUser, hasRefreshToken, type FoundUser } from "../lib/auth/session";
+import { getDemoAccessUser, getSupabaseUser, hasRefreshToken, type FoundUser } from "../lib/auth/session";
 
 export async function getFoundUser(): Promise<FoundUser | null> {
+  const demoUser = await getDemoAccessUser();
+  if (demoUser) return demoUser;
   if (getSupabasePublicConfig()) return getSupabaseUser();
 
   const user = await getChatGPTUser();
@@ -28,4 +30,3 @@ export function foundSignInPath(returnTo: string): string {
     ? `/login?return_to=${encodeURIComponent(returnTo)}`
     : chatGPTSignInPath(returnTo);
 }
-

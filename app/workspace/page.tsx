@@ -1,14 +1,13 @@
 import { requireFoundUser } from "../auth";
 import WorkspaceDashboard from "./workspace-dashboard";
-import { getSupabasePublicConfig } from "../../lib/auth/config";
 import { getFoundWorkspace, listIntegrationConnections, listWorkspaceKnowledgeRecords } from "../../lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 
 export default async function WorkspacePage() {
   const user = await requireFoundUser("/workspace");
-  const demoMode = !getSupabasePublicConfig();
-  const workspace = await getFoundWorkspace();
+  const demoMode = user.id.startsWith("demo:");
+  const workspace = demoMode ? null : await getFoundWorkspace();
   const [connections, knowledgeRecords] = workspace
     ? await Promise.all([
       listIntegrationConnections(workspace.organisationId),

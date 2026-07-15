@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextResponse } from "next/server";
 import { getSupabasePublicConfig, requireSupabasePublicConfig } from "./config";
 
@@ -7,6 +8,7 @@ export const REFRESH_COOKIE = "found_refresh_token";
 export const PKCE_COOKIE = "found_pkce_verifier";
 export const OAUTH_STATE_COOKIE = "found_oauth_state";
 export const RETURN_TO_COOKIE = "found_return_to";
+export const DEMO_ACCESS_COOKIE = "found_demo_access";
 
 export type FoundUser = {
   displayName: string;
@@ -35,6 +37,30 @@ type SupabaseUser = {
 
 export async function getSupabaseUser(): Promise<FoundUser | null> {
   return (await getSupabaseAuthContext())?.user ?? null;
+}
+
+export async function getDemoAccessUser(): Promise<FoundUser | null> {
+  const email = process.env.DEMO_ACCESS_EMAIL?.trim().toLowerCase();
+  const code = process.env.DEMO_ACCESS_CODE?.trim();
+  const actual = (await cookies()).get(DEMO_ACCESS_COOKIE)?.value;
+  if (!email || !code || !actual) return null;
+
+  const expected = demoAccessValue(email, code);
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return null;
+
+  return { displayName: "Pratiksha", email, fullName: "Pratiksha Patil", id: `demo:${email}` };
+}
+
+export function setDemoAccessCookie(response: NextResponse, email: string, code: string): void {
+  response.cookies.set(DEMO_ACCESS_COOKIE, demoAccessValue(email, code), {
+    httpOnly: true,
+    maxAge: 60 * 60 * 12,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
 }
 
 export async function getSupabaseAuthContext(): Promise<SupabaseAuthContext | null> {
@@ -77,9 +103,13 @@ export function setSessionCookies(response: NextResponse, session: SupabaseSessi
 }
 
 export function clearSessionCookies(response: NextResponse): void {
-  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE]) {
+  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE, DEMO_ACCESS_COOKIE]) {
     response.cookies.set(name, "", { httpOnly: true, maxAge: 0, path: "/", sameSite: "lax" });
   }
+}
+
+function demoAccessValue(email: string, code: string): string {
+  return createHmac("sha256", code).update(`found-demo:${email}`).digest("base64url");
 }
 
 export async function exchangeOtp(email: string, token: string): Promise<SupabaseSession> {
