@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import { getSupabasePublicConfig, requireSupabasePublicConfig } from "./config";
 
 export const ACCESS_COOKIE = "found_access_token";
@@ -19,7 +20,7 @@ export type SupabaseAuthContext = {
   user: FoundUser;
 };
 
-type SupabaseSession = {
+export type SupabaseSession = {
   access_token: string;
   expires_in: number;
   refresh_token: string;
@@ -57,17 +58,16 @@ export async function hasRefreshToken(): Promise<boolean> {
   return Boolean((await cookies()).get(REFRESH_COOKIE)?.value);
 }
 
-export async function setSessionCookies(session: SupabaseSession): Promise<void> {
-  const store = await cookies();
+export function setSessionCookies(response: NextResponse, session: SupabaseSession): void {
   const secure = process.env.NODE_ENV === "production";
-  store.set(ACCESS_COOKIE, session.access_token, {
+  response.cookies.set(ACCESS_COOKIE, session.access_token, {
     httpOnly: true,
     maxAge: Math.max(60, session.expires_in - 30),
     path: "/",
     sameSite: "lax",
     secure,
   });
-  store.set(REFRESH_COOKIE, session.refresh_token, {
+  response.cookies.set(REFRESH_COOKIE, session.refresh_token, {
     httpOnly: true,
     maxAge: 60 * 60 * 24 * 30,
     path: "/",
@@ -76,10 +76,9 @@ export async function setSessionCookies(session: SupabaseSession): Promise<void>
   });
 }
 
-export async function clearSessionCookies(): Promise<void> {
-  const store = await cookies();
+export function clearSessionCookies(response: NextResponse): void {
   for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE]) {
-    store.set(name, "", { httpOnly: true, maxAge: 0, path: "/", sameSite: "lax" });
+    response.cookies.set(name, "", { httpOnly: true, maxAge: 0, path: "/", sameSite: "lax" });
   }
 }
 

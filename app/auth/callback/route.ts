@@ -13,11 +13,12 @@ export async function GET(request: NextRequest) {
   if (!code || !verifier || !state || state !== expectedState) return failure(request, returnTo);
   try {
     const session = await exchangePkceCode(code, verifier);
-    await setSessionCookies(session);
-    store.delete(PKCE_COOKIE);
-    store.delete(OAUTH_STATE_COOKIE);
-    store.delete(RETURN_TO_COOKIE);
-    return NextResponse.redirect(new URL(returnTo, request.url));
+    const response = NextResponse.redirect(new URL(returnTo, request.url));
+    setSessionCookies(response, session);
+    for (const name of [PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE]) {
+      response.cookies.set(name, "", { httpOnly: true, maxAge: 0, path: "/", sameSite: "lax" });
+    }
+    return response;
   } catch {
     return failure(request, returnTo);
   }
@@ -29,4 +30,3 @@ function failure(request: NextRequest, returnTo: string) {
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url);
 }
-

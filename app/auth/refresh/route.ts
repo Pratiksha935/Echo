@@ -7,13 +7,14 @@ export async function GET(request: NextRequest) {
   const token = (await cookies()).get(REFRESH_COOKIE)?.value;
   if (token) {
     try {
-      await setSessionCookies(await refreshSession(token));
-      return NextResponse.redirect(new URL(returnTo, request.url));
+      const response = NextResponse.redirect(new URL(returnTo, request.url));
+      setSessionCookies(response, await refreshSession(token));
+      return response;
     } catch { /* clear the unusable session below */ }
   }
-  await clearSessionCookies();
   const login = new URL("/login", request.url);
   login.searchParams.set("return_to", returnTo);
-  return NextResponse.redirect(login);
+  const response = NextResponse.redirect(login);
+  clearSessionCookies(response);
+  return response;
 }
-

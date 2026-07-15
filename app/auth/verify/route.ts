@@ -8,8 +8,9 @@ export async function POST(request: NextRequest) {
   const returnTo = safeReturnPath(String(form.get("return_to") ?? ""));
   try {
     const session = await exchangeOtp(email, token);
-    await setSessionCookies(session);
-    return NextResponse.redirect(new URL(returnTo, request.url), 303);
+    const response = NextResponse.redirect(new URL(returnTo, request.url), 303);
+    setSessionCookies(response, session);
+    return response;
   } catch {
     const url = new URL("/login", request.url);
     url.searchParams.set("step", "verify");
@@ -19,4 +20,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(url, 303);
   }
 }
-
