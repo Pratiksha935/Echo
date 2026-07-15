@@ -33,9 +33,9 @@ export default function WorkspaceDashboard({connectedCount,demoMode,displayName,
   const [query,setQuery]=useState("");
   const [submitted,setSubmitted]=useState("");
   const companyRecords=useMemo(()=>demoMode?demoRecords.map(item=>({...item,sourceUrl:"#"})):records.map(item=>({
-    team:item.department??"Company",title:item.title,owner:item.authorName??"Unknown owner",state:item.status,source:`${item.source} · ${item.externalId}`,sourceUrl:item.sourceUrl,keys:`${item.title} ${item.department??""}`
+    team:item.department??"Company",title:item.title,owner:item.authorName??"Unknown owner",state:item.status,source:`${item.source} · ${item.externalId}`,sourceKind:item.source,sourceUrl:item.sourceUrl,keys:`${item.title} ${item.body} ${item.department??""}`
   })),[demoMode,records]);
-  const matches=useMemo(()=>{const terms=submitted.toLowerCase().split(/\W+/).filter(x=>x.length>3);return companyRecords.filter(item=>terms.some(term=>`${item.title} ${item.keys}`.toLowerCase().includes(term))).slice(0,6)},[companyRecords,submitted]);
+  const matches=useMemo(()=>rankMatches(companyRecords,submitted),[companyRecords,submitted]);
   const departmentRecords=useMemo(()=>companyRecords.filter(item=>item.team.toLowerCase()===view.toLowerCase()),[companyRecords,view]);
   const visibleRecords=useMemo(()=>view==="Overview"?curateOverview(companyRecords):departmentRecords.slice(0,6),[companyRecords,departmentRecords,view]);
   const visibleTotal=view==="Overview"?companyRecords.length:departmentRecords.length;
@@ -57,12 +57,33 @@ export default function WorkspaceDashboard({connectedCount,demoMode,displayName,
   </main>
 }
 
-function curateOverview<T extends { team: string }>(items: T[]): T[] {
+function curateOverview<T extends { sourceKind?: string; team: string }>(items: T[]): T[] {
   const perTeam = new Map<string, number>();
+  const sourcePairs = new Set<string>();
   return items.filter(item => {
     const count = perTeam.get(item.team) ?? 0;
     if (count >= 2) return false;
+    const pair = `${item.team}:${item.sourceKind ?? "demo"}`;
+    if (sourcePairs.has(pair)) return false;
     perTeam.set(item.team, count + 1);
+    sourcePairs.add(pair);
     return true;
   }).slice(0, 8);
+}
+
+const SEARCH_STOP_WORDS = new Set(["about","after","again","already","could","from","have","into","should","that","their","there","these","this","what","when","where","which","with","would"]);
+
+function rankMatches<T extends { keys: string; title: string }>(items: T[], query: string): T[] {
+  const terms = [...new Set(query.toLowerCase().split(/\W+/).filter(term => term.length > 3 && !SEARCH_STOP_WORDS.has(term)))];
+  if (!terms.length) return [];
+  return items.map(item => {
+    const title = item.title.toLowerCase();
+    const evidence = item.keys.toLowerCase();
+    const score = terms.reduce((total, term) => total + (title.includes(term) ? 3 : evidence.includes(term) ? 1 : 0), 0);
+    const matchedTerms = terms.filter(term => evidence.includes(term)).length;
+    return { item, matchedTerms, score };
+  }).filter(result => result.score >= 2 && (result.matchedTerms >= 2 || result.score >= 3))
+    .sort((a,b) => b.score - a.score)
+    .slice(0,6)
+    .map(result => result.item);
 }

@@ -77,6 +77,54 @@
       "should_popup": false,
       "expected_behavior": "silent",
       "reason": "Greeting must not trigger retrieval or a response."
+    },
+    {
+      "id": "LIVE-11",
+      "type_this": "Do our customers have a measurement problem?",
+      "surface": "direct_knowledge_question",
+      "should_popup": false,
+      "expected_answer_title": "Paid 30-day proof of value with one written success metric",
+      "expected_owner": "Rhea Bose",
+      "expected_sources": ["Slack #sales-floor", "Google Docs"]
+    },
+    {
+      "id": "LIVE-12",
+      "type_this": "Should our next wedding campaign organize creative around each ceremony instead of one discount message?",
+      "should_popup": true,
+      "expected_owner": "Meera Iyer",
+      "expected_title": "Event-itinerary campaign outperformed generic discount creative",
+      "expected_sources": ["Slack", "Google Docs"]
+    },
+    {
+      "id": "LIVE-13",
+      "type_this": "We should build a developer portal with ownership metadata and service scorecards.",
+      "should_popup": true,
+      "expected_owner": "Vikram Rao",
+      "expected_title": "Developer portal and service maturity scorecards",
+      "expected_sources": ["Slack", "Google Docs", "Jira ENG-214", "Code"]
+    },
+    {
+      "id": "LIVE-14",
+      "type_this": "Add a new canary rollout helper that automatically rolls back unhealthy releases.",
+      "should_popup": true,
+      "expected_owner": "Leena Rao",
+      "expected_title": "Loop progressive delivery guardrails",
+      "expected_sources": ["Slack", "Google Docs", "Jira LOOP-42", "Code"]
+    },
+    {
+      "id": "LIVE-15",
+      "type_this": "Use DORA metrics to rank individual engineers for the next performance review.",
+      "should_popup": true,
+      "expected_owner": "Maya Singh",
+      "expected_title": "DORA baseline is for service health, not individual scoring",
+      "expected_sources": ["Slack", "Jira LOOP-57"],
+      "reason": "Conflicting prior decision: the baseline explicitly prohibits individual scoring."
+    },
+    {
+      "id": "LIVE-16",
+      "type_this": "We should write better copy for the homepage.",
+      "should_popup": false,
+      "reason": "Too broad to match a specific approved intervention."
     }
   ]
 }

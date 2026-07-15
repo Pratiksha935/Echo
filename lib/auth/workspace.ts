@@ -19,6 +19,7 @@ export type IntegrationConnection = {
 
 export type WorkspaceKnowledgeRecord = {
   authorName: string | null;
+  body: string;
   department: string | null;
   externalId: string;
   source: string;
@@ -37,6 +38,7 @@ type ConnectionRow = {
 };
 type KnowledgeRow = {
   author_name: string | null;
+  body: string;
   department: string | null;
   external_id: string;
   source: string;
@@ -96,7 +98,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
   const context = await getSupabaseAuthContext();
   if (!context) return [];
   const query = new URLSearchParams({
-    select: "source,external_id,title,author_name,department,source_url,metadata",
+    select: "source,external_id,title,body,author_name,department,source_url,metadata",
     organisation_id: `eq.${organisationId}`,
     order: "source_updated_at.desc",
     limit: String(Math.min(Math.max(limit, 1), 200)),
@@ -104,6 +106,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
   const rows = await userRest<KnowledgeRow[]>(`/knowledge_records?${query}`, context.accessToken);
   return rows.map(row => ({
     authorName: row.author_name,
+    body: row.body,
     department: row.department,
     externalId: row.external_id,
     source: row.source,
