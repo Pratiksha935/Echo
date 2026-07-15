@@ -40,8 +40,13 @@ export default function WorkspaceDashboard({connectedCount,demoMode,displayName,
   const visibleRecords=useMemo(()=>view==="Overview"?curateOverview(companyRecords):departmentRecords.slice(0,6),[companyRecords,departmentRecords,view]);
   const visibleTotal=view==="Overview"?companyRecords.length:departmentRecords.length;
   function search(event:FormEvent){event.preventDefault();setSubmitted(query.trim())}
+  function selectView(item:View){
+    setView(item);
+    setSubmitted("");
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
   return <main className="foundWorkspace">
-    <aside className="wsRail"><Link href="/" className="wsLogo">Found<span>.</span></Link><nav>{views.map(item=><button key={item} className={view===item?"active":""} onClick={()=>setView(item)}><i/>{item}</button>)}</nav><div><Link href="/integrations">Connect sources ↗</Link><small>{demoMode?"Demo memory":`${connectedCount} source${connectedCount===1?"":"s"} connected`}</small></div></aside>
+    <aside className="wsRail"><Link href="/" className="wsLogo">Found<span>.</span></Link><nav>{views.map(item=><button key={item} className={view===item?"active":""} onClick={()=>selectView(item)}><i/>{item}</button>)}</nav><div><Link href="/integrations">Connect sources ↗</Link><small>{demoMode?"Demo memory":`${connectedCount} source${connectedCount===1?"":"s"} connected`}</small></div></aside>
     <section className="wsMain">
       <header className="wsTop"><div><span>{workspaceName.toUpperCase()} / COMPANY INTELLIGENCE</span><b>{view}</b></div><div><i/> {demoMode?"DEMO MEMORY":"PRIVATE WORKSPACE"} <strong>{displayName}</strong></div></header>
       <section className="wsHero"><p>THE GENERAL INTELLIGENCE OF YOUR COMPANY</p><h1>Everything your team<br/>has already learned.</h1><form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Ask about a decision, campaign, customer insight, or code…"/><button>Find it ↗</button></form></section>
