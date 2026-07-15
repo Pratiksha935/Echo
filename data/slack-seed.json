@@ -1,6 +1,6 @@
 {
   "version": "cv1",
-  "workspace": "EchoCheck Demo",
+  "workspace": "Found Demo",
   "channels": [
     {
       "name": "product-lab",
@@ -109,7 +109,7 @@
           "source_ref": "C0BGU0STURX/p1783839843913859",
           "source_url": "https://newworkspace-2bk3073.slack.com/archives/C0BGU0STURX/p1783839843913859",
           "author": "Rohan Shah",
-          "text": "Decision: store the extracted intent and source permalink separately. The source platform owns the full conversation; EchoCheck owns the durable decision record and match trail.",
+          "text": "Decision: store the extracted intent and source permalink separately. The source platform owns the full conversation; Found owns the durable decision record and match trail.",
           "expected": "no_match",
           "action": "logged_only"
         },

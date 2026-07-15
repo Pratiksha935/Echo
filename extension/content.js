@@ -69,14 +69,14 @@
   if (!match) return;
 
   const root = document.createElement("div");
-  root.id = "echocheck-extension-root";
+  root.id = "found-extension-root";
   root.innerHTML = `
-    <button class="ec-avatar" aria-label="Open EchoCheck finding">
+    <button class="ec-avatar" aria-label="Open Found finding">
       <span class="ec-face"><i></i><i></i><b></b></span>
       <em>${match.score + 1}</em>
     </button>
     <aside class="ec-card" aria-hidden="true">
-      <header><span>ECHOCHECK · PRIOR WORK FOUND</span><button aria-label="Close">×</button></header>
+      <header><span>FOUND · PRIOR WORK FOUND</span><button aria-label="Close">×</button></header>
       <div class="ec-confidence"><b>${Math.min(96, 78 + match.score * 4)}%</b><span>semantic relevance</span></div>
       <h2>${match.title}</h2>
       <p>${match.summary}</p>

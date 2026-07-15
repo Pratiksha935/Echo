@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "found",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -8,9 +8,13 @@
   "scripts": {
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
+    "build:netlify": "next build --webpack",
+    "build:netlify-demo": "npm run build && node scripts/build-netlify-demo.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern netlify-dist --ignore-pattern .next --ignore-pattern work",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run lint && npm run typecheck && npm test",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

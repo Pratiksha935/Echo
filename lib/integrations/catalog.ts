@@ -1,4 +1,4 @@
-export type IntegrationProvider = "slack" | "jira" | "google" | "github" | "read_ai";
+export type IntegrationProvider = "slack" | "notion" | "jira" | "google" | "github" | "read_ai";
 
 export type IntegrationDefinition = {
   provider: IntegrationProvider;
@@ -18,6 +18,12 @@ export const integrationCatalog: IntegrationDefinition[] = [
     description: "Threads, decisions and work intent with source links and channel permissions intact.",
     ingests: ["Messages", "Threads", "Channels", "Users"], syncMode: "Events API + backfill",
     scopes: ["channels:history", "groups:history", "channels:read", "users:read", "chat:write"],
+  },
+  {
+    provider: "notion", name: "Notion", shortName: "NO", accent: "#f5f2e9", availability: "next",
+    description: "Pages, databases, decisions and linked documents from explicitly approved teamspaces.",
+    ingests: ["Pages", "Databases", "Comments", "Users"], syncMode: "OAuth + incremental sync",
+    scopes: ["Read content", "Read comments", "Read user information"],
   },
   {
     provider: "jira", name: "Jira Cloud", shortName: "JI", accent: "#7aa2ff", availability: "next",

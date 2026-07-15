@@ -1,4 +1,4 @@
-# EchoCheck CV1
+# Found CV1
 
 CV1 proves one complete loop: a person posts an informal idea in Slack, Hermes decides whether it is worth checking, extracts the intent, compares it with durable memory, and either logs it or surfaces prior work with a permalink to the original Slack thread.
 
@@ -23,7 +23,7 @@ Naturalistic surrounding discussion is recorded in `data/slack-context.json`.
 
 ## Source-of-truth contract
 
-EchoCheck is the durable index of organisational intent, decisions, match reasoning, and outcomes. Slack, Notion, and Jira remain the systems of record for the full underlying conversation. Every EchoCheck record therefore requires a stable `source_url` that opens the exact original thread, page, or issue.
+Found is the durable index of organisational intent, decisions, match reasoning, and outcomes. Slack, Notion, and Jira remain the systems of record for the full underlying conversation. Every Found record therefore requires a stable `source_url` that opens the exact original thread, page, or issue.
 
 ## CV1 acceptance test
 

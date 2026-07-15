@@ -1,0 +1,29 @@
+name: found-hermes
+
+services:
+  gateway:
+    image: nousresearch/hermes-agent:latest
+    container_name: found-hermes-gateway
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    working_dir: /knowledge
+    volumes:
+      # Dedicated Found profile only. The host's default Hermes profile is not
+      # mounted into the container.
+      - ${HOME}/.hermes/profiles/foundcontainer:/opt/data
+      # Found's closed-world policy and indexed demo knowledge are read-only.
+      - ./AGENTS.md:/knowledge/AGENTS.md:ro
+      - ./CV1.md:/knowledge/CV1.md:ro
+      - ./data:/knowledge/data:ro
+    environment:
+      HERMES_HOME: /opt/data
+      # The profile sets terminal.backend=local. Here, "local" is contained
+      # inside this service. Never mount the host Docker socket.
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m
+      - /var/tmp:rw,noexec,nosuid,nodev,size=256m

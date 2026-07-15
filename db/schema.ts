@@ -21,7 +21,7 @@ export const memberships = sqliteTable("memberships", {
 export const integrationConnections = sqliteTable("integration_connections", {
   id: text("id").primaryKey(),
   organisationId: text("organisation_id").notNull().references(() => organisations.id, { onDelete: "cascade" }),
-  provider: text("provider", { enum: ["slack", "jira", "google", "github", "read_ai"] }).notNull(),
+  provider: text("provider", { enum: ["slack", "notion", "jira", "google", "github", "read_ai"] }).notNull(),
   externalWorkspaceId: text("external_workspace_id"),
   externalWorkspaceName: text("external_workspace_name"),
   encryptedCredentialRef: text("encrypted_credential_ref"),

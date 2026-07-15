@@ -1,5 +1,7 @@
+import Link from "next/link";
+
 export default function DemoArticle(){return <main className="demoArticle">
-  <header className="demoPublisher"><a href="/">THE PLATFORM REVIEW</a><nav>ENGINEERING&nbsp;&nbsp; AI&nbsp;&nbsp; STRATEGY</nav><button>SUBSCRIBE</button></header>
+  <header className="demoPublisher"><Link href="/">THE PLATFORM REVIEW</Link><nav aria-label="Article topics">ENGINEERING&nbsp;&nbsp; AI&nbsp;&nbsp; STRATEGY</nav><button type="button">SUBSCRIBE</button></header>
   <article>
     <p className="demoKicker">PLATFORM ENGINEERING · 8 MIN READ</p>
     <h1>What Harness Engineering gets right about the internal developer portal</h1>

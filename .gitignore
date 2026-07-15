@@ -30,13 +30,16 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
 # typescript
 next-env.d.ts
+*.tsbuildinfo
 /dist/
+/netlify-dist/
 /.wrangler/
 /outputs/
 /work/
@@ -44,3 +47,4 @@ next-env.d.ts
 # generated Netlify upload bundles
 /echocheck-netlify-static*/
 /echocheck-netlify-static*.zip
+/found-netlify-demo.zip
