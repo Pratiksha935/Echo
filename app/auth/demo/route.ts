@@ -5,6 +5,7 @@ import { safeReturnPath, setSessionCookies, type SupabaseSession } from "../../.
 
 type AdminUser = { email?: string; id: string };
 type AdminUsersResponse = { users?: AdminUser[] };
+type GeneratedLink = { hashed_token?: string; verification_type?: string };
 
 export async function POST(request: NextRequest) {
   const form = await request.formData();
@@ -22,23 +23,26 @@ export async function POST(request: NextRequest) {
     const user = await findDemoUser(config.url, config.serviceRoleKey, email);
     if (!user) throw new Error("Demo user does not exist.");
 
-    await adminRequest(config.url, config.serviceRoleKey, `/auth/v1/admin/users/${user.id}`, {
-      method: "PUT",
-      body: JSON.stringify({ password: configuredCode }),
+    const linkResponse = await adminRequest(config.url, config.serviceRoleKey, "/auth/v1/admin/generate_link", {
+      method: "POST",
+      body: JSON.stringify({ email, type: "magiclink" }),
     });
+    const link = (await linkResponse.json()) as GeneratedLink;
+    if (!link.hashed_token) throw new Error("Supabase did not return a demo sign-in token.");
 
-    const tokenResponse = await fetch(`${config.url}/auth/v1/token?grant_type=password`, {
+    const tokenResponse = await fetch(`${config.url}/auth/v1/verify`, {
       method: "POST",
       cache: "no-store",
       headers: { apikey: config.anonKey, "content-type": "application/json" },
-      body: JSON.stringify({ email, password: configuredCode }),
+      body: JSON.stringify({ token: link.hashed_token, type: link.verification_type ?? "magiclink" }),
     });
-    if (!tokenResponse.ok) throw new Error("Demo session could not be created.");
+    if (!tokenResponse.ok) throw new Error(`Demo session could not be created (${tokenResponse.status}).`);
 
     const response = NextResponse.redirect(new URL(returnTo, appOrigin(request)), 303);
     setSessionCookies(response, (await tokenResponse.json()) as SupabaseSession);
     return response;
-  } catch {
+  } catch (error) {
+    console.error("[demo-auth]", error instanceof Error ? error.message : "Unknown authentication failure.");
     return failure(request, returnTo);
   }
 }
@@ -59,7 +63,7 @@ async function adminRequest(url: string, serviceRoleKey: string, path: string, i
       "content-type": "application/json",
     },
   });
-  if (!response.ok) throw new Error("Supabase admin request failed.");
+  if (!response.ok) throw new Error(`Supabase admin request failed (${response.status}).`);
   return response;
 }
 
