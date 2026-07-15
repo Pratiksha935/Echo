@@ -2,7 +2,6 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSupabaseServiceConfig } from "../../../lib/auth/config";
 import { safeReturnPath, setSessionCookies, type SupabaseSession } from "../../../lib/auth/session";
-import { seedDemoWorkspace } from "../../../lib/demo/workspace-seed";
 
 type AdminUser = { email?: string; id: string };
 type AdminUsersResponse = { users?: AdminUser[] };
@@ -23,8 +22,6 @@ export async function POST(request: NextRequest) {
     const user = await findDemoUser(config.url, config.serviceRoleKey, email);
     if (!user) throw new Error("Demo user does not exist.");
 
-    await seedDemoWorkspace(config, user.id);
-
     await adminRequest(config.url, config.serviceRoleKey, `/auth/v1/admin/users/${user.id}`, {
       method: "PUT",
       body: JSON.stringify({ password: configuredCode }),
@@ -38,7 +35,7 @@ export async function POST(request: NextRequest) {
     });
     if (!tokenResponse.ok) throw new Error("Demo session could not be created.");
 
-    const response = NextResponse.redirect(new URL(returnTo, request.url), 303);
+    const response = NextResponse.redirect(new URL(returnTo, appOrigin(request)), 303);
     setSessionCookies(response, (await tokenResponse.json()) as SupabaseSession);
     return response;
   } catch {
@@ -73,8 +70,12 @@ function matchesSecret(actual: string, expected: string): boolean {
 }
 
 function failure(request: NextRequest, returnTo: string) {
-  const url = new URL("/login", request.url);
+  const url = new URL("/login", appOrigin(request));
   url.searchParams.set("error", "demo_failed");
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url, 303);
+}
+
+function appOrigin(request: NextRequest): string {
+  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? request.url;
 }
