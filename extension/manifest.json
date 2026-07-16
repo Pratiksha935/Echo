@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Found — Organisational Memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Surfaces relevant organisational knowledge while you browse.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["http://*/*", "https://*/*"],
@@ -9,7 +9,7 @@
     {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["content.js"],
-      "css": ["content.css"],
+      "css": ["content.css", "update.css"],
       "run_at": "document_idle"
     }
   ],

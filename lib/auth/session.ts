@@ -9,6 +9,15 @@ export const PKCE_COOKIE = "found_pkce_verifier";
 export const OAUTH_STATE_COOKIE = "found_oauth_state";
 export const RETURN_TO_COOKIE = "found_return_to";
 export const DEMO_ACCESS_COOKIE = "found_demo_access";
+export const DEMO_MEMORY_COOKIE = "found_demo_memory";
+
+export type DemoMemoryCorrection = {
+  correction: string;
+  createdAt: string;
+  recordId: string;
+  sourceUrl: string;
+  title: string;
+};
 
 export type FoundUser = {
   displayName: string;
@@ -51,6 +60,40 @@ export async function getDemoAccessUser(): Promise<FoundUser | null> {
   if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return null;
 
   return { displayName: "Pratiksha", email, fullName: "Pratiksha Patil", id: `demo:${email}` };
+}
+
+export async function getDemoMemoryCorrections(): Promise<DemoMemoryCorrection[]> {
+  const secret = process.env.DEMO_ACCESS_CODE?.trim();
+  const value = (await cookies()).get(DEMO_MEMORY_COOKIE)?.value;
+  if (!secret || !value) return [];
+  const separator = value.lastIndexOf(".");
+  if (separator < 1) return [];
+  const payload = value.slice(0, separator);
+  const actual = value.slice(separator + 1);
+  const expected = createHmac("sha256", secret).update(payload).digest("base64url");
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  if (actualBytes.length !== expectedBytes.length || !timingSafeEqual(actualBytes, expectedBytes)) return [];
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    return Array.isArray(parsed) ? parsed.slice(0, 3) as DemoMemoryCorrection[] : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setDemoMemoryCorrections(response: NextResponse, corrections: DemoMemoryCorrection[]): void {
+  const secret = process.env.DEMO_ACCESS_CODE?.trim();
+  if (!secret) throw new Error("Demo memory configuration is missing.");
+  const payload = Buffer.from(JSON.stringify(corrections.slice(0, 3))).toString("base64url");
+  const signature = createHmac("sha256", secret).update(payload).digest("base64url");
+  response.cookies.set(DEMO_MEMORY_COOKIE, `${payload}.${signature}`, {
+    httpOnly: true,
+    maxAge: 60 * 60 * 12,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
 }
 
 export function setDemoAccessCookie(response: NextResponse, email: string, code: string): void {
@@ -103,7 +146,7 @@ export function setSessionCookies(response: NextResponse, session: SupabaseSessi
 }
 
 export function clearSessionCookies(response: NextResponse): void {
-  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE, DEMO_ACCESS_COOKIE]) {
+  for (const name of [ACCESS_COOKIE, REFRESH_COOKIE, PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE, DEMO_ACCESS_COOKIE, DEMO_MEMORY_COOKIE]) {
     response.cookies.set(name, "", { httpOnly: true, maxAge: 0, path: "/", sameSite: "lax" });
   }
 }

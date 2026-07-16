@@ -1,0 +1,24 @@
+.ec-update {
+  margin: 0 16px 14px;
+  border-top: 1px solid rgba(255,255,255,.12);
+  padding-top: 12px;
+}
+.ec-update-toggle {
+  width: 100%;
+  border: 1px solid rgba(120,167,255,.45);
+  background: rgba(37,99,235,.16);
+  color: #dbe8ff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  font: 700 9px Arial;
+  cursor: pointer;
+}
+.ec-update form { margin-top: 10px; }
+.ec-update form[hidden] { display: none; }
+.ec-update label { display:block;color:#c8d6e8;font:9px/1.35 Arial;margin-bottom:7px; }
+.ec-update textarea { width:100%;min-height:78px;resize:vertical;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#0b1f3a;color:#fff;padding:10px;font:11px/1.4 Arial;outline:none; }
+.ec-update textarea:focus { border-color:#78a7ff;box-shadow:0 0 0 2px rgba(120,167,255,.18); }
+.ec-update small { display:block;color:#8593a6;font:7px/1.4 Arial;margin:7px 0; }
+.ec-update form>button { width:100%;border:0;border-radius:9px;background:#2563eb;color:#fff;padding:10px;font:700 8px Arial;cursor:pointer; }
+.ec-update strong { display:block;color:#dbe8ff;font:700 10px/1.4 Arial; }

@@ -87,5 +87,35 @@ test("renders the centralized workspace for an authenticated user", async () => 
   assert.match(html, /GENERAL INTELLIGENCE OF YOUR COMPANY/);
   assert.match(html, /PRIVATE WORKSPACE/);
   assert.match(html, /Connect a source to begin/);
+  assert.match(html, /EXECUTIVE PULSE · TODAY/);
+  assert.match(html, /ORGANISATIONAL KNOWLEDGE GRAPH/);
+  assert.match(html, /OPEN ORIGINAL SOURCE/);
   assert.doesNotMatch(html, /DEMO MEMORY/);
+});
+
+test("renders the source-preserving memory update review", async () => {
+  const params = new URLSearchParams({
+    record_id: "ENG-PLAT-014",
+    title: "Developer portal and service maturity scorecards",
+    correction: "The pilot moved into rollout after platform review.",
+    source_url: "https://docs.google.com/document/d/test",
+  });
+  const response = await render(`/memory/correct?${params}`, { "oai-authenticated-user-email": "founder@example.com" });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /THE ORIGINAL EVIDENCE STAYS UNTOUCHED/);
+  assert.match(html, /ADD TO FOUND MEMORY/);
+  assert.match(html, /The pilot moved into rollout/);
+});
+
+test("rejects unsigned Slack event delivery", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-slack`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/api/slack/events", { method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type:"event_callback"}) }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 401);
 });

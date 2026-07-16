@@ -7,6 +7,7 @@ Found is an organisational-memory platform that finds prior decisions, experimen
 - `/` — public product landing page
 - `/login` — Google OAuth and email-code authentication
 - `/workspace` — protected company intelligence workspace
+- `/memory/correct` — authenticated, source-preserving memory-update review
 - `/code-review` — behaviour-level duplicate implementation check for proposed pull requests
 - `/integrations` — Slack, Jira, Google Workspace, GitHub, and Read AI connector control plane
 - `/demo-article` — article surface used to demonstrate the browser extension
@@ -16,7 +17,7 @@ Found is an organisational-memory platform that finds prior decisions, experimen
 
 The application runs on React 19 and supports two deployment surfaces: vinext/Cloudflare Sites for the existing private preview, and dynamic Next.js on Netlify for the public product. Supabase provides public authentication and Postgres persistence on Netlify; the existing Drizzle/D1 contracts remain available to the Sites build.
 
-Source systems remain authoritative. Found stores normalized retrieval records, source URLs, visibility, and allowed principals so answers can link back to Slack, Notion, Jira, GitHub, or campaign evidence.
+Source systems remain authoritative. Found stores normalized retrieval records, source URLs, visibility, and allowed principals so answers can link back to Slack, Notion, Jira, GitHub, or campaign evidence. Corrections and relevant Slack changes are appended as versioned memory overlays; Found never edits the underlying source.
 
 ## Local development
 
@@ -60,7 +61,7 @@ The `data/` directory contains fictional records for the ReLoop Indian fashion-r
 
 ### Activate public login
 
-1. Create a Supabase project and run `supabase/migrations/0001_found_foundation.sql`, then `supabase/migrations/0002_found_control_plane.sql`, in its SQL editor.
+1. Create a Supabase project and run `supabase/migrations/0001_found_foundation.sql`, `supabase/migrations/0002_found_control_plane.sql`, then `supabase/migrations/0003_memory_updates.sql`, in its SQL editor.
 2. Add the values from `.env.example` to Netlify's environment-variable settings. Keep `SUPABASE_SERVICE_ROLE_KEY` and `HERMES_API_TOKEN` server-only.
 3. In Supabase Authentication, enable email OTP and Google, and add the hosted `/auth/callback` URL to the redirect allowlist.
 4. Generate `INTEGRATION_ENCRYPTION_KEY` with `openssl rand -base64 32` and store it only in Netlify.
@@ -74,6 +75,8 @@ The `data/` directory contains fictional records for the ReLoop Indian fashion-r
 6. Set `GITHUB_APP_INSTALL_URL`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` from a GitHub App configured to request user authorization on install. The callback exchanges the code and verifies the installation belongs to that user before storing the encrypted credential envelope.
 7. Redeploy from the connected GitHub repository. The integration screen will show only connection records that exist for the signed-in organisation.
 
-Slack uses the minimum CV1 bot scopes needed for approved-channel ingestion and threaded replies: `channels:history`, `channels:read`, `groups:history`, `groups:read`, `users:read`, and `chat:write`. OAuth state is checked before exchange, tokens are encrypted with AES-256-GCM, and only the Supabase service role can read the encrypted credential row. The implementation follows Slack’s OAuth v2 flow and supplies the same HTTPS redirect URI during authorization and code exchange.
+Slack uses the minimum CV1 bot scopes needed for approved public-channel ingestion and threaded replies: `channels:history`, `channels:read`, `users:read`, and `chat:write`. OAuth state is checked before exchange, tokens are encrypted with AES-256-GCM, and only the Supabase service role can read the encrypted credential row. Private-channel ingestion remains disabled until membership ACL synchronization is implemented.
+
+For continuous Slack memory, add `SLACK_SIGNING_SECRET`, point Slack Events to `/api/slack/events`, and subscribe to `message.channels`. The endpoint rejects unsigned or replayed requests, ignores casual/unmatched messages, and writes only strong known-intent matches as append-only updates.
 
 Notion, Jira, and Google Workspace use server-side authorization-code flows with short-lived state cookies. Notion and Google refresh tokens, Jira offline tokens, and provider access tokens are encrypted as one credential envelope before persistence. GitHub is intentionally modelled as a GitHub App rather than a broad `repo` OAuth grant. Read AI remains an explicit API/export adapter because it does not share the same public OAuth contract as the other providers; the UI does not claim it is connected until a real adapter record exists.
