@@ -17,7 +17,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const configured = Boolean(getSupabasePublicConfig());
   const demoAccessEnabled = Boolean(process.env.DEMO_ACCESS_EMAIL && process.env.DEMO_ACCESS_CODE);
   const email = single(params.email) ?? "";
-  const verify = !demoAccessEnabled && single(params.step) === "verify" && email;
+  const verify = single(params.step) === "verify" && email;
   const error = single(params.error);
 
   return <main className="loginPage">
@@ -25,19 +25,16 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <section className="loginPanel">
       <div className="loginStory"><span>FOUNDER ONBOARDING</span><h1>Connect your company’s<br/>shared intelligence.</h1><p>Access is limited to invited work emails. Google Workspace and Slack each require a separate, explicit OAuth approval before the workspace opens.</p><dl><div><dt>01</dt><dd>Verify invited work email</dd></div><div><dt>02</dt><dd>Approve Google Workspace</dd></div><div><dt>03</dt><dd>Approve Slack, then enter workspace</dd></div></dl></div>
       <div className="loginCard">
-        <span>{demoAccessEnabled ? "PRIVATE DEMO ACCESS" : verify ? "CHECK YOUR EMAIL" : "SIGN IN TO FOUND"}</span>
-        <h2>{demoAccessEnabled ? "Enter the demo workspace." : verify ? "Enter your verification code." : "Your workspace is waiting."}</h2>
+        <span>{verify ? "CHECK YOUR EMAIL" : "INVITED FOUNDER ACCESS"}</span>
+        <h2>{verify ? "Enter your verification code." : "Your workspace is waiting."}</h2>
         {error && <p className="loginError">{humanError(error)}</p>}
-        {demoAccessEnabled ? <form action="/auth/demo" method="post">
-          <input type="hidden" name="return_to" value={returnTo}/>
-          <label>Demo access code<input type="password" name="code" required autoComplete="off" placeholder="Paste the private demo code"/></label>
-          <button type="submit">Open Found demo ↗</button>
-        </form> : !configured ? <div className="loginNotice">Authentication is ready in code. Add the Supabase environment values in Netlify to activate public login.</div> : verify ? <form action="/auth/verify" method="post">
+        {!configured ? <div className="loginNotice">Authentication is ready in code. Add the Supabase environment values in Netlify to activate public login.</div> : verify ? <form action="/auth/verify" method="post">
           <input type="hidden" name="email" value={email}/><input type="hidden" name="return_to" value={returnTo}/>
           <label>Verification code<input name="token" inputMode="numeric" autoComplete="one-time-code" minLength={6} maxLength={8} required placeholder="000000"/></label>
           <button type="submit">Verify and continue ↗</button><Link href={`/login?return_to=${encodeURIComponent(returnTo)}`}>Use another email</Link>
         </form> : <form action="/auth/email" method="post"><input type="hidden" name="return_to" value={returnTo}/><label>Work email<input type="email" name="email" required autoComplete="email" placeholder="you@company.com"/></label><button type="submit">Continue with email ↗</button></form>}
-        <small>{demoAccessEnabled ? "This private demo session lasts for 12 hours." : "One Found login. Slack and Google Workspace are approved separately after sign-in, and nothing is indexed until you review the scope."}</small>
+        {demoAccessEnabled && !verify && <div className="demoAccessOption"><span>TESTING THE SEEDED DEMO?</span><form action="/auth/demo" method="post"><input type="hidden" name="return_to" value="/workspace"/><label>Private demo code<input type="password" name="code" required autoComplete="off" placeholder="Enter demo code"/></label><button type="submit">Open demo ↗</button></form></div>}
+        <small>One Found login. Slack and Google Workspace are approved separately after sign-in, and nothing is indexed until you review the scope.</small>
       </div>
     </section>
   </main>;

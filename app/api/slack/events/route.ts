@@ -12,7 +12,7 @@ type SlackEnvelope = {
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
-  if (!validSlackSignature(request, raw)) return NextResponse.json({ error:"invalid_signature" }, { status:401 });
+  if (!validSlackSignature(request, raw)) return new NextResponse(null, { status:401 });
   const payload = parseSlackEnvelope(raw);
   if (!payload) return NextResponse.json({ error:"invalid_request" }, { status:400 });
   if (payload.type === "url_verification" && payload.challenge) return NextResponse.json({ challenge:payload.challenge });
