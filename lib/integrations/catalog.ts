@@ -15,9 +15,9 @@ export type IntegrationDefinition = {
 export const integrationCatalog: IntegrationDefinition[] = [
   {
     provider: "slack", name: "Slack", shortName: "SL", accent: "#d7ff3f", availability: "ready",
-    description: "Threads, decisions and work intent with source links and channel permissions intact.",
-    ingests: ["Messages", "Threads", "Channels", "Users"], syncMode: "Events API + backfill",
-    scopes: ["channels:history", "groups:history", "channels:read", "users:read", "chat:write"],
+    description: "Public-channel decisions and work intent, ingested silently with source links intact.",
+    ingests: ["Public messages", "Public threads", "Channels", "Users"], syncMode: "Signed Events API",
+    scopes: ["channels:history", "channels:read", "users:read"],
   },
   {
     provider: "notion", name: "Notion", shortName: "NO", accent: "#f5f2e9", availability: "ready",

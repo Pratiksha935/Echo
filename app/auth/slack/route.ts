@@ -9,9 +9,6 @@ const SLACK_ORG_COOKIE = "found_slack_oauth_org";
 const SLACK_SCOPES = [
   "channels:history",
   "channels:read",
-  "chat:write",
-  "groups:history",
-  "groups:read",
   "users:read",
 ];
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { requireSupabaseServiceConfig } from "../auth/config";
 import type { IntegrationCredential } from "./oauth";
 
@@ -41,23 +42,58 @@ export async function syncGoogleWorkspace(
   connectionId: string,
   credential: IntegrationCredential,
 ): Promise<{ seen: number; written: number }> {
-  const files = await listFiles(credential.accessToken);
-  const records = (await Promise.all(files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken))))
-    .filter((record): record is KnowledgeRecord => Boolean(record));
-
-  if (records.length) {
-    await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
-      method: "POST",
-      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(records),
-    });
-  }
-  await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
-    method: "PATCH",
+  const runId = randomUUID();
+  const startedAt = new Date().toISOString();
+  await serviceRest("/integration_sync_runs", {
+    method: "POST",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ last_synced_at: new Date().toISOString(), status: "connected", updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ id: runId, organisation_id: organisationId, connection_id: connectionId, status: "running", started_at: startedAt }),
   });
-  return { seen: files.length, written: records.length };
+
+  try {
+    const files = await listFiles(credential.accessToken);
+    const records = (await Promise.all(files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken))))
+      .filter((record): record is KnowledgeRecord => Boolean(record));
+
+    if (records.length) {
+      await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(records),
+      });
+    }
+    const finishedAt = new Date().toISOString();
+    await serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "succeeded", records_seen: files.length, records_written: records.length, finished_at: finishedAt }),
+    });
+    await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ last_synced_at: finishedAt, status: "connected", updated_at: finishedAt }),
+    });
+    return { seen: files.length, written: records.length };
+  } catch {
+    const finishedAt = new Date().toISOString();
+    await recordGoogleSyncFailure(organisationId, connectionId, runId, finishedAt);
+    throw new Error("Google Workspace sync failed.");
+  }
+}
+
+async function recordGoogleSyncFailure(organisationId: string, connectionId: string, runId: string, finishedAt: string): Promise<void> {
+  await Promise.allSettled([
+    serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "failed", error_code: "google_workspace_sync_failed", finished_at: finishedAt }),
+    }),
+    serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}&organisation_id=eq.${encodeURIComponent(organisationId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "attention", updated_at: finishedAt }),
+    }),
+  ]);
 }
 
 async function listFiles(accessToken: string): Promise<DriveFile[]> {
