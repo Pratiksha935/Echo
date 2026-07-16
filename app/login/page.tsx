@@ -23,9 +23,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return <main className="loginPage">
     <nav><Link href="/">Found<span>.</span></Link><small>SECURE WORKSPACE ACCESS</small></nav>
     <section className="loginPanel">
-      <div className="loginStory"><span>FOUNDER ONBOARDING</span><h1>Connect your company’s<br/>shared intelligence.</h1><p>Access is limited to invited work emails. Google Workspace and Slack each require a separate, explicit OAuth approval before the workspace opens.</p><dl><div><dt>01</dt><dd>Verify invited work email</dd></div><div><dt>02</dt><dd>Approve Google Workspace</dd></div><div><dt>03</dt><dd>Approve Slack, then enter workspace</dd></div></dl></div>
+      <div className="loginStory"><span>WORKSPACE ONBOARDING</span><h1>Connect your company’s<br/>shared intelligence.</h1><p>Create your private Found workspace with any valid email. Google Workspace and Slack each require a separate, explicit OAuth approval before indexing begins.</p><dl><div><dt>01</dt><dd>Verify your email</dd></div><div><dt>02</dt><dd>Approve Google Workspace</dd></div><div><dt>03</dt><dd>Approve Slack, then enter workspace</dd></div></dl></div>
       <div className="loginCard">
-        <span>{verify ? "CHECK YOUR EMAIL" : "INVITED FOUNDER ACCESS"}</span>
+        <span>{verify ? "CHECK YOUR EMAIL" : "CREATE YOUR FOUND WORKSPACE"}</span>
         <h2>{verify ? "Enter your verification code." : "Your workspace is waiting."}</h2>
         {error && <p className="loginError">{humanError(error)}</p>}
         {!configured ? <div className="loginNotice">Authentication is ready in code. Add the Supabase environment values in Netlify to activate public login.</div> : verify ? <form action="/auth/verify" method="post">
@@ -49,6 +49,5 @@ function humanError(code: string): string {
   if (code === "oauth_failed") return "Google sign-in could not be completed. Please try again.";
   if (code === "email_failed") return "The verification email could not be sent. Please try again.";
   if (code === "demo_failed") return "That demo access code is invalid or the test account is unavailable.";
-  if (code === "access_denied") return "This work email has not been invited to Found.";
   return "Sign-in could not be completed.";
 }

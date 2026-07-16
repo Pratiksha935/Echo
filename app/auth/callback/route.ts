@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { OAUTH_STATE_COOKIE, PKCE_COOKIE, RETURN_TO_COOKIE, exchangePkceCode, safeReturnPath, setSessionCookies } from "../../../lib/auth/session";
-import { isFounderAccessEmail } from "../../../lib/auth/config";
 
 export async function GET(request: NextRequest) {
   const store = await cookies();
@@ -14,7 +13,6 @@ export async function GET(request: NextRequest) {
   if (!code || !verifier || !state || state !== expectedState) return failure(request, returnTo);
   try {
     const session = await exchangePkceCode(code, verifier);
-    if (!isFounderAccessEmail(session.user?.email)) return failure(request, returnTo, "access_denied");
     const response = NextResponse.redirect(new URL(returnTo, request.url));
     setSessionCookies(response, session);
     for (const name of [PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE]) {

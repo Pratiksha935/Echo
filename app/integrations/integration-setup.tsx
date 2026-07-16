@@ -33,7 +33,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       {errorCode ? integrationError(errorCode) : connectionFeedback(connectedProvider, statusByProvider.get(connectedProvider ?? ""))}
     </div>}
     <section className="integrationHero">
-      <div><span>FOUNDER ONBOARDING / 3 STEPS</span><h1>Approve the work.<br/>Then enter Found.</h1></div>
+      <div><span>WORKSPACE ONBOARDING / 3 STEPS</span><h1>Approve the work.<br/>Then enter Found.</h1></div>
       <p>First approve Google Workspace, then Slack. Each opens its own OAuth consent screen; Found does not index a source before approval.</p>
     </section>
     <section className="integrationStats"><article><span>WORK EMAIL</span><b>✓</b><p>Invitation verified</p></article><article><span>OAUTH APPROVED</span><b>{authorised}/2</b><p>Google Workspace + Slack</p></article><article><span>INDEXED</span><b>{String(indexed).padStart(2,"0")}</b><p>Completed source syncs</p></article><article><span>NEEDS ATTENTION</span><b>{String(attention).padStart(2,"0")}</b><p>Connection health</p></article></section>
@@ -51,7 +51,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
           <footer><span>{connectionDetails(connection, item.syncMode)}</span><button disabled={isLocked} onClick={() => setSelected(item)}>{isAuthorised ? "Review status" : isLocked ? "Approve Google first" : "Review & approve"} ↗</button></footer>
         </article>})}</div>
       {onboardingComplete && <Link className="workspaceEntry" href="/workspace">ENTER WORKSPACE ↗</Link>}
-      <div className="connectorHeading moreHeading"><span>MORE INTEGRATIONS</span><p>Optional connectors stay separate from founder onboarding and do not block workspace access.</p></div>
+      <div className="connectorHeading moreHeading"><span>MORE INTEGRATIONS</span><p>Optional connectors stay separate from initial onboarding and do not block workspace access.</p></div>
       <div className="connectorGrid moreConnectorGrid">{moreConnectors.map(item => {
         const connection = statusByProvider.get(item.provider);
         const isConfigured = configuredProviders.includes(item.provider);
