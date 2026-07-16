@@ -75,7 +75,7 @@ The `data/` directory contains fictional records for the ReLoop Indian fashion-r
 6. Set `GITHUB_APP_INSTALL_URL`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` from a GitHub App configured to request user authorization on install. The callback exchanges the code and verifies the installation belongs to that user before storing the encrypted credential envelope.
 7. Redeploy from the connected GitHub repository. The integration screen will show only connection records that exist for the signed-in organisation.
 
-Slack uses the minimum CV1 bot scopes needed for silent public-channel ingestion: `channels:history`, `channels:read`, and `users:read`. It does not request permission to post messages. OAuth state is checked before exchange, tokens are encrypted with AES-256-GCM, and only the Supabase service role can read the encrypted credential row. Private-channel ingestion remains disabled until membership ACL synchronization is implemented.
+Slack uses the minimum CV1 bot scopes needed for silent, approved public-channel ingestion: `channels:history`, `channels:read`, and `users:read`. Found does not request message-posting or private-channel scopes. OAuth state is checked before exchange, tokens are encrypted with AES-256-GCM, and only the Supabase service role can read the encrypted credential row. Private-channel ingestion remains disabled until membership ACL synchronization is implemented.
 
 For continuous Slack memory, add `SLACK_SIGNING_SECRET`, point Slack Events to `/api/slack/events`, and subscribe to `message.channels`. The endpoint rejects unsigned or replayed requests, ignores casual/unmatched messages, and silently writes only strong known-intent matches as append-only updates. It never posts progress or errors into Slack.
 

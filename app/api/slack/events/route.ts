@@ -12,13 +12,9 @@ type SlackEnvelope = {
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
-  if (!validSlackSignature(request, raw)) return new NextResponse(null, { status:401 });
-  let payload: SlackEnvelope;
-  try {
-    payload = JSON.parse(raw) as SlackEnvelope;
-  } catch {
-    return NextResponse.json({ ok:true });
-  }
+  if (!validSlackSignature(request, raw)) return NextResponse.json({ error:"invalid_signature" }, { status:401 });
+  const payload = parseSlackEnvelope(raw);
+  if (!payload) return NextResponse.json({ error:"invalid_request" }, { status:400 });
   if (payload.type === "url_verification" && payload.challenge) return NextResponse.json({ challenge:payload.challenge });
   const event = payload.event;
   if (!event || event.type !== "message" || event.channel_type !== "channel" || event.bot_id || event.subtype || !event.text || !event.channel || !event.ts || !event.user || !payload.team_id || !payload.event_id) {
@@ -40,10 +36,21 @@ function validSlackSignature(request: NextRequest, body: string): boolean {
   const secret = process.env.SLACK_SIGNING_SECRET;
   const timestamp = request.headers.get("x-slack-request-timestamp");
   const signature = request.headers.get("x-slack-signature");
-  if (!secret || !timestamp || !signature) return false;
-  if (!/^\d+$/.test(timestamp) || Math.abs(Date.now()/1000 - Number(timestamp)) > 300) return false;
+  if (!secret || !timestamp || !signature || !/^\d{10}$/.test(timestamp)) return false;
+  if (Math.abs(Math.floor(Date.now()/1000) - Number(timestamp)) > 300) return false;
   const expected = `v0=${createHmac("sha256", secret).update(`v0:${timestamp}:${body}`).digest("hex")}`;
   const actualBytes = Buffer.from(signature);
   const expectedBytes = Buffer.from(expected);
   return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
+
+function parseSlackEnvelope(body: string): SlackEnvelope | null {
+  try {
+    const payload = JSON.parse(body) as unknown;
+    return payload !== null && typeof payload === "object" && !Array.isArray(payload)
+      ? payload as SlackEnvelope
+      : null;
+  } catch {
+    return null;
+  }
 }

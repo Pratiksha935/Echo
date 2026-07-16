@@ -34,8 +34,8 @@ export async function appendSlackMemory(input: {
   const connections = await serviceRest<SlackConnection[]>(`/integration_connections?select=id,organisation_id&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(input.teamId)}&limit=1`);
   const connection = connections[0];
   if (!connection) return;
-  const messageTimestamp = input.timestamp.replace(".", "");
-  const sourceUrl = `https://app.slack.com/client/${encodeURIComponent(input.teamId)}/${encodeURIComponent(input.channelId)}/thread-${encodeURIComponent(input.channelId)}-${encodeURIComponent(messageTimestamp)}`;
+  const messageId = input.timestamp.replace(".", "");
+  const sourceUrl = `https://app.slack.com/client/${encodeURIComponent(input.teamId)}/${encodeURIComponent(input.channelId)}/p${encodeURIComponent(messageId)}`;
   const externalId = `slack:${input.eventId}`;
   await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
     body: JSON.stringify({
