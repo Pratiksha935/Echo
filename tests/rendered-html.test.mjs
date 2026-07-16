@@ -90,6 +90,10 @@ test("renders the centralized workspace for an authenticated user", async () => 
   assert.match(html, /EXECUTIVE PULSE · TODAY/);
   assert.match(html, /ORGANISATIONAL KNOWLEDGE GRAPH/);
   assert.match(html, /OPEN ORIGINAL SOURCE/);
+  assert.match(html, /PRIMARY INTELLIGENCE · BATTLE CARD/);
+  assert.match(html, /The conclusion,[\s\S]*with its receipts/);
+  assert.match(html, /APPEND-ONLY CORRECTIONS · ORIGINALS ARE NOT OVERWRITTEN/);
+  assert.match(html, /Found presents evidence here. It does not post this analysis back into Slack/);
   assert.doesNotMatch(html, /DEMO MEMORY/);
 });
 

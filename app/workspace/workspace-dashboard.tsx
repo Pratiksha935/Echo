@@ -29,6 +29,38 @@ type Props = {
   workspaceName: string;
 };
 
+type BattleCard = {
+  conclusion: string;
+  confidence: string;
+  department: string;
+  explanation: string;
+  latestUpdate: string;
+  matchType: "Exact" | "Same idea" | "Source record";
+  owner: string;
+  sourceUrl?: string;
+  status: string;
+  title: string;
+};
+
+const platformBattleCard: BattleCard = {
+  conclusion: "Continue the Backstage-based pilot and evaluate Harness scorecard patterns before considering a vendor change.",
+  confidence: "Strong match because the proposal and the recorded initiative share the same intervention: one developer portal with canonical ownership metadata, service scorecards and paved deployment paths. Slack, Google Docs, Jira and an existing code asset converge on that initiative.",
+  department: "Platform Engineering",
+  explanation: "The current proposal repeats the portal, service-catalogue and maturity-scorecard scope already recorded under ENG-214.",
+  latestUpdate: "12 Jul 2026 · Pilot running",
+  matchType: "Same idea",
+  owner: "Vikram Rao",
+  status: "Pilot running",
+  title: "Developer portal and service maturity scorecards",
+};
+
+const platformEvidence = [
+  {kind:"Slack",date:"12 Jul 2026",detail:"Decision to continue the Backstage-based pilot and evaluate Harness patterns.",href:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX",label:"Open Slack channel"},
+  {kind:"Google Docs",date:"Current source",detail:"Original document used by the Found browser demonstration for this initiative.",href:"https://docs.google.com/document/d/1eh7J9rAhvuWYWuB8MD-A3h97MAFWhYRtysFI53ABBYE",label:"Open original Doc"},
+  {kind:"Jira",date:"Current status",detail:"ENG-214 · Pilot running. The CV1 dataset has no Jira deep link.",label:"No source URL indexed"},
+  {kind:"Code",date:"Existing asset",detail:"resolveServiceOwner · services/catalog/src/ownership.ts · used by developer-portal and incident-bot.",label:"No source URL indexed"},
+] as const;
+
 const executiveTrends = [
   {change:"3 linked sources",department:"Product",impact:"Checkout policy",momentum:"03",owner:"Rohan Desai",source:"Notion · Slack · RLP-101",sourceUrl:"https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507",title:"Trusted renters move to a lower deposit after five clean returns"},
   {change:"2 linked sources",department:"Sales",impact:"Pilot policy",momentum:"02",owner:"Rhea Bose",source:"Slack · #sales-floor",sourceUrl:"https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629",title:"Paid proof-of-value replaces default free pilots"},
@@ -63,6 +95,25 @@ export default function WorkspaceDashboard({connectedCount,demoMode,displayName,
   const departmentRecords=useMemo(()=>companyRecords.filter(item=>item.team.toLowerCase()===view.toLowerCase()),[companyRecords,view]);
   const visibleRecords=useMemo(()=>view==="Overview"?curateOverview(companyRecords):departmentRecords.slice(0,6),[companyRecords,departmentRecords,view]);
   const visibleTotal=view==="Overview"?companyRecords.length:departmentRecords.length;
+  const primaryCard=useMemo<BattleCard>(()=>{
+    if(demoMode) return platformBattleCard;
+    const record=matches[0]??companyRecords[0];
+    if(!record) return {
+      conclusion:"Connect an approved source to create the first evidence-backed battle card.",confidence:"No confidence assessment is available because no company evidence is indexed.",department:"Company",explanation:"Found has no source record to compare yet.",latestUpdate:"No verified update",matchType:"Source record",owner:"No owner indexed",status:"Awaiting evidence",title:"No battle card available",
+    };
+    return {
+      conclusion:record.state,
+      confidence:`This card is grounded in the indexed ${record.source}. Found has not inferred corroboration from sources that are not present.`,
+      department:record.team,
+      explanation:submitted?`This is the strongest title and evidence-text match for “${submitted}”.`:`This is the highest-signal indexed record currently available in this workspace.`,
+      latestUpdate:memoryUpdates.find(update=>update.currentTitle===record.title)?.updateText??"No append-only correction recorded",
+      matchType:submitted?"Same idea":"Source record",
+      owner:record.owner,
+      sourceUrl:record.sourceUrl,
+      status:record.state,
+      title:record.title,
+    };
+  },[companyRecords,demoMode,matches,memoryUpdates,submitted]);
   function search(event:FormEvent){event.preventDefault();setSubmitted(query.trim())}
   function selectView(item:View){
     setView(item);
@@ -74,6 +125,7 @@ export default function WorkspaceDashboard({connectedCount,demoMode,displayName,
     <section className="wsMain">
       <header className="wsTop"><div><span>{workspaceName.toUpperCase()} / COMPANY INTELLIGENCE</span><b>{view}</b></div><div><i/> {demoMode?"DEMO MEMORY":"PRIVATE WORKSPACE"} <strong>{displayName}</strong></div></header>
       <section className="wsHero"><p>THE GENERAL INTELLIGENCE OF YOUR COMPANY</p><h1>Everything your team<br/>has already learned.</h1><form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Ask about a decision, campaign, customer insight, or code…"/><button>Find it ↗</button></form></section>
+      <BattleCardSurface card={primaryCard} demoMode={demoMode} memoryUpdates={memoryUpdates}/>
       {submitted&&<section className="wsResults" aria-live="polite"><header><span>FOUND IN COMPANY MEMORY</span><b>{matches.length} strong matches</b></header>{matches.length?matches.map(item=><article key={item.title}><span>{item.team}</span><div><h3>{item.title}</h3><p>{item.owner} · {item.source}</p></div><a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.state} ↗</a></article>):<p>No strong prior work found. Found stays silent on weak matches.</p>}</section>}
       <section className="wsMetrics"><article><span>MEMORY RECORDS</span><b>{demoMode?"18":String(records.length).padStart(2,"0")}</b><p>Across approved sources</p></article><article><span>CONNECTED SOURCES</span><b>{demoMode?"05":String(connectedCount).padStart(2,"0")}</b><p>Workspace-authorised</p></article><article><span>EVIDENCE LINKS</span><b>{demoMode?"94%":records.length?"100%":"—"}</b><p>Original sources retained</p></article><article><span>WORKSPACE MODE</span><b>{demoMode?"CV1":"ACL"}</b><p>{demoMode?"Seeded product demo":"Tenant isolated"}</p></article></section>
       {memoryUpdates.length>0&&<section className="wsUpdateBanner"><span>MEMORY CHANGED</span><div><b>{memoryUpdates[0].currentTitle}</b><p>{memoryUpdates[0].updateText}</p></div><a href={memoryUpdates[0].sourceUrl} target="_blank" rel="noreferrer">VERIFY ORIGINAL ↗</a></section>}
@@ -96,6 +148,34 @@ export default function WorkspaceDashboard({connectedCount,demoMode,displayName,
       {demoMode&&(view==="Overview"||view==="Browser")&&<section className="wsBrowser"><div><span>BROWSER INTELLIGENCE</span><h2>Found follows the idea,<br/>not your browsing history.</h2><p>On supported articles, the extension checks page meaning against approved company memory and surfaces only strong matches.</p><Link href="/demo-article">Open article demo ↗</Link></div><article><span>96% · PRIOR WORK</span><h3>Developer portal and service maturity scorecards</h3><p>Vikram Rao is already running this pilot.</p><a href="https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX" target="_blank" rel="noreferrer">VERIFY IN SLACK ↗</a></article></section>}
     </section>
   </main>
+}
+
+function BattleCardSurface({card,demoMode,memoryUpdates}:{card:BattleCard;demoMode:boolean;memoryUpdates:MemoryUpdate[]}) {
+  const relevantUpdates=memoryUpdates.filter(update=>update.currentTitle===card.title);
+  return <section className="wsBattle" aria-labelledby="battle-card-title">
+    <header><div><span>PRIMARY INTELLIGENCE · BATTLE CARD</span><h2 id="battle-card-title">The conclusion,<br/>with its receipts.</h2></div><p>Found presents evidence here. It does not post this analysis back into Slack.</p></header>
+    <article className="wsBattleCard">
+      <div className="wsBattleSummary">
+        <div className="wsBattleBadges"><b>{card.matchType}</b><span>{card.status}</span></div>
+        <p className="wsBattleTitle">{card.title}</p>
+        <p className="wsBattleLabel">INTERNAL CONCLUSION</p>
+        <h3>{card.conclusion}</h3>
+        <p className="wsBattleWhy"><b>Why it matches</b>{card.explanation}</p>
+        <dl><div><dt>OWNER</dt><dd>{card.owner}</dd></div><div><dt>DEPARTMENT</dt><dd>{card.department}</dd></div><div><dt>STATUS</dt><dd>{card.status}</dd></div><div><dt>LATEST UPDATE</dt><dd>{card.latestUpdate}</dd></div></dl>
+        <section className="wsConfidence"><span>WHY FOUND IS CONFIDENT</span><p>{card.confidence}</p></section>
+      </div>
+      <div className="wsEvidence">
+        <header><span>EVIDENCE TIMELINE</span><b>{demoMode?"4 original sources":`${card.title==="No battle card available"?0:1} indexed source`}</b></header>
+        <div className="wsEvidenceGroup"><p>ORIGINAL EVIDENCE · SOURCE SYSTEMS REMAIN AUTHORITATIVE</p>{demoMode?platformEvidence.map(item=><article key={item.kind}><i/><div><span>{item.kind} · {item.date}</span><p>{item.detail}</p>{"href" in item?<a href={item.href} target="_blank" rel="noreferrer">{item.label} ↗</a>:<small>{item.label}</small>}</div></article>):<article><i/><div><span>INDEXED SOURCE</span><p>{card.title}</p>{card.sourceUrl?<a href={card.sourceUrl} target="_blank" rel="noreferrer">Open original source ↗</a>:<small>No source URL indexed.</small>}</div></article>}</div>
+        <div className="wsCorrections"><p>APPEND-ONLY CORRECTIONS · ORIGINALS ARE NOT OVERWRITTEN</p>{relevantUpdates.length?relevantUpdates.map(update=><article key={`${update.sourceRecordId}-${update.createdAt}`}><span>{formatUpdateDate(update.createdAt)} · {update.origin.toUpperCase()}</span><p>{update.updateText}</p><a href={update.sourceUrl} target="_blank" rel="noreferrer">Verify original source ↗</a></article>):<small>No corrections recorded for this card.</small>}</div>
+      </div>
+    </article>
+  </section>;
+}
+
+function formatUpdateDate(value:string) {
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?"Date unavailable":new Intl.DateTimeFormat("en-IN",{day:"2-digit",month:"short",year:"numeric"}).format(date);
 }
 
 function curateOverview<T extends { sourceKind?: string; team: string }>(items: T[]): T[] {
