@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { requireSupabaseServiceConfig } from "../auth/config";
 
 type SlackConnection = { id: string; organisation_id: string };
@@ -33,7 +34,8 @@ export async function appendSlackMemory(input: {
   const connections = await serviceRest<SlackConnection[]>(`/integration_connections?select=id,organisation_id&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(input.teamId)}&limit=1`);
   const connection = connections[0];
   if (!connection) return;
-  const sourceUrl = `https://app.slack.com/client/${encodeURIComponent(input.teamId)}/${encodeURIComponent(input.channelId)}`;
+  const messageId = input.timestamp.replace(".", "");
+  const sourceUrl = `https://app.slack.com/client/${encodeURIComponent(input.teamId)}/${encodeURIComponent(input.channelId)}/p${encodeURIComponent(messageId)}`;
   const externalId = `slack:${input.eventId}`;
   await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
     body: JSON.stringify({
@@ -43,7 +45,14 @@ export async function appendSlackMemory(input: {
       department: input.match.department,
       external_id: externalId,
       indexed_at: new Date().toISOString(),
-      metadata: { status: "Latest Slack update", event_id: input.eventId },
+      metadata: {
+        status: "Latest Slack update",
+        event_id: input.eventId,
+        workspace_id: input.teamId,
+        channel_id: input.channelId,
+        author_id: input.userId,
+        message_timestamp: input.timestamp,
+      },
       organisation_id: connection.organisation_id,
       source: "Slack",
       source_updated_at: new Date(Number(input.timestamp.split(".")[0]) * 1000).toISOString(),
@@ -68,6 +77,39 @@ export async function appendSlackMemory(input: {
     headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
     method: "POST",
   });
+}
+
+export async function recordSlackSyncFailure(teamId: string): Promise<void> {
+  try {
+    const connections = await serviceRest<SlackConnection[]>(`/integration_connections?select=id,organisation_id&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&limit=1`);
+    const connection = connections[0];
+    if (!connection) return;
+    const finishedAt = new Date().toISOString();
+    await Promise.allSettled([
+      serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connection.id)}`, {
+        body: JSON.stringify({ status: "attention", updated_at: finishedAt }),
+        headers: { Prefer: "return=minimal" },
+        method: "PATCH",
+      }),
+      serviceRest("/integration_sync_runs", {
+        body: JSON.stringify({
+          id: randomUUID(),
+          organisation_id: connection.organisation_id,
+          connection_id: connection.id,
+          status: "failed",
+          records_seen: 1,
+          records_written: 0,
+          error_code: "slack_event_ingestion_failed",
+          started_at: finishedAt,
+          finished_at: finishedAt,
+        }),
+        headers: { Prefer: "return=minimal" },
+        method: "POST",
+      }),
+    ]);
+  } catch {
+    // Failure reporting is best-effort and must never escape to Slack.
+  }
 }
 
 async function serviceRest<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {

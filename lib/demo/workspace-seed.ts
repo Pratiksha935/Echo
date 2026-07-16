@@ -25,7 +25,7 @@ export async function seedDemoWorkspace(config: SupabaseServiceConfig, userId: s
   const connections = await rest<ConnectionRow[]>(config, "/integration_connections?on_conflict=organisation_id,provider,external_workspace_id", {
     method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: JSON.stringify([
-      { organisation_id: organisationId, provider: "slack", external_workspace_id: "found-demo-slack", external_workspace_name: "ReLoop Demo Slack", granted_scopes: ["channels:history", "groups:history", "channels:read", "users:read"], status: "connected" },
+      { organisation_id: organisationId, provider: "slack", external_workspace_id: "found-demo-slack", external_workspace_name: "ReLoop Demo Slack", granted_scopes: ["channels:history", "channels:read", "users:read"], status: "connected" },
     ]),
   });
   const connectionByProvider = new Map(connections.map(connection => [connection.provider, connection.id]));

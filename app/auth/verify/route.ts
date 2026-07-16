@@ -12,11 +12,15 @@ export async function POST(request: NextRequest) {
     setSessionCookies(response, session);
     return response;
   } catch {
-    const url = new URL("/login", request.url);
-    url.searchParams.set("step", "verify");
-    url.searchParams.set("email", email);
-    url.searchParams.set("return_to", returnTo);
-    url.searchParams.set("error", "invalid_code");
-    return NextResponse.redirect(url, 303);
+    return failure(request, email, returnTo, "invalid_code");
   }
+}
+
+function failure(request: NextRequest, email: string, returnTo: string, error: string) {
+  const url = new URL("/login", request.url);
+  url.searchParams.set("step", "verify");
+  url.searchParams.set("email", email);
+  url.searchParams.set("return_to", returnTo);
+  url.searchParams.set("error", error);
+  return NextResponse.redirect(url, 303);
 }

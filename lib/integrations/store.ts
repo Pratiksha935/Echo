@@ -24,7 +24,7 @@ export async function saveIntegrationConnection(
         external_workspace_id: input.externalWorkspaceId,
         external_workspace_name: input.externalWorkspaceName,
         granted_scopes: input.grantedScopes,
-        status: "connected",
+        status: "pending",
         updated_at: new Date().toISOString(),
       }),
     },

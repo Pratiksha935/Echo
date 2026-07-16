@@ -6,7 +6,9 @@ import { getDemoAccessUser, getSupabaseUser, hasRefreshToken, type FoundUser } f
 export async function getFoundUser(): Promise<FoundUser | null> {
   const demoUser = await getDemoAccessUser();
   if (demoUser) return demoUser;
-  if (getSupabasePublicConfig()) return getSupabaseUser();
+  if (getSupabasePublicConfig()) {
+    return getSupabaseUser();
+  }
 
   const user = await getChatGPTUser();
   return user ? { ...user, id: user.email } : null;

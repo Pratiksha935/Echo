@@ -1,8 +1,6 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { OAUTH_STATE_COOKIE, PKCE_COOKIE, RETURN_TO_COOKIE, exchangePkceCode, safeReturnPath, setSessionCookies } from "../../../lib/auth/session";
-import { requireSupabaseServiceConfig } from "../../../lib/auth/config";
-import { seedDemoWorkspace } from "../../../lib/demo/workspace-seed";
 
 export async function GET(request: NextRequest) {
   const store = await cookies();
@@ -15,10 +13,6 @@ export async function GET(request: NextRequest) {
   if (!code || !verifier || !state || state !== expectedState) return failure(request, returnTo);
   try {
     const session = await exchangePkceCode(code, verifier);
-    const demoEmail = process.env.DEMO_ACCESS_EMAIL?.trim().toLowerCase();
-    if (session.user?.id && session.user.email?.toLowerCase() === demoEmail) {
-      await seedDemoWorkspace(requireSupabaseServiceConfig(), session.user.id);
-    }
     const response = NextResponse.redirect(new URL(returnTo, request.url));
     setSessionCookies(response, session);
     for (const name of [PKCE_COOKIE, OAUTH_STATE_COOKIE, RETURN_TO_COOKIE]) {
@@ -30,9 +24,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function failure(request: NextRequest, returnTo: string) {
+function failure(request: NextRequest, returnTo: string, error = "oauth_failed") {
   const url = new URL("/login", request.url);
-  url.searchParams.set("error", "oauth_failed");
+  url.searchParams.set("error", error);
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url);
 }
