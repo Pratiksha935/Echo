@@ -48,6 +48,30 @@ test("renders the public login activation surface", async () => {
   assert.match(html, /Supabase environment values/);
 });
 
+test("renders the default Supabase magic-link callback surface", async () => {
+  const response = await render("/auth/magic?return_to=%2Fintegrations");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Opening your/);
+  assert.match(html, /Securing your Found session/);
+});
+
+test("rejects cross-origin magic-link session exchanges", async () => {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-magic-session`);
+  const { default: worker } = await import(workerUrl.href);
+  const response = await worker.fetch(
+    new Request("http://localhost/auth/magic/session", {
+      method:"POST",
+      headers:{"content-type":"application/json","origin":"https://attacker.example"},
+      body:JSON.stringify({accessToken:"untrusted",refreshToken:"untrusted"}),
+    }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
+  );
+  assert.equal(response.status, 403);
+});
+
 test("rejects unauthenticated company-knowledge API calls", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-api`);

@@ -8,7 +8,12 @@ export async function POST(request: NextRequest) {
   const returnTo = safeReturnPath(String(form.get("return_to") ?? ""));
   if (!/^\S+@\S+\.\S+$/.test(email)) return loginRedirect(request, "email_failed", returnTo);
   const config = requireSupabasePublicConfig();
-  const response = await fetch(`${config.url}/auth/v1/otp`, {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? request.nextUrl.origin;
+  const callback = new URL("/auth/magic", appUrl);
+  callback.searchParams.set("return_to", returnTo);
+  const otpUrl = new URL(`${config.url}/auth/v1/otp`);
+  otpUrl.searchParams.set("redirect_to", callback.toString());
+  const response = await fetch(otpUrl, {
     body: JSON.stringify({ email, create_user: true }),
     cache: "no-store",
     headers: { apikey: config.anonKey, "content-type": "application/json" },
@@ -17,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!response.ok) return loginRedirect(request, "email_failed", returnTo);
 
   const url = new URL("/login", request.url);
-  url.searchParams.set("step", "verify");
+  url.searchParams.set("sent", "true");
   url.searchParams.set("email", email);
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url, 303);
