@@ -7,6 +7,18 @@ export type SupabaseServiceConfig = SupabasePublicConfig & {
   serviceRoleKey: string;
 };
 
+export function founderAccessEmails(): string[] {
+  return (process.env.FOUNDER_ACCESS_EMAILS ?? "")
+    .split(",")
+    .map(email => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isFounderAccessEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return founderAccessEmails().includes(email.trim().toLowerCase());
+}
+
 export function getSupabasePublicConfig(): SupabasePublicConfig | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
   const anonKey =

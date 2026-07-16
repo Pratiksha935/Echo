@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+process.env.FOUNDER_ACCESS_EMAILS = "founder@example.com";
+
 async function render(pathname = "/", headers = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${pathname}`);
@@ -72,7 +74,9 @@ test("renders integration onboarding for an authenticated user", async () => {
   const response = await render("/integrations", { "oai-authenticated-user-email": "founder@example.com" });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Bring the work/);
+  assert.match(html, /FOUNDER ONBOARDING \/ 3 STEPS/);
+  assert.match(html, /Approve the work/);
+  assert.match(html, /MORE INTEGRATIONS/);
   assert.match(html, /Slack/);
   assert.match(html, /Notion/);
   assert.match(html, /Jira Cloud/);

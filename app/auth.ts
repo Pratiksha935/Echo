@@ -1,15 +1,18 @@
 import { redirect } from "next/navigation";
 import { chatGPTSignInPath, getChatGPTUser } from "./chatgpt-auth";
-import { getSupabasePublicConfig } from "../lib/auth/config";
+import { getSupabasePublicConfig, isFounderAccessEmail } from "../lib/auth/config";
 import { getDemoAccessUser, getSupabaseUser, hasRefreshToken, type FoundUser } from "../lib/auth/session";
 
 export async function getFoundUser(): Promise<FoundUser | null> {
   const demoUser = await getDemoAccessUser();
   if (demoUser) return demoUser;
-  if (getSupabasePublicConfig()) return getSupabaseUser();
+  if (getSupabasePublicConfig()) {
+    const user = await getSupabaseUser();
+    return user && isFounderAccessEmail(user.email) ? user : null;
+  }
 
   const user = await getChatGPTUser();
-  return user ? { ...user, id: user.email } : null;
+  return user && isFounderAccessEmail(user.email) ? { ...user, id: user.email } : null;
 }
 
 export async function requireFoundUser(returnTo: string): Promise<FoundUser> {

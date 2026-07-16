@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { getFoundUser } from "../../auth";
-import { getFoundWorkspace } from "../../../lib/auth/workspace";
+import { getFoundWorkspace, listIntegrationConnections } from "../../../lib/auth/workspace";
 import { randomBase64Url } from "../../../lib/auth/session";
 
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
@@ -22,6 +22,10 @@ export async function GET(request: NextRequest) {
   const workspace = await getFoundWorkspace();
   if (!workspace || !["owner", "admin"].includes(workspace.role)) {
     return NextResponse.redirect(new URL("/integrations?error=admin_required", request.url));
+  }
+  const connections = await listIntegrationConnections(workspace.organisationId);
+  if (!connections.some(connection => connection.provider === "google")) {
+    return NextResponse.redirect(new URL("/integrations?error=google_required", request.url));
   }
 
   const clientId = process.env.SLACK_CLIENT_ID;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSupabasePublicConfig } from "../../../lib/auth/config";
+import { isFounderAccessEmail, requireSupabasePublicConfig } from "../../../lib/auth/config";
 import { safeReturnPath } from "../../../lib/auth/session";
 
 export async function POST(request: NextRequest) {
@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const returnTo = safeReturnPath(String(form.get("return_to") ?? ""));
   if (!/^\S+@\S+\.\S+$/.test(email)) return loginRedirect(request, "email_failed", returnTo);
+  if (!isFounderAccessEmail(email)) return loginRedirect(request, "access_denied", returnTo);
 
   const config = requireSupabasePublicConfig();
   const response = await fetch(`${config.url}/auth/v1/otp`, {
@@ -30,4 +31,3 @@ function loginRedirect(request: NextRequest, error: string, returnTo: string) {
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url, 303);
 }
-
