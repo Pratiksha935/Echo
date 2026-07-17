@@ -19,6 +19,8 @@ On Slack web, Found reads the newest rendered channel or thread messages rather 
 
 Use **Correct or update Found memory** in a battlecard to add a timestamped overlay. The original Slack message or Google document is never edited.
 
+After a successful append, **View updated decision** opens the authenticated Found decision timeline so the user can verify the new memory layer in chronological context.
+
 ## Capturing new knowledge
 
 Open the extension, select Product, GTM, Sales, Engineering, Research or Browser, explain why the current page matters, and choose **Add to Found**. Capture is always explicit: Found saves only the selected page, the submitted note and a limited page extract into the paired workspace.

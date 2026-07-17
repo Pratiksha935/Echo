@@ -21,6 +21,7 @@ export default async function WorkspacePage() {
     redirect("/integrations");
   }
   const demoUpdates: MemoryUpdate[] = demoMode ? (await getDemoMemoryCorrections()).map(item => ({
+    actorUserId: user.id,
     createdAt: item.createdAt,
     currentTitle: item.title,
     hermesReview: null,

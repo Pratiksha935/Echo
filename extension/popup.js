@@ -4,7 +4,7 @@ const runButton = document.getElementById("run");
 const status = document.getElementById("status");
 const account = document.getElementById("account");
 const connectButton = document.getElementById("connect");
-const EXTENSION_VERSION = "0.4.7";
+const EXTENSION_VERSION = "0.4.8";
 const captureForm = document.getElementById("capture");
 
 async function showConnection() {

@@ -35,6 +35,9 @@ test("corrections use the authenticated extension worker and append-only central
   assert.match(route, /actor_user_id: token\.userId/);
   assert.match(route, /origin: "user"/);
   assert.doesNotMatch(route, /PATCH|PUT|DELETE/);
+  assert.match(content, /VIEW UPDATED DECISION/);
+  assert.match(content, /safeSourceUrl\(match\.dashboardUrl\)/);
+  assert.match(content, /button\.type = "button"/);
 });
 
 test("battle card preserves original sources and exposes no internal traces", async () => {
@@ -103,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.7"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.7"/);
+  assert.match(manifest, /"version": "0\.4\.8"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.8"/);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
