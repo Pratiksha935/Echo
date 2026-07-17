@@ -16,10 +16,25 @@ export default async function IntegrationsPage({ searchParams }: IntegrationsPag
     connections={connections}
     configuredProviders={configuredIntegrationProviders()}
     displayName={user.displayName}
+    email={user.email}
+    extensionInstallUrl={chromeExtensionInstallUrl()}
     workspaceName={workspace?.organisationName ?? "Demo workspace"}
     connectedProvider={single(params.connected)}
     errorCode={single(params.error)}
   />;
+}
+
+function chromeExtensionInstallUrl(): string | undefined {
+  const configured = process.env.NEXT_PUBLIC_FOUND_EXTENSION_INSTALL_URL;
+  if (!configured) return undefined;
+  try {
+    const url = new URL(configured);
+    return url.protocol === "https:" && ["chromewebstore.google.com", "chrome.google.com"].includes(url.hostname)
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function single(value: string | string[] | undefined): string | undefined {

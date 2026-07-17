@@ -167,6 +167,21 @@ test("Google PKCE callback follows Supabase's code-and-verifier contract", async
   assert.match(callback, /exchangePkceCode\(code, verifier\)/);
 });
 
+test("login preserves return_to when starting Google identity sign-in", async () => {
+  const login = await source("app/login/page.tsx");
+  assert.match(login, /\/auth\/google\?return_to=\$\{encodeURIComponent\(returnTo\)\}/);
+  assert.match(login, /Continue with Google/);
+});
+
+test("onboarding keeps source consent explicit and browser state honest", async () => {
+  const onboarding = await source("app/integrations/integration-setup.tsx");
+  assert.match(onboarding, /REVIEW GOOGLE WORKSPACE CONSENT/);
+  assert.match(onboarding, /REVIEW SLACK CONSENT/);
+  assert.match(onboarding, /does not replace or silently approve Google Workspace or Slack consent/);
+  assert.match(onboarding, /this page does not pretend to detect it/);
+  assert.match(onboarding, /Production store distribution pending/);
+});
+
 test("Google connector requests only read-only content scopes", async () => {
   const oauth = await source("lib/integrations/oauth.ts");
   assert.match(oauth, /drive\.readonly/);
