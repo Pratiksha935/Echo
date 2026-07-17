@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.1";
+  const EXTENSION_VERSION = "0.4.3";
   if (window.__foundExtensionVersion === EXTENSION_VERSION) return;
   window.__foundExtensionVersion = EXTENSION_VERSION;
 

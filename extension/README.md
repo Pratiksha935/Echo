@@ -1,4 +1,4 @@
-# Found browser extension — CV1 demo
+# Found browser extension — private release
 
 ## Load it locally
 
@@ -6,10 +6,13 @@
 2. Enable **Developer mode**.
 3. Select **Load unpacked**.
 4. Choose this `extension` folder.
-5. Visit `https://sage-profiterole-3b1c22.netlify.app/demo-article` or open one of the seeded Google Docs.
+5. Pin **Found — Organisational Memory** from Chrome's Extensions menu.
+6. Open Found and choose **Connect or switch workspace**.
+7. Approve **Connect browser** in the signed-in Found window.
+8. Return to an indexed Google Doc and choose **Check this page**.
 
-The extension analyses that demo article locally and displays the Found avatar. This CV1 build uses embedded test knowledge; the production version will call the authenticated Found/Hermes analysis endpoint.
+The extension sends the current page URL and a limited text extract to the authenticated Found matching endpoint. Retrieval is restricted to the paired organisation and membership is revalidated on every request. A battlecard appears only when live indexed company knowledge produces a sufficiently strong match.
 
 ## Updating memory
 
-Choose **Something changed? Update Found**, enter the latest context, and review it in the hosted Found workspace. The extension keeps the update for the next visit while Found stores the confirmed update as an append-only memory layer. The original source is never edited.
+Use **Correct or update Found memory** in a battlecard, enter the latest context, and review it in the hosted Found workspace. Found stores a confirmed correction as an append-only memory update. The original Slack message or Google document is never edited.
