@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeOtp, safeReturnPath, setSessionCookies } from "../../../lib/auth/session";
+import { publicRequestOrigin } from "../../../lib/auth/origin";
 
 export async function POST(request: NextRequest) {
   const form = await request.formData();
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
   const returnTo = safeReturnPath(String(form.get("return_to") ?? ""));
   try {
     const session = await exchangeOtp(email, token);
-    const response = NextResponse.redirect(new URL(returnTo, request.url), 303);
+    const response = NextResponse.redirect(new URL(returnTo, publicRequestOrigin(request)), 303);
     setSessionCookies(response, session);
     return response;
   } catch {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 }
 
 function failure(request: NextRequest, email: string, returnTo: string, error: string) {
-  const url = new URL("/login", request.url);
+  const url = new URL("/login", publicRequestOrigin(request));
   url.searchParams.set("step", "verify");
   url.searchParams.set("email", email);
   url.searchParams.set("return_to", returnTo);

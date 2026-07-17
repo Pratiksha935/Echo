@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFoundUser } from "../../auth";
 import { getFoundWorkspace, listIntegrationConnections } from "../../../lib/auth/workspace";
 import { randomBase64Url } from "../../../lib/auth/session";
+import { publicRequestOrigin } from "../../../lib/auth/origin";
 
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
 const SLACK_ORG_COOKIE = "found_slack_oauth_org";
@@ -14,20 +15,20 @@ const SLACK_SCOPES = [
 
 export async function GET(request: NextRequest) {
   const user = await getFoundUser();
-  if (!user) return NextResponse.redirect(new URL("/login?return_to=%2Fauth%2Fslack", request.url));
+  const appUrl = publicRequestOrigin(request);
+  if (!user) return NextResponse.redirect(new URL("/login?return_to=%2Fauth%2Fslack", appUrl));
 
   const workspace = await getFoundWorkspace();
   if (!workspace || !["owner", "admin"].includes(workspace.role)) {
-    return NextResponse.redirect(new URL("/integrations?error=admin_required", request.url));
+    return NextResponse.redirect(new URL("/integrations?error=admin_required", appUrl));
   }
   const connections = await listIntegrationConnections(workspace.organisationId);
   if (!connections.some(connection => connection.provider === "google")) {
-    return NextResponse.redirect(new URL("/integrations?error=google_required", request.url));
+    return NextResponse.redirect(new URL("/integrations?error=google_required", appUrl));
   }
 
   const clientId = process.env.SLACK_CLIENT_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (!clientId || !appUrl) return NextResponse.redirect(new URL("/integrations?error=slack_not_configured", request.url));
+  if (!clientId) return NextResponse.redirect(new URL("/integrations?error=slack_not_configured", appUrl));
 
   const state = randomBase64Url(32);
   const secure = process.env.NODE_ENV === "production";
