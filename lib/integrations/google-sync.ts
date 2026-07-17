@@ -81,11 +81,6 @@ export async function syncGoogleWorkspace(
 ): Promise<{ seen: number; written: number }> {
   const runId = randomUUID();
   const startedAt = new Date().toISOString();
-  await serviceRest("/integration_sync_runs", {
-    method: "POST",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ id: runId, organisation_id: organisationId, connection_id: connectionId, status: "running", started_at: startedAt }),
-  });
 
   try {
     const delta = cursor
@@ -113,14 +108,18 @@ export async function syncGoogleWorkspace(
       await serviceRest(`/knowledge_records?organisation_id=eq.${encodeURIComponent(organisationId)}&connection_id=eq.${encodeURIComponent(connectionId)}&external_id=in.(${encodeURIComponent(ids)})`, { method: "DELETE" });
     }
     const finishedAt = new Date().toISOString();
-    await serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
+    await serviceRest("/integration_sync_runs?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify({
+        id: runId,
+        organisation_id: organisationId,
+        connection_id: connectionId,
         status: unreadableFiles ? "partial" : "succeeded",
         records_seen: files.length,
         records_written: records.length,
         error_code: unreadableFiles ? "google_files_unreadable" : null,
+        started_at: startedAt,
         finished_at: finishedAt,
       }),
     });
@@ -136,7 +135,7 @@ export async function syncGoogleWorkspace(
     // Keep provider diagnostics in server logs only. The UI receives the
     // sanitised error code stored on the sync run, never token or file data.
     console.error("[google-sync] failed", { connectionId, errorCode });
-    await recordGoogleSyncFailure(organisationId, connectionId, runId, finishedAt, errorCode);
+    await recordGoogleSyncFailure(organisationId, connectionId, runId, startedAt, finishedAt, errorCode);
     throw new Error("Google Workspace sync failed.");
   }
 }
@@ -153,24 +152,26 @@ async function recordGoogleSyncFailure(
   organisationId: string,
   connectionId: string,
   runId: string,
+  startedAt: string,
   finishedAt: string,
   errorCode: string,
 ): Promise<void> {
-  const finish = {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ status: "failed", error_code: errorCode, finished_at: finishedAt }),
-  } satisfies RequestInit;
-  try {
-    await serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, finish);
-  } catch {
-    // A connection-scoped fallback prevents a failed provider request from
-    // leaving the product permanently stuck on "indexing not started".
-    await serviceRest(
-      `/integration_sync_runs?connection_id=eq.${encodeURIComponent(connectionId)}&status=eq.running`,
-      finish,
-    ).catch(() => undefined);
-  }
+  // Write a single terminal record at completion. Netlify requests are short,
+  // so an intermediate "running" row adds no user value and can be stranded
+  // if a fresh PostgREST row is not immediately updateable.
+  await serviceRest("/integration_sync_runs?on_conflict=id", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({
+      id: runId,
+      organisation_id: organisationId,
+      connection_id: connectionId,
+      status: "failed",
+      error_code: errorCode,
+      started_at: startedAt,
+      finished_at: finishedAt,
+    }),
+  }).catch(() => undefined);
   await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}&organisation_id=eq.${encodeURIComponent(organisationId)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
