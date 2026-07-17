@@ -24,6 +24,7 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
   const worker = await source("app/api/internal/ingestion/run/route.ts");
   const migration = await source("supabase/migrations/0004_continuous_ingestion.sql");
   const google = await source("lib/integrations/google-sync.ts");
+  const slack = await source("lib/integrations/slack-events.ts");
   assert.match(route, /enqueueSlackEvent/);
   assert.doesNotMatch(route, /chat\.postMessage/);
   assert.match(worker, /INGESTION_CRON_SECRET/);
@@ -34,6 +35,10 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
   assert.match(google, /GOOGLE_SYNC_TIMEOUT_MS = 20_000/);
   assert.match(google, /const controller = new AbortController\(\)/);
   assert.match(google, /parentSignal\?\.addEventListener\("abort", abort/);
+  assert.match(slack, /integration_sync_runs\?on_conflict=id/);
+  assert.match(slack, /status: "succeeded"/);
+  assert.match(slack, /status: "failed"[\s\S]*error_code: "slack_backfill_failed"/);
+  assert.doesNotMatch(slack, /status: "running"/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {

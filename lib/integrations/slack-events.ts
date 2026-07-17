@@ -91,12 +91,6 @@ export async function syncAllSlackConnections(limit = 1): Promise<{ attempted: n
 async function syncSlackHistory(connection: SlackBackfillConnection, accessToken: string): Promise<void> {
   const runId = randomUUID();
   const startedAt = new Date().toISOString();
-  await serviceRest("/integration_sync_runs", {
-    method: "POST",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ id: runId, organisation_id: connection.organisation_id, connection_id: connection.id, status: "running", started_at: startedAt }),
-  });
-
   let seen = 0;
   let written = 0;
   const deadline = Date.now() + SLACK_BACKFILL_BUDGET_MS;
@@ -124,25 +118,34 @@ async function syncSlackHistory(connection: SlackBackfillConnection, accessToken
       }
     }
     const finishedAt = new Date().toISOString();
-    await Promise.all([
-      serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ status: "succeeded", records_seen: seen, records_written: written, error_code: null, finished_at: finishedAt }),
+    await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connection.id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "connected", last_synced_at: finishedAt, updated_at: finishedAt }),
+    });
+    // Persist monitoring after the connection is usable. Telemetry must never
+    // make a completed Slack backfill appear unfinished to the user.
+    await serviceRest("/integration_sync_runs?on_conflict=id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        id: runId,
+        organisation_id: connection.organisation_id,
+        connection_id: connection.id,
+        status: "succeeded",
+        records_seen: seen,
+        records_written: written,
+        started_at: startedAt,
+        finished_at: finishedAt,
       }),
-      serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connection.id)}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ status: "connected", last_synced_at: finishedAt, updated_at: finishedAt }),
-      }),
-    ]);
+    }).catch(() => undefined);
   } catch {
     const finishedAt = new Date().toISOString();
     await Promise.allSettled([
-      serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ status: "failed", records_seen: seen, records_written: written, error_code: "slack_backfill_failed", finished_at: finishedAt }),
+      serviceRest("/integration_sync_runs?on_conflict=id", {
+        method: "POST",
+        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify({ id: runId, organisation_id: connection.organisation_id, connection_id: connection.id, status: "failed", records_seen: seen, records_written: written, error_code: "slack_backfill_failed", started_at: startedAt, finished_at: finishedAt }),
       }),
       markSlackConnectionAttention(connection.id),
     ]);
