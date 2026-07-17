@@ -43,11 +43,12 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
 });
 
 test("browser battle cards use authenticated tenant memory", async () => {
-  const [route, session, token, extension] = await Promise.all([
+  const [route, session, token, extension, background] = await Promise.all([
     source("app/api/browser/match/route.ts"),
     source("app/api/browser/session/route.ts"),
     source("lib/auth/browser-token.ts"),
     source("extension/content.js"),
+    source("extension/background.js"),
   ]);
   assert.match(session, /getFoundUser/);
   assert.match(session, /getFoundWorkspace/);
@@ -58,10 +59,12 @@ test("browser battle cards use authenticated tenant memory", async () => {
   assert.match(route, /chrome-extension/);
   assert.match(route, /authorization, content-type/);
   assert.doesNotMatch(route, /integration_secrets/);
-  assert.match(extension, /\/api\/browser\/session/);
-  assert.match(extension, /Bearer \$\{token\}/);
-  assert.match(extension, /\/api\/browser\/match/);
+  assert.match(extension, /type: "found:match-page"/);
+  assert.doesNotMatch(extension, /Bearer \$\{token\}|\/api\/browser\/match/);
+  assert.match(background, /Bearer \$\{token\}/);
+  assert.match(background, /\/api\/browser\/match/);
   assert.match(extension, /google.*search/);
+  assert.doesNotMatch(extension, /credentials:\s*"include"/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
@@ -181,7 +184,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /does not replace or silently approve Google Workspace or Slack consent/);
   assert.match(onboarding, /this page does not pretend to detect it/);
   assert.match(onboarding, /Production store distribution pending/);
-  assert.match(onboarding, /\/found-extension-v0\.4\.3\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.4\.4\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 
