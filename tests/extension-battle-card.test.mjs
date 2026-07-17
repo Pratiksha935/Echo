@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+const root = new URL("../", import.meta.url);
+const source = path => readFile(new URL(path, root), "utf8");
+
+test("browser battle card presents the complete prior-work receipt", async () => {
+  const content = await source("extension/content.js");
+  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHY THIS MATCHES", "SOURCE RECEIPTS"]) {
+    assert.match(content, new RegExp(label));
+  }
+  assert.match(content, /app\.slack\.com\/client\/T08LC40MYVB\/C0BGU0STURX/);
+  assert.match(content, /class="ec-original"/);
+});
+
+test("corrections use authenticated centralized memory and never browser storage", async () => {
+  const [content, manifest, page, route] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/manifest.json"),
+    source("app/memory/correct/page.tsx"),
+    source("app/api/memory/update/route.ts"),
+  ]);
+  assert.match(content, /\/memory\/correct\?/);
+  assert.doesNotMatch(content, /chrome\.storage|localStorage|sessionStorage/);
+  assert.doesNotMatch(manifest, /"storage"/);
+  assert.match(page, /requireFoundUser/);
+  assert.match(page, /attributed to \{user\.email\}/);
+  assert.match(route, /createMemoryUpdate/);
+  assert.match(route, /Do not overwrite the original source/);
+});
+
+test("battle card is explicit about source preservation and silent Slack behavior", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /Slack and Google Docs stay untouched/);
+  assert.match(content, /Silent in Slack · no automatic replies/);
+  assert.doesNotMatch(content, /Analysed locally|searching|processing|trace/i);
+});

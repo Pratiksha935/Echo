@@ -159,6 +159,10 @@ export async function exchangeOtp(email: string, token: string): Promise<Supabas
   return authRequest("/auth/v1/verify", { email, token, type: "email" });
 }
 
+export async function signInWithPassword(email: string, password: string): Promise<SupabaseSession> {
+  return authRequest("/auth/v1/token?grant_type=password", { email, password });
+}
+
 export async function exchangePkceCode(code: string, verifier: string): Promise<SupabaseSession> {
   return authRequest("/auth/v1/token?grant_type=pkce", { auth_code: code, code_verifier: verifier });
 }
