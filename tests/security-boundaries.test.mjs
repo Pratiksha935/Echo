@@ -144,6 +144,7 @@ test("password failures are generic and secrets are not hardcoded", async () => 
   assert.match(login, /email or password is incorrect/i);
   assert.match(login, /action="\/auth\/email"/);
   assert.match(login, /action="\/auth\/password"/);
+  assert.match(login, /NEXT_PUBLIC_DEMO_ACCESS_VISIBLE === "true"/);
 });
 
 test("magic-link recovery uses PKCE and never exposes session tokens to browser code", async () => {
@@ -165,6 +166,21 @@ test("Google PKCE callback follows Supabase's code-and-verifier contract", async
   assert.doesNotMatch(start, /url\.searchParams\.set\("state"/);
   assert.match(callback, /!code \|\| !verifier/);
   assert.match(callback, /exchangePkceCode\(code, verifier\)/);
+});
+
+test("login preserves return_to when starting Google identity sign-in", async () => {
+  const login = await source("app/login/page.tsx");
+  assert.match(login, /\/auth\/google\?return_to=\$\{encodeURIComponent\(returnTo\)\}/);
+  assert.match(login, /Continue with Google/);
+});
+
+test("onboarding keeps source consent explicit and browser state honest", async () => {
+  const onboarding = await source("app/integrations/integration-setup.tsx");
+  assert.match(onboarding, /REVIEW GOOGLE WORKSPACE CONSENT/);
+  assert.match(onboarding, /REVIEW SLACK CONSENT/);
+  assert.match(onboarding, /does not replace or silently approve Google Workspace or Slack consent/);
+  assert.match(onboarding, /this page does not pretend to detect it/);
+  assert.match(onboarding, /Production store distribution pending/);
 });
 
 test("Google connector requests only read-only content scopes", async () => {
