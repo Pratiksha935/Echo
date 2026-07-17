@@ -59,8 +59,8 @@ test("browser battle cards use authenticated tenant memory", async () => {
   assert.match(route, /chrome-extension/);
   assert.match(route, /authorization, content-type/);
   assert.doesNotMatch(route, /integration_secrets/);
-  assert.match(extension, /found:match-page/);
-  assert.doesNotMatch(extension, /\/api\/browser\/match/);
+  assert.match(extension, /type: "found:match-page"/);
+  assert.doesNotMatch(extension, /Bearer \$\{token\}|\/api\/browser\/match/);
   assert.match(background, /Bearer \$\{token\}/);
   assert.match(background, /\/api\/browser\/match/);
   assert.match(extension, /google.*search/);
