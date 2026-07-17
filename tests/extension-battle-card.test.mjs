@@ -23,7 +23,7 @@ test("corrections use authenticated centralized memory and never browser storage
     source("app/api/memory/update/route.ts"),
   ]);
   assert.match(content, /\/memory\/correct\?/);
-  assert.match(content, /TOKEN_KEY/);
+  assert.doesNotMatch(content, /chrome\.storage/);
   assert.doesNotMatch(content, /updateText[\s\S]{0,200}chrome\.storage/);
   assert.match(manifest, /"storage"/);
   assert.match(page, /requireFoundUser/);
@@ -51,6 +51,8 @@ test("toolbar check explicitly reruns the matcher and reports the outcome", asyn
   assert.match(popup, /Insight found\. The battlecard is open/);
   assert.match(popup, /No sufficiently strong insight was found/);
   assert.match(popup, /workspace_access_revoked/);
+  assert.match(popup, /server_rejected/);
+  assert.match(popup, /temporary_network_failure/);
 });
 
 test("browser sessions are short-lived, workspace-bound, and revalidated", async () => {
@@ -84,21 +86,20 @@ test("live battlecards surface cross-source insight rather than repeating the op
 });
 
 test("workspace pairing has a dedicated visible confirmation surface", async () => {
-  const [page, content, popup, manifest] = await Promise.all([
+  const [page, popupScript, popup, manifest] = await Promise.all([
     source("app/browser/connect/page.tsx"),
-    source("extension/content.js"),
+    source("extension/popup.js"),
     source("extension/popup.html"),
     source("extension/manifest.json"),
   ]);
   assert.match(page, /data-found-pair-status/);
   assert.match(page, /data-found-pair-detail/);
   assert.match(page, /requireFoundUser\("\/browser\/connect"\)/);
-  assert.match(content, /Browser connected\./);
-  assert.match(content, /payload\.profile\.organisationName/);
+  assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
   assert.match(manifest, /"version": "0\.4\.3"/);
-  assert.match(content, /EXTENSION_VERSION = "0\.4\.3"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.3"/);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
@@ -112,9 +113,57 @@ test("browser pairing uses Chrome identity and an explicit workspace grant", asy
   assert.match(manifest, /"identity"/);
   assert.match(manifest, /"service_worker": "background\.js"/);
   assert.match(background, /launchWebAuthFlow/);
+  assert.match(background, /callback\.origin !== new URL\(redirectUri\)\.origin/);
   assert.match(background, /chrome\.storage\.local\.set/);
   assert.match(popup, /found:connect-workspace/);
   assert.match(page, /Connect this browser\?/);
   assert.match(route, /hasSamePublicOrigin/);
   assert.match(route, /chromiumapp\\\.org/);
+});
+
+test("one installed copy owns one content runtime", async () => {
+  const [manifestText, popup, content] = await Promise.all([
+    source("extension/manifest.json"),
+    source("extension/popup.js"),
+    source("extension/content.js"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+  assert.equal(manifest.content_scripts.length, 1);
+  assert.deepEqual(manifest.content_scripts[0].js, ["content.js"]);
+  assert.ok(!manifest.permissions.includes("scripting"));
+  assert.doesNotMatch(popup, /executeScript|insertCSS/);
+  assert.match(content, /if \(runtime\) return/);
+  assert.match(content, /window\.__foundExtensionRuntime = \{ version: EXTENSION_VERSION \}/);
+});
+
+test("popup detects stale page runtimes before requesting a check", async () => {
+  const popup = await source("extension/popup.js");
+  const statusIndex = popup.indexOf('type: "found:runtime-status"');
+  const runIndex = popup.indexOf('type: "found:run"');
+  assert.ok(statusIndex >= 0 && runIndex > statusIndex);
+  assert.match(popup, /runtime\?\.version !== EXTENSION_VERSION/);
+  assert.match(popup, /Reload this page to finish updating Found\./);
+});
+
+test("a successful match makes both the companion and battlecard visible immediately", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /document\.documentElement\.appendChild\(root\)/);
+  assert.match(content, /avatar\.classList\.add\("arrive"\);\s*setOpen\(true\)/);
+  assert.match(content, /existing\?\.querySelector\("\.ec-card"\)\?\.classList\.add\("open"\)/);
+  assert.match(content, /setAttribute\("aria-hidden", "false"\)/);
+});
+
+test("the extension worker owns the authenticated cross-origin match request", async () => {
+  const [content, background] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/background.js"),
+  ]);
+  assert.match(content, /type: "found:match-page"/);
+  assert.doesNotMatch(content, /\/api\/browser\/match|Bearer \$\{token\}/);
+  assert.match(background, /message\?\.type === "found:match-page"/);
+  assert.match(background, /chrome\.storage\.local\.get\(\[TOKEN_KEY\]\)/);
+  assert.match(background, /fetch\(`\$\{FOUND_ORIGIN\}\/api\/browser\/match`/);
+  for (const reason of ["session_expired", "workspace_access_revoked", "server_rejected", "service_unavailable", "temporary_network_failure"]) {
+    assert.match(background, new RegExp(reason));
+  }
 });

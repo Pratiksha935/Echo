@@ -126,6 +126,8 @@ test("Chrome identity pairing requires a visible approval and an exact extension
 
   assert.match(background, /chrome\.identity\.getRedirectURL\("found"\)/);
   assert.match(background, /chrome\.identity\.launchWebAuthFlow\(\{ url: authUrl, interactive: true \}\)/);
+  assert.match(background, /callback\.origin !== new URL\(redirectUri\)\.origin/);
+  assert.match(background, /callback\.pathname !== new URL\(redirectUri\)\.pathname/);
   assert.match(authorize, /Connect this browser\?/);
   assert.match(authorize, /<form action="\/browser\/authorize\/complete" method="post"/);
   assert.match(complete, /hasSamePublicOrigin\(request\)/);
@@ -176,6 +178,7 @@ test("every browser insight revalidates membership and queries only the token te
   assert.match(route, /workspace_access_revoked/);
   assert.match(route, /\/knowledge_records\?[^`]*organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}/);
   assert.doesNotMatch(route, /body\?\.organisationId|requestedOrganisationId/);
+  assert.match(route, /!pageTitle && !pageText && !pageUrl/);
 });
 
 test("no live-data or browser-match path falls back to demo knowledge", async () => {
