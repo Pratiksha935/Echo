@@ -45,6 +45,7 @@ test("renders the public login activation surface", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /SECURE WORKSPACE ACCESS/);
+  assert.match(html, /Continue with Google/);
   assert.match(html, /Supabase environment values/);
 });
 
@@ -96,9 +97,13 @@ test("renders integration onboarding for an authenticated user", async () => {
   const response = await render("/integrations", { "oai-authenticated-user-email": "founder@example.com" });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /WORKSPACE ONBOARDING \/ 3 STEPS/);
-  assert.match(html, /Approve the work/);
-  assert.match(html, /MORE INTEGRATIONS/);
+  assert.match(html, /GUIDED SETUP/);
+  assert.match(html, /One Found account/);
+  assert.match(html, /Install the extension/);
+  assert.match(html, /Pair this browser/);
+  assert.match(html, /PRIVATE PREVIEW/);
+  assert.match(html, /Production store distribution pending/);
+  assert.match(html, /AFTER ONBOARDING/);
   assert.match(html, /Slack/);
   assert.match(html, /Notion/);
   assert.match(html, /Jira Cloud/);
