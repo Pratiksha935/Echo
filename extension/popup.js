@@ -3,6 +3,7 @@ const PROFILE_KEY = "found:browser-profile";
 const runButton = document.getElementById("run");
 const status = document.getElementById("status");
 const account = document.getElementById("account");
+const connectButton = document.getElementById("connect");
 
 async function showConnection() {
   const stored = await chrome.storage.local.get([TOKEN_KEY, PROFILE_KEY]);
@@ -40,3 +41,18 @@ runButton.addEventListener("click", async () => {
 });
 
 showConnection();
+
+connectButton.addEventListener("click", async () => {
+  connectButton.disabled = true;
+  status.textContent = "Opening secure Found sign-in…";
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "found:connect-workspace" });
+    if (!result?.ok) throw new Error(result?.error || "Workspace connection failed.");
+    status.textContent = "Browser connected. Return to the page you were reading.";
+    await showConnection();
+  } catch (error) {
+    status.textContent = error?.message || "Workspace connection failed.";
+  } finally {
+    connectButton.disabled = false;
+  }
+});
