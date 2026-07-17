@@ -41,8 +41,9 @@ test("Google ingestion isolates unreadable files and always records a terminal r
   assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);
   assert.match(google, /status: unreadableFiles \? "partial" : "succeeded"/);
   assert.match(google, /error_code: unreadableFiles \? "google_files_unreadable" : null/);
-  assert.match(google, /status: "failed", error_code: "google_workspace_sync_failed"/);
-  assert.doesNotMatch(google, /error_code:\s*(?:error|reason|result\.reason)/);
+  assert.match(google, /status: "failed", error_code: errorCode/);
+  assert.match(google, /connection_id=eq\.\$\{encodeURIComponent\(connectionId\)\}&status=eq\.running/);
+  assert.doesNotMatch(google, /error_code:\s*(?:error\b|reason\b|result\.reason)/);
 });
 
 test("Google ingestion skips uncredentialed seeds and preserves incremental cursors", async () => {

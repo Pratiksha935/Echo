@@ -42,6 +42,13 @@ const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", 
 const GOOGLE_REQUEST_TIMEOUT_MS = 6_000;
 const GOOGLE_SYNC_TIMEOUT_MS = 20_000;
 
+class GoogleSyncError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+    this.name = "GoogleSyncError";
+  }
+}
+
 export async function syncAllGoogleConnections(limit = 10): Promise<{ attempted: number; succeeded: number }> {
   await failInterruptedRuns();
   const connections = await serviceRest<StoredConnection[]>(
@@ -123,9 +130,13 @@ export async function syncGoogleWorkspace(
       body: JSON.stringify({ cursor: delta.nextCursor, last_synced_at: finishedAt, status: "connected", updated_at: finishedAt }),
     });
     return { seen: files.length, written: records.length };
-  } catch {
+  } catch (error) {
     const finishedAt = new Date().toISOString();
-    await recordGoogleSyncFailure(organisationId, connectionId, runId, finishedAt);
+    const errorCode = error instanceof GoogleSyncError ? error.code : "google_workspace_sync_failed";
+    // Keep provider diagnostics in server logs only. The UI receives the
+    // sanitised error code stored on the sync run, never token or file data.
+    console.error("[google-sync] failed", { connectionId, errorCode });
+    await recordGoogleSyncFailure(organisationId, connectionId, runId, finishedAt, errorCode);
     throw new Error("Google Workspace sync failed.");
   }
 }
@@ -138,19 +149,33 @@ async function listFilesFromStableCursor(accessToken: string, signal?: AbortSign
   return { files, removedIds: [], nextCursor };
 }
 
-async function recordGoogleSyncFailure(organisationId: string, connectionId: string, runId: string, finishedAt: string): Promise<void> {
-  await Promise.allSettled([
-    serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "failed", error_code: "google_workspace_sync_failed", finished_at: finishedAt }),
-    }),
-    serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}&organisation_id=eq.${encodeURIComponent(organisationId)}`, {
+async function recordGoogleSyncFailure(
+  organisationId: string,
+  connectionId: string,
+  runId: string,
+  finishedAt: string,
+  errorCode: string,
+): Promise<void> {
+  const finish = {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ status: "failed", error_code: errorCode, finished_at: finishedAt }),
+  } satisfies RequestInit;
+  try {
+    await serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, finish);
+  } catch {
+    // A connection-scoped fallback prevents a failed provider request from
+    // leaving the product permanently stuck on "indexing not started".
+    await serviceRest(
+      `/integration_sync_runs?connection_id=eq.${encodeURIComponent(connectionId)}&status=eq.running`,
+      finish,
+    ).catch(() => undefined);
+  }
+  await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}&organisation_id=eq.${encodeURIComponent(organisationId)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ status: "attention", updated_at: finishedAt }),
-    }),
-  ]);
+    }).catch(() => undefined);
 }
 
 async function listFiles(accessToken: string, signal?: AbortSignal): Promise<DriveFile[]> {
@@ -280,12 +305,27 @@ async function googleFetch(url: string, accessToken: string, parentSignal?: Abor
       headers: { authorization: `Bearer ${accessToken}` },
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error("Google Workspace backfill failed.");
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as {
+        error?: { errors?: Array<{ reason?: string }>; status?: string };
+      } | null;
+      const reason = payload?.error?.errors?.[0]?.reason ?? payload?.error?.status;
+      throw new GoogleSyncError(classifyGoogleFailure(response.status, reason));
+    }
     return response;
   } finally {
     clearTimeout(timeout);
     parentSignal?.removeEventListener("abort", abort);
   }
+}
+
+function classifyGoogleFailure(status: number, reason?: string): string {
+  if (reason === "accessNotConfigured") return "google_api_not_enabled";
+  if (reason === "insufficientPermissions" || reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT") return "google_scope_missing";
+  if (status === 401) return "google_authorisation_expired";
+  if (status === 403) return "google_access_forbidden";
+  if (status === 429) return "google_rate_limited";
+  return `google_http_${status}`;
 }
 
 async function failInterruptedRuns(): Promise<void> {
