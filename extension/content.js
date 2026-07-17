@@ -1,6 +1,7 @@
 (() => {
-  if (window.__echoCheckLoaded) return;
-  window.__echoCheckLoaded = true;
+  const EXTENSION_VERSION = "0.3.2";
+  if (window.__foundExtensionVersion === EXTENSION_VERSION) return;
+  window.__foundExtensionVersion = EXTENSION_VERSION;
 
   const FOUND_ORIGIN = "https://sage-profiterole-3b1c22.netlify.app";
   const TOKEN_KEY = "found:browser-session";
@@ -160,7 +161,7 @@
   let attempts = 0;
   pairBrowser();
   let checking = false;
-  const detector = setInterval(async () => {
+  async function runDetector() {
     if (checking) return;
     checking = true;
     attempts += 1;
@@ -172,5 +173,7 @@
       clearInterval(detector);
     }
     checking = false;
-  }, 500);
+  }
+  const detector = setInterval(runDetector, 500);
+  runDetector();
 })();
