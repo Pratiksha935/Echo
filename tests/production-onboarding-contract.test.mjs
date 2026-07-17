@@ -51,9 +51,10 @@ test("Google and Slack remain two separate explicit connector consents", async (
     source("app/auth/slack/route.ts"),
   ]);
 
-  assert.match(setup, /First approve Google Workspace, then Slack\. Each opens its own OAuth consent screen/);
-  assert.match(setup, /Continuing opens \{selected\.name\}.*OAuth consent screen/);
-  assert.match(setup, /selected\.provider === "slack" \? "\/auth\/slack" : `\/auth\/integrations\/\$\{selected\.provider\}`/);
+  assert.match(setup, /Google sign-in alone does not approve indexing/);
+  assert.match(setup, /does not request permission to post messages/);
+  assert.match(setup, /href="\/auth\/integrations\/google"/);
+  assert.match(setup, /href="\/auth\/slack"/);
   assert.match(google, /buildAuthorizationUrl\(provider, state\)/);
   assert.match(slack, /https:\/\/slack\.com\/oauth\/v2\/authorize/);
   assert.match(slack, /connections\.some\(connection => connection\.provider === "google"\)/);
@@ -70,8 +71,8 @@ test("onboarding status is derived from persisted live connections and never inv
 
   assert.match(page, /listIntegrationConnections\(workspace\.organisationId\)/);
   assert.match(setup, /new Map\(connections\.map\(item => \[item\.provider, item\]\)\)/);
-  assert.match(setup, /AUTHORISED · NOT INDEXED/);
-  assert.match(setup, /indexing not started/);
+  assert.match(setup, /AUTHORISED · INDEXING PENDING/);
+  assert.match(setup, /Indexing has not completed/);
   assert.match(workspaceStore, /\/integration_connections\?select=provider,status,external_workspace_name,last_synced_at&organisation_id=eq\./);
   assert.doesNotMatch(page + setup + workspaceStore, /seedDemoWorkspace|notion-rental-kb|slack-reloop-seed/);
   assert.doesNotMatch(authCallback, /seedDemoWorkspace|DEMO_ACCESS_EMAIL|DEMO_ACCESS_CODE/);

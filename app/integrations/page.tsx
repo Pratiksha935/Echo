@@ -18,7 +18,7 @@ export default async function IntegrationsPage({ searchParams }: IntegrationsPag
     displayName={user.displayName}
     email={user.email}
     extensionInstallUrl={chromeExtensionInstallUrl()}
-    workspaceName={workspace?.organisationName ?? "Demo workspace"}
+    workspaceName={workspace?.organisationName ?? "Workspace setup"}
     connectedProvider={single(params.connected)}
     errorCode={single(params.error)}
   />;
