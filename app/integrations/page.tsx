@@ -16,7 +16,8 @@ export default async function IntegrationsPage({ searchParams }: IntegrationsPag
     connections={connections}
     configuredProviders={configuredIntegrationProviders()}
     displayName={user.displayName}
-    workspaceName={workspace?.organisationName ?? "Demo workspace"}
+    email={user.email}
+    workspaceName={workspace?.organisationName ?? "Workspace pending"}
     connectedProvider={single(params.connected)}
     errorCode={single(params.error)}
   />;

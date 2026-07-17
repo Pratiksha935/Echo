@@ -17,7 +17,7 @@ export default async function WorkspacePage() {
       listMemoryUpdates(workspace.organisationId).catch(() => []),
     ])
     : [[], [], []];
-  if (!demoMode && workspace && !["google", "slack"].every(provider => connections.some(item => item.provider === provider))) {
+  if (!demoMode && workspace && !["google", "slack"].every(provider => connections.some(item => item.provider === provider && item.status !== "disconnected"))) {
     redirect("/integrations");
   }
   const demoUpdates: MemoryUpdate[] = demoMode ? (await getDemoMemoryCorrections()).map(item => ({

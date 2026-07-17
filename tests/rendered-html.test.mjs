@@ -96,14 +96,13 @@ test("renders integration onboarding for an authenticated user", async () => {
   const response = await render("/integrations", { "oai-authenticated-user-email": "founder@example.com" });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /WORKSPACE ONBOARDING \/ 3 STEPS/);
-  assert.match(html, /Approve the work/);
-  assert.match(html, /MORE INTEGRATIONS/);
+  assert.match(html, /AUTHENTICATED SETUP · 6 STEPS/);
+  assert.match(html, /Found account/);
+  assert.match(html, /EXPLICIT OAUTH CONSENT/);
+  assert.match(html, /INSTALL &amp; VERIFY/);
+  assert.match(html, /PAIR EXTENSION TO CONTINUE/);
   assert.match(html, /Slack/);
-  assert.match(html, /Notion/);
-  assert.match(html, /Jira Cloud/);
   assert.match(html, /Google Workspace/);
-  assert.match(html, /GitHub/);
 });
 
 test("renders the centralized workspace for an authenticated user", async () => {

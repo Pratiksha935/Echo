@@ -7,7 +7,7 @@ const integrations = ["Slack", "Notion", "Jira", "Google Workspace", "GitHub"];
 
 export default async function LandingPage() {
   const user = await getFoundUser();
-  const primaryHref = user ? "/workspace" : foundSignInPath("/workspace");
+  const primaryHref = user ? "/integrations" : foundSignInPath("/integrations");
 
   return (
     <main className="foundLanding">

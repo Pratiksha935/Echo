@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { integrationCatalog, type IntegrationDefinition } from "../../lib/integrations/catalog";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { integrationCatalog } from "../../lib/integrations/catalog";
 import type { IntegrationProvider } from "../../lib/integrations/catalog";
 import type { IntegrationConnection } from "../../lib/auth/workspace";
 
@@ -11,97 +11,158 @@ type Props = {
   connections: IntegrationConnection[];
   configuredProviders: IntegrationProvider[];
   displayName: string;
+  email: string;
   errorCode?: string;
   workspaceName: string;
 };
 
-export default function IntegrationSetup({ connectedProvider, connections, configuredProviders, displayName, errorCode, workspaceName }: Props) {
-  const [selected, setSelected] = useState<IntegrationDefinition | null>(null);
-  const statusByProvider = useMemo(() => new Map(connections.map(item => [item.provider, item])), [connections]);
-  const authorised = connections.length;
-  const indexed = connections.filter(item => item.lastSyncedAt).length;
-  const attention = connections.filter(item => item.status === "attention").length;
-  const googleApproved = statusByProvider.has("google");
-  const slackApproved = statusByProvider.has("slack");
-  const onboardingComplete = googleApproved && slackApproved;
-  const priorityConnectors = integrationCatalog.filter(item => item.provider === "google" || item.provider === "slack");
-  const moreConnectors = integrationCatalog.filter(item => item.provider !== "google" && item.provider !== "slack");
+type StepState = "complete" | "current" | "locked";
 
-  return <main className="integrationsPage">
-    <header className="integrationTopbar"><Link href="/">Found.</Link><span>{workspaceName.toUpperCase()} / SETUP</span><b>{displayName}</b></header>
-    {(connectedProvider || errorCode) && <div className={`integrationFeedback ${errorCode ? "error" : "success"}`} role="status">
+const requiredProviders = ["google", "slack"] as const;
+
+export default function IntegrationSetup({ connectedProvider, connections, configuredProviders, displayName, email, errorCode, workspaceName }: Props) {
+  const pairingStatus = useRef<HTMLHeadingElement>(null);
+  const statusByProvider = useMemo(() => new Map(connections.map(item => [item.provider, item])), [connections]);
+  const googleApproved = isApproved(statusByProvider.get("google"));
+  const slackApproved = isApproved(statusByProvider.get("slack"));
+  const sourcesApproved = googleApproved && slackApproved;
+  const [browserPaired, setBrowserPaired] = useState(false);
+
+  useEffect(() => {
+    const status = pairingStatus.current;
+    if (!status || !sourcesApproved) return;
+    const update = () => setBrowserPaired(status.textContent?.trim() === "Browser connected.");
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(status, { childList: true, characterData: true, subtree: true });
+    return () => observer.disconnect();
+  }, [sourcesApproved]);
+
+  const installComplete = browserPaired;
+  const steps: Array<{ detail: string; label: string; state: StepState }> = [
+    { label: "Found account", detail: email, state: "complete" },
+    { label: "Google Workspace", detail: providerDetail(statusByProvider.get("google")), state: googleApproved ? "complete" : "current" },
+    { label: "Slack", detail: providerDetail(statusByProvider.get("slack")), state: slackApproved ? "complete" : googleApproved ? "current" : "locked" },
+    { label: "Install extension", detail: installComplete ? "Detected in this browser" : "Chrome extension", state: installComplete ? "complete" : sourcesApproved ? "current" : "locked" },
+    { label: "Verify pairing", detail: browserPaired ? `${workspaceName} paired` : "Waiting for extension", state: browserPaired ? "complete" : sourcesApproved ? "current" : "locked" },
+    { label: "Enter dashboard", detail: browserPaired ? "Ready" : "Complete pairing first", state: browserPaired ? "current" : "locked" },
+  ];
+
+  return <main className="onboardingPage">
+    <header className="onboardingTopbar">
+      <Link href="/">Found<span>.</span></Link>
+      <span>{workspaceName.toUpperCase()} / ONBOARDING</span>
+      <div><i aria-hidden="true" />{displayName}</div>
+    </header>
+
+    {(connectedProvider || errorCode) && <div className={`onboardingFeedback ${errorCode ? "error" : "success"}`} role="status">
       {errorCode ? integrationError(errorCode) : connectionFeedback(connectedProvider, statusByProvider.get(connectedProvider ?? ""))}
     </div>}
-    <section className="integrationHero">
-      <div><span>WORKSPACE ONBOARDING / 3 STEPS</span><h1>Approve the work.<br/>Then enter Found.</h1></div>
-      <p>First approve Google Workspace, then Slack. Each opens its own OAuth consent screen; Found does not index a source before approval.</p>
-    </section>
-    <section className="integrationStats"><article><span>WORK EMAIL</span><b>✓</b><p>Invitation verified</p></article><article><span>OAUTH APPROVED</span><b>{authorised}/2</b><p>Google Workspace + Slack</p></article><article><span>INDEXED</span><b>{String(indexed).padStart(2,"0")}</b><p>Completed source syncs</p></article><article><span>NEEDS ATTENTION</span><b>{String(attention).padStart(2,"0")}</b><p>Connection health</p></article></section>
-    <section className="connectorSection">
-      <div className="connectorHeading"><span>REQUIRED APPROVALS</span><p>Review the requested access, then continue to the provider’s consent screen. Slack unlocks after Google Workspace is approved.</p></div>
-      <div className="connectorGrid">{priorityConnectors.map(item => {
-        const connection = statusByProvider.get(item.provider);
-        const isAuthorised = Boolean(connection);
-        const isConfigured = configuredProviders.includes(item.provider);
-        const isLocked = item.provider === "slack" && !googleApproved;
-        return <article className="connectorCard" key={item.provider} style={{"--connector-accent":item.accent} as React.CSSProperties}>
-          <div className="connectorMeta"><span className="connectorMark">{item.shortName}</span><em>{connectionState(connection, isConfigured, isLocked)}</em></div>
-          <h2>{item.name}</h2><p>{item.description}</p>
-          <ul>{item.ingests.map(value => <li key={value}>{value}</li>)}</ul>
-          <footer><span>{connectionDetails(connection, item.syncMode)}</span><button disabled={isLocked} onClick={() => setSelected(item)}>{connection?.lastSyncedAt ? "Indexed ✓" : isAuthorised ? "Review status" : isLocked ? "Approve Google first" : "Review & approve"} ↗</button></footer>
-        </article>})}</div>
-      {onboardingComplete && <Link className="workspaceEntry" href="/workspace">ENTER WORKSPACE ↗</Link>}
-      <div className="connectorHeading moreHeading"><span>MORE INTEGRATIONS</span><p>Optional connectors stay separate from initial onboarding and do not block workspace access.</p></div>
-      <div className="connectorGrid moreConnectorGrid">{moreConnectors.map(item => {
-        const connection = statusByProvider.get(item.provider);
-        const isConfigured = configuredProviders.includes(item.provider);
-        return <article className="connectorCard" key={item.provider} style={{"--connector-accent":item.accent} as React.CSSProperties}>
-          <div className="connectorMeta"><span className="connectorMark">{item.shortName}</span><em>{connectionState(connection, isConfigured, false)}</em></div>
-          <h2>{item.name}</h2><p>{item.description}</p>
-          <footer><span>{connectionDetails(connection, item.syncMode)}</span><button onClick={() => setSelected(item)}>{connection?.lastSyncedAt ? "Indexed ✓" : connection ? "Review status" : "Set up"} ↗</button></footer>
-        </article>})}</div>
-    </section>
-    <section className="pipelineStrip"><span>WHAT HAPPENS NEXT</span><p>Authorize → choose scope → backfill → apply permissions → index → retrieve → cite the original source</p></section>
-    {selected && <div className="integrationModalBackdrop" role="presentation" onMouseDown={() => setSelected(null)}><section className="integrationModal" role="dialog" aria-modal="true" aria-labelledby="integration-title" onMouseDown={event => event.stopPropagation()}>
-      <button className="modalClose" aria-label="Close" onClick={() => setSelected(null)}>×</button><span>{selected.shortName} / CONNECTION REVIEW</span><h2 id="integration-title">{selected.name}</h2><p>{selected.description}</p>
-      <div className="modalBlock"><b>SYNC</b><span>{selected.syncMode}</span></div><div className="modalBlock"><b>REQUESTED ACCESS</b><span>{selected.scopes.join(" · ")}</span></div>
-      <div className="modalNotice">Continuing opens {selected.name}’s OAuth consent screen. Review the requested scopes there and explicitly approve them. Cancelling grants Found no access and starts no indexing.</div>
-      {!statusByProvider.has(selected.provider) && configuredProviders.includes(selected.provider)
-        ? <a className="modalAction" href={selected.provider === "slack" ? "/auth/slack" : `/auth/integrations/${selected.provider}`}>CONNECT {selected.name.toUpperCase()} SECURELY ↗</a>
-        : <button className="modalAction" disabled>{statusByProvider.has(selected.provider) ? connectionDetails(statusByProvider.get(selected.provider), "") : selected.availability === "planned" ? "PLANNED CONNECTOR" : "ADMIN SETUP REQUIRED"}</button>}
-    </section></div>}
+
+    <div className="onboardingShell">
+      <aside className="onboardingProgress" aria-label="Onboarding progress">
+        <p>SET UP FOUND</p>
+        <h1>Bring your<br/>company memory<br/>online.</h1>
+        <ol>{steps.map((step, index) => <li className={step.state} key={step.label}>
+          <span>{step.state === "complete" ? "✓" : String(index + 1).padStart(2, "0")}</span>
+          <div><b>{step.label}</b><small>{step.detail}</small></div>
+        </li>)}</ol>
+        <small>Found only accesses sources you explicitly approve. Connection state shown here comes from this workspace.</small>
+      </aside>
+
+      <section className="onboardingMain">
+        <div className="onboardingIntro">
+          <span>AUTHENTICATED SETUP · 6 STEPS</span>
+          <h2>{browserPaired ? "Found is ready." : sourcesApproved ? "Pair this browser." : "Connect the places your team works."}</h2>
+          <p>Signed in as <b>{email}</b> for <b>{workspaceName}</b>. Approvals stay separate so you can inspect each provider’s requested access before granting consent.</p>
+        </div>
+
+        <section className="onboardingAccount" aria-labelledby="account-title">
+          <div className="onboardingStepNumber">01</div>
+          <div><span>FOUND ACCOUNT</span><h3 id="account-title">Signed in securely</h3><p>Your authenticated account is active. Source connections and browser sessions are resolved through its tenant-scoped workspace membership.</p></div>
+          <strong>COMPLETE ✓</strong>
+        </section>
+
+        <section className="onboardingConsent" aria-label="Required provider consent">
+          {requiredProviders.map((provider, index) => {
+            const definition = integrationCatalog.find(item => item.provider === provider)!;
+            const connection = statusByProvider.get(provider);
+            const approved = isApproved(connection);
+            const locked = provider === "slack" && !googleApproved;
+            const configured = configuredProviders.includes(provider);
+            return <article className={locked ? "locked" : ""} key={provider}>
+              <div className="onboardingStepNumber">0{index + 2}</div>
+              <div className="consentCopy">
+                <span>{definition.shortName} · EXPLICIT OAUTH CONSENT</span>
+                <h3>{definition.name}</h3>
+                <p>{definition.description}</p>
+                <dl><dt>REQUESTED ACCESS</dt><dd>{definition.scopes.join(" · ")}</dd></dl>
+                {connection && <small>{providerDetail(connection)}{connection.externalWorkspaceName ? ` · ${connection.externalWorkspaceName}` : ""}</small>}
+              </div>
+              <div className="consentAction">
+                {approved ? <strong>APPROVED ✓</strong> : locked ? <button disabled>APPROVE GOOGLE FIRST</button> : configured
+                  ? <a href={provider === "slack" ? "/auth/slack" : "/auth/integrations/google"}>REVIEW &amp; APPROVE ↗</a>
+                  : <button disabled>ADMIN SETUP REQUIRED</button>}
+                <small>{approved ? "Consent recorded for this workspace" : "Opens the provider consent screen"}</small>
+              </div>
+            </article>;
+          })}
+        </section>
+
+        <section className={`onboardingBrowser ${sourcesApproved ? "available" : "locked"}`} aria-labelledby="browser-title">
+          <div className="browserSteps">
+            <span className="onboardingStepNumber">04</span><i aria-hidden="true">F</i><span className="onboardingStepNumber">05</span>
+          </div>
+          <div>
+            <span>BROWSER EXTENSION · INSTALL &amp; VERIFY</span>
+            <h3 id="browser-title">{browserPaired ? "Extension paired to this workspace." : "Install Found, then verify this browser."}</h3>
+            <p>The extension proves installation by requesting an authenticated, short-lived browser session for <b>{workspaceName}</b>. Until that handshake succeeds, Found does not mark either browser step complete.</p>
+            {sourcesApproved && !browserPaired && <a className="extensionDownload" href="/echocheck-extension.zip" download>DOWNLOAD CHROME EXTENSION ↓</a>}
+            <div className={`pairingCheck ${browserPaired ? "paired" : ""}`} aria-live="polite">
+              <i aria-hidden="true" />
+              <div>
+                <h4 ref={pairingStatus} data-found-pair-status>{sourcesApproved ? "Checking for the Found extension…" : "Connect Google Workspace and Slack first."}</h4>
+                <p data-found-pair-detail>{sourcesApproved ? "If the extension is installed, it will securely pair this browser automatically." : "Browser pairing is available after both provider approvals are recorded."}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className={`onboardingFinish ${browserPaired ? "ready" : ""}`}>
+          <span className="onboardingStepNumber">06</span>
+          <div><span>YOUR WORKSPACE</span><h3>Enter the Found dashboard</h3><p>Search company memory and inspect every answer at its original source.</p></div>
+          {browserPaired ? <Link href="/workspace">ENTER DASHBOARD ↗</Link> : <button disabled>PAIR EXTENSION TO CONTINUE</button>}
+        </section>
+      </section>
+    </div>
   </main>;
+}
+
+function isApproved(connection: IntegrationConnection | undefined): boolean {
+  return Boolean(connection && connection.status !== "disconnected");
 }
 
 function providerName(provider?: string): string {
   return integrationCatalog.find(item => item.provider === provider)?.name ?? "The source";
 }
 
+function providerDetail(connection: IntegrationConnection | undefined): string {
+  if (!connection || connection.status === "disconnected") return "Consent required";
+  if (connection.status === "attention") return "Approved · needs attention";
+  if (!connection.lastSyncedAt) return "Approved · indexing pending";
+  return `Indexed ${new Date(connection.lastSyncedAt).toLocaleDateString()}`;
+}
+
 function integrationError(code: string): string {
   if (code === "admin_required" || code === "workspace_forbidden") return "Only a workspace owner or admin can connect sources.";
   if (code === "google_required") return "Approve Google Workspace before continuing to Slack.";
-  if (code.endsWith("_not_configured")) return `${providerName(code.replace("_not_configured", ""))} needs its OAuth credentials added by the Found administrator.`;
+  if (code.endsWith("_not_configured")) return `${providerName(code.replace("_not_configured", ""))} needs OAuth credentials added by the Found administrator.`;
   if (code === "connection_storage_failed") return "Authorisation completed, but the encrypted connection could not be stored. Nothing was indexed.";
   if (code.includes("authorization_failed") || code === "invalid_integration_callback") return "The provider did not complete authorisation. Please try again.";
   return "This connection could not be completed.";
 }
 
-function connectionState(connection: IntegrationConnection | undefined, configured: boolean, locked: boolean): string {
-  if (locked) return "LOCKED";
-  if (!connection) return configured ? "READY FOR CONSENT" : "NOT CONFIGURED";
-  if (connection.status === "attention") return "NEEDS ATTENTION";
-  return connection.lastSyncedAt ? "INDEXED" : "AUTHORISED · NOT INDEXED";
-}
-
-function connectionDetails(connection: IntegrationConnection | undefined, fallback: string): string {
-  if (!connection) return fallback;
-  if (!connection.lastSyncedAt) return `${connection.externalWorkspaceName ?? "Source approved"} · indexing not started`;
-  return `${connection.externalWorkspaceName ?? "Source approved"} · indexed ${new Date(connection.lastSyncedAt).toLocaleString()}`;
-}
-
 function connectionFeedback(provider: string | undefined, connection: IntegrationConnection | undefined): string {
-  if (!connection) return `${providerName(provider)} did not return a saved authorisation.`;
-  return connection.lastSyncedAt
-    ? `${providerName(provider)} is authorised and its approved content was indexed.`
-    : `${providerName(provider)} is authorised. Indexing has not completed.`;
+  if (!isApproved(connection)) return `${providerName(provider)} did not return a saved authorisation.`;
+  return `${providerName(provider)} consent is recorded for this workspace${connection?.lastSyncedAt ? " and approved content has been indexed" : "; indexing has not completed"}.`;
 }
