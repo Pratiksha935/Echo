@@ -17,3 +17,13 @@ export async function encryptIntegrationSecret(value: string): Promise<{ ciphert
     iv: Buffer.from(iv).toString("base64"),
   };
 }
+
+export async function decryptIntegrationSecret(ciphertext: string, iv: string): Promise<string> {
+  const key = await crypto.subtle.importKey("raw", requireEncryptionKey(), "AES-GCM", false, ["decrypt"]);
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: Buffer.from(iv, "base64") },
+    key,
+    Buffer.from(ciphertext, "base64"),
+  );
+  return new TextDecoder().decode(decrypted);
+}

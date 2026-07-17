@@ -41,6 +41,7 @@ next-env.d.ts
 /dist/
 /netlify-dist/
 /.wrangler/
+/.npm-cache/
 /outputs/
 /work/
 

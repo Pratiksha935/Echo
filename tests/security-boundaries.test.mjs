@@ -19,6 +19,20 @@ test("Slack OAuth remains ingestion-only", async () => {
   assert.match(route, /"users:read"/);
 });
 
+test("continuous ingestion is durable, silent, and authenticated", async () => {
+  const route = await source("app/api/slack/events/route.ts");
+  const worker = await source("app/api/internal/ingestion/run/route.ts");
+  const migration = await source("supabase/migrations/0004_continuous_ingestion.sql");
+  const google = await source("lib/integrations/google-sync.ts");
+  assert.match(route, /enqueueSlackEvent/);
+  assert.doesNotMatch(route, /chat\.postMessage/);
+  assert.match(worker, /INGESTION_CRON_SECRET/);
+  assert.match(worker, /timingSafeEqual/);
+  assert.match(migration, /unique \(provider, external_event_id\)/);
+  assert.match(google, /changes\/startPageToken/);
+  assert.match(google, /newStartPageToken/);
+});
+
 test("Slack event ingestion enforces signatures, a five-minute timestamp window, and message permalinks", async () => {
   const [route, ingestion] = await Promise.all([
     source("app/api/slack/events/route.ts"),
