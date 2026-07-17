@@ -39,6 +39,7 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
   assert.match(slack, /status: "succeeded"/);
   assert.match(slack, /status: "failed"[\s\S]*error_code: "slack_backfill_failed"/);
   assert.doesNotMatch(slack, /status: "running"/);
+  assert.doesNotMatch(slack, /status=in\.\(connected,pending,attention\)/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {

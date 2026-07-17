@@ -73,7 +73,7 @@ export async function drainSlackQueue(limit = 25): Promise<{ attempted: number; 
 
 export async function syncAllSlackConnections(limit = 1): Promise<{ attempted: number; succeeded: number }> {
   const connections = await serviceRest<SlackBackfillConnection[]>(
-    `/integration_connections?select=id,organisation_id,external_workspace_id&provider=eq.slack&status=in.(connected,pending,attention)&last_synced_at=is.null&order=created_at.asc&limit=${limit}`,
+    `/integration_connections?select=id,organisation_id,external_workspace_id&provider=eq.slack&status=in.(connected,pending)&last_synced_at=is.null&order=created_at.asc&limit=${limit}`,
   );
   let succeeded = 0;
   for (const connection of connections) {
