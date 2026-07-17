@@ -144,6 +144,7 @@ test("password failures are generic and secrets are not hardcoded", async () => 
   assert.match(login, /email or password is incorrect/i);
   assert.match(login, /action="\/auth\/email"/);
   assert.match(login, /action="\/auth\/password"/);
+  assert.match(login, /NEXT_PUBLIC_DEMO_ACCESS_VISIBLE === "true"/);
 });
 
 test("magic-link recovery uses PKCE and never exposes session tokens to browser code", async () => {

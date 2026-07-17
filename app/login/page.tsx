@@ -15,7 +15,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (user) redirect(returnTo);
 
   const configured = Boolean(getSupabasePublicConfig());
-  const demoAccessEnabled = Boolean(process.env.DEMO_ACCESS_EMAIL && process.env.DEMO_ACCESS_CODE);
+  const demoAccessEnabled = Boolean(
+    process.env.NEXT_PUBLIC_DEMO_ACCESS_VISIBLE === "true" &&
+    process.env.DEMO_ACCESS_EMAIL &&
+    process.env.DEMO_ACCESS_CODE,
+  );
   const email = single(params.email) ?? "";
   const sent = single(params.sent) === "true" && email;
   const error = single(params.error);
