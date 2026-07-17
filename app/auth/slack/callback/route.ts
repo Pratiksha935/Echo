@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
       externalWorkspaceId: installation.team.id,
       externalWorkspaceName: installation.team.name ?? installation.team.id,
       grantedScopes: installation.scope?.split(",").filter(Boolean) ?? [],
+      status: "connected",
     }, encrypted);
   } catch {
     destination.searchParams.set("error", "connection_storage_failed");

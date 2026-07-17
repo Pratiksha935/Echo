@@ -7,6 +7,7 @@ type ConnectionWrite = {
   grantedScopes: string[];
   organisationId: string;
   provider: Exclude<IntegrationProvider, "read_ai">;
+  status?: "pending" | "connected";
 };
 
 export async function saveIntegrationConnection(
@@ -24,7 +25,7 @@ export async function saveIntegrationConnection(
         external_workspace_id: input.externalWorkspaceId,
         external_workspace_name: input.externalWorkspaceName,
         granted_scopes: input.grantedScopes,
-        status: "pending",
+        status: input.status ?? "pending",
         updated_at: new Date().toISOString(),
       }),
     },

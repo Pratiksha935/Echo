@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { appendSlackMemory, matchSlackMemory, recordSlackSyncFailure } from "../../../../lib/integrations/slack-events";
+import { enqueueSlackEvent, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
 
-type SlackEnvelope = {
+type ChallengeEnvelope = SlackEnvelope & {
   challenge?: string;
   event?: { bot_id?: string; channel?: string; channel_type?: string; subtype?: string; text?: string; ts?: string; type?: string; user?: string };
   event_id?: string;
@@ -13,21 +13,17 @@ type SlackEnvelope = {
 export async function POST(request: NextRequest) {
   const raw = await request.text();
   if (!validSlackSignature(request, raw)) return new NextResponse(null, { status:401 });
-  const payload = parseSlackEnvelope(raw);
+  const payload = parseSlackEnvelope(raw) as ChallengeEnvelope | null;
   if (!payload) return NextResponse.json({ error:"invalid_request" }, { status:400 });
   if (payload.type === "url_verification" && payload.challenge) return NextResponse.json({ challenge:payload.challenge });
   const event = payload.event;
-  if (!event || event.type !== "message" || event.channel_type !== "channel" || event.bot_id || event.subtype || !event.text || !event.channel || !event.ts || !event.user || !payload.team_id || !payload.event_id) {
+  if (!event || event.type !== "message" || (event.channel_type && event.channel_type !== "channel") || event.bot_id || !event.channel || !payload.team_id || !payload.event_id) {
     return NextResponse.json({ ok:true });
   }
-  const match = matchSlackMemory(event.text);
-  if (!match) return NextResponse.json({ ok:true });
   try {
-    await appendSlackMemory({ channelId:event.channel,eventId:payload.event_id,match,teamId:payload.team_id,text:event.text,timestamp:event.ts,userId:event.user });
+    await enqueueSlackEvent(payload);
   } catch {
-    // Slack is an ingestion transport only. Sync failures are surfaced in Found,
-    // never through a Slack response or message.
-    await recordSlackSyncFailure(payload.team_id);
+    // Slack is a silent ingestion transport. Queue failures stay internal.
   }
   return NextResponse.json({ ok:true });
 }
@@ -44,11 +40,11 @@ function validSlackSignature(request: NextRequest, body: string): boolean {
   return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
 }
 
-function parseSlackEnvelope(body: string): SlackEnvelope | null {
+function parseSlackEnvelope(body: string): ChallengeEnvelope | null {
   try {
     const payload = JSON.parse(body) as unknown;
     return payload !== null && typeof payload === "object" && !Array.isArray(payload)
-      ? payload as SlackEnvelope
+      ? payload as ChallengeEnvelope
       : null;
   } catch {
     return null;
