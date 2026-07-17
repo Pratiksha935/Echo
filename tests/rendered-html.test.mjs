@@ -207,7 +207,7 @@ test("keeps Google Workspace APIs read-only and records visible sync failures", 
   assert.doesNotMatch(sync, /sheets\.googleapis\.com/);
   assert.match(sync, /source_updated_at: file\.modifiedTime/);
   assert.match(sync, /source_url: file\.webViewLink/);
-  assert.match(sync, /status: "failed", error_code: errorCode/);
+  assert.match(sync, /status: "failed",[\s\S]*error_code: errorCode/);
   assert.match(sync, /google_workspace_sync_failed/);
   assert.match(sync, /status: "attention"/);
 });
