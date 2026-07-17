@@ -37,29 +37,39 @@ export async function POST(request: NextRequest) {
     const evidence = `${record.title} ${record.body} ${record.department ?? ""}`.toLowerCase();
     const matchedTerms = terms.filter(term => evidence.includes(term));
     const score = matchedTerms.reduce((total, term) => total + (title.includes(term) ? 4 : 1), 0);
-    return { record, matchedTerms: matchedTerms.length, score };
+    return { record, terms: matchedTerms, matchedTerms: matchedTerms.length, score };
   }).filter(candidate => candidate.record.externalId !== sourceRecord?.externalId)
     .filter(candidate => candidate.score >= 5 && candidate.matchedTerms >= 2)
     .sort((a, b) => b.score - a.score);
 
-  const best = ranked[0] ?? (sourceRecord ? { record: sourceRecord, matchedTerms: terms.length, score: 12 } : null);
+  const best = ranked[0] ?? (sourceRecord ? { record: sourceRecord, terms: [], matchedTerms: terms.length, score: 12 } : null);
   if (!best) return NextResponse.json({ match: null }, { headers });
-  const related = records.filter(record =>
-    record.externalId === sourceRecord?.externalId ||
-    record.externalId === best.record.externalId ||
-    normaliseTitle(record.title) === normaliseTitle(best.record.title)
-  );
+  const related = uniqueRecords([
+    ...(sourceRecord ? [sourceRecord] : []),
+    ...ranked.slice(0, 3).map(candidate => candidate.record),
+    ...records.filter(record => normaliseTitle(record.title) === normaliseTitle(best.record.title)),
+  ]);
   const sources = [...new Set(related.map(record => record.source))];
+  const crossSource = Boolean(sourceRecord && best.record.externalId !== sourceRecord.externalId);
+  const overlap = best.terms.slice(0, 4).join(", ");
+  const insight = sourceRecord && crossSource
+    ? `${best.record.source} evidence connected to this ${sourceRecord.source} document: ${best.record.body.slice(0, 320)}`
+    : best.record.body.slice(0, 380);
+  const whyMatches = crossSource && overlap
+    ? `The open document and this ${best.record.source} record overlap on ${overlap}.`
+    : "This page is an exact indexed company source.";
   return NextResponse.json({ match: {
     id: best.record.externalId,
     links: related.slice(0, 4).map(record => ({ label: `${record.source} evidence`, url: record.sourceUrl })),
     live: true,
     owner: best.record.authorName ?? "Company knowledge",
-    recommendation: "Review the original evidence before creating a duplicate proposal or ticket.",
+    recommendation: crossSource
+      ? `Review the ${best.record.source} evidence and current status before creating another proposal or ticket.`
+      : "Open the indexed source receipts to review the latest company context.",
     score: Math.min(5, Math.max(2, Math.ceil(best.score / 6))),
     source: sources.join(" + "),
     status: best.record.status,
-    summary: best.record.body.slice(0, 420),
+    summary: `${insight} ${whyMatches}`.slice(0, 520),
     title: best.record.title,
     url: pageUrl,
   } }, { headers });
@@ -104,4 +114,14 @@ function canonicalUrl(value: string): string {
   } catch {
     return value;
   }
+}
+
+function uniqueRecords<T extends { externalId: string; source: string }>(records: T[]): T[] {
+  const seen = new Set<string>();
+  return records.filter(record => {
+    const key = `${record.source}:${record.externalId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
