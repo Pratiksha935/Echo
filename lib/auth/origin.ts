@@ -43,6 +43,12 @@ function normaliseOrigin(value: string | undefined): string | null {
   try {
     const url = new URL(value.trim());
     if (!/^https?:$/.test(url.protocol)) return null;
+    // Netlify can expose branch, preview, or immutable deploy aliases at
+    // runtime. Cookies set on the public site do not cross to those aliases.
+    // All aliases have the form <alias>--<site-name>.netlify.app.
+    if (url.hostname.endsWith(".netlify.app") && url.hostname.includes("--")) {
+      url.hostname = url.hostname.slice(url.hostname.lastIndexOf("--") + 2);
+    }
     return url.origin;
   } catch {
     return null;
