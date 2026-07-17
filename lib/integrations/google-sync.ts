@@ -39,8 +39,10 @@ type KnowledgeRecord = {
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
 const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", "research"]);
+const GOOGLE_REQUEST_TIMEOUT_MS = 8_000;
 
 export async function syncAllGoogleConnections(limit = 10): Promise<{ attempted: number; succeeded: number }> {
+  await failInterruptedRuns();
   const connections = await serviceRest<StoredConnection[]>(
     `/integration_connections?select=id,organisation_id,provider,cursor,integration_secrets!inner(connection_id)&provider=eq.google&status=in.(connected,pending,attention)&order=last_synced_at.asc.nullsfirst&limit=${limit}`,
   );
@@ -153,7 +155,10 @@ async function listFiles(accessToken: string): Promise<DriveFile[]> {
       fields: "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink)",
       orderBy: "modifiedTime desc",
       pageSize: "100",
-      q: `trashed = false and (mimeType = '${GOOGLE_DOC}' or mimeType = '${GOOGLE_SHEET}')`,
+      // Found only indexes explicitly department-tagged files. Filtering for the
+      // opening tag in Drive avoids walking a user's entire Drive on every
+      // initial import, which can exceed a serverless execution window.
+      q: `trashed = false and name contains '[' and (mimeType = '${GOOGLE_DOC}' or mimeType = '${GOOGLE_SHEET}')`,
     });
     if (pageToken) query.set("pageToken", pageToken);
     const response = await googleFetch(`https://www.googleapis.com/drive/v3/files?${query}`, accessToken);
@@ -258,9 +263,23 @@ function parseMetadata(text: string, fileName: string) {
 }
 
 async function googleFetch(url: string, accessToken: string): Promise<Response> {
-  const response = await fetch(url, { cache: "no-store", headers: { authorization: `Bearer ${accessToken}` } });
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error("Google Workspace backfill failed.");
   return response;
+}
+
+async function failInterruptedRuns(): Promise<void> {
+  const cutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+  const finishedAt = new Date().toISOString();
+  await serviceRest(`/integration_sync_runs?status=eq.running&started_at=lt.${encodeURIComponent(cutoff)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ status: "failed", error_code: "worker_interrupted", finished_at: finishedAt }),
+  }).catch(() => undefined);
 }
 
 async function markConnectionAttention(connectionId: string): Promise<void> {

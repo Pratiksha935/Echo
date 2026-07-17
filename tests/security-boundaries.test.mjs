@@ -92,7 +92,7 @@ test("password login uses the server-side Supabase grant and HttpOnly session co
   ]);
   assert.match(session, /\/auth\/v1\/token\?grant_type=password/);
   assert.match(route, /signInWithPassword\(email, password\)/);
-  assert.match(route, /sameOrigin\(request\)/);
+  assert.match(route, /hasSamePublicOrigin\(request\)/);
   assert.match(route, /safeReturnPath[\s\S]*"\/integrations"/);
   assert.doesNotMatch(route, /access_token|refresh_token/);
   assert.match(session, /ACCESS_COOKIE[\s\S]*httpOnly: true/);

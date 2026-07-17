@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { loadConnectionCredential } from "./credentials";
 import { serviceRest } from "./service-rest";
 
 type SlackConnection = { id: string; organisation_id: string };
+type SlackBackfillConnection = SlackConnection & { external_workspace_id: string };
 type QueuedEvent = { id: string; attempts: number; external_workspace_id: string; payload: SlackEnvelope };
-type SlackMessage = { bot_id?: string; channel?: string; channel_type?: string; subtype?: string; text?: string; ts?: string; type?: string; user?: string };
+type SlackMessage = { bot_id?: string; channel?: string; channel_type?: string; reply_count?: number; subtype?: string; text?: string; thread_ts?: string; ts?: string; type?: string; user?: string };
+type SlackChannel = { id?: string; is_archived?: boolean; is_member?: boolean; name?: string };
 export type SlackEnvelope = {
   event?: SlackMessage & { deleted_ts?: string; message?: SlackMessage; previous_message?: SlackMessage };
   event_id?: string;
@@ -22,6 +25,8 @@ const CLUSTERS: Array<SlackMemoryMatch & { terms: string[] }> = [
 
 const CASUAL = /^(hi|hello|hey|thanks|thank you|ok|okay|done|sounds good|good morning|good night|let'?s (go|grab|have) (lunch|coffee)|anyone free for (lunch|coffee))[!.\s]*$/i;
 const CATALOGUE = /\b(saree|dress|lehenga|kurta|under\s*₹?\d+|size\s+[xsml]+)\b/i;
+const SLACK_REQUEST_TIMEOUT_MS = 7_000;
+const SLACK_BACKFILL_BUDGET_MS = 18_000;
 
 export function isMeaningfulSlackWork(text: string): boolean {
   const clean = text.trim();
@@ -64,6 +69,126 @@ export async function drainSlackQueue(limit = 25): Promise<{ attempted: number; 
     }
   }
   return { attempted: events.length, succeeded };
+}
+
+export async function syncAllSlackConnections(limit = 1): Promise<{ attempted: number; succeeded: number }> {
+  const connections = await serviceRest<SlackBackfillConnection[]>(
+    `/integration_connections?select=id,organisation_id,external_workspace_id&provider=eq.slack&status=in.(connected,pending,attention)&last_synced_at=is.null&order=created_at.asc&limit=${limit}`,
+  );
+  let succeeded = 0;
+  for (const connection of connections) {
+    try {
+      const credential = await loadConnectionCredential(connection.id);
+      await syncSlackHistory(connection, credential.accessToken);
+      succeeded += 1;
+    } catch {
+      await markSlackConnectionAttention(connection.id);
+    }
+  }
+  return { attempted: connections.length, succeeded };
+}
+
+async function syncSlackHistory(connection: SlackBackfillConnection, accessToken: string): Promise<void> {
+  const runId = randomUUID();
+  const startedAt = new Date().toISOString();
+  await serviceRest("/integration_sync_runs", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ id: runId, organisation_id: connection.organisation_id, connection_id: connection.id, status: "running", started_at: startedAt }),
+  });
+
+  let seen = 0;
+  let written = 0;
+  const deadline = Date.now() + SLACK_BACKFILL_BUDGET_MS;
+  try {
+    const channels = await listPublicChannels(accessToken);
+    for (const channel of channels) {
+      if (!channel.id || Date.now() >= deadline) break;
+      const messages = await listChannelHistory(accessToken, channel.id);
+      seen += messages.length;
+      for (const message of messages) {
+        if (Date.now() >= deadline) break;
+        if (!message.text || !message.ts || !message.user || message.bot_id || !isMeaningfulSlackWork(message.text)) continue;
+        const match = matchSlackMemory(message.text);
+        if (!match) continue;
+        await appendSlackMemory({
+          channelId: channel.id,
+          eventId: `backfill:${channel.id}:${message.ts}`,
+          match,
+          teamId: connection.external_workspace_id,
+          text: message.text,
+          timestamp: message.ts,
+          userId: message.user,
+        });
+        written += 1;
+      }
+    }
+    const finishedAt = new Date().toISOString();
+    await Promise.all([
+      serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "succeeded", records_seen: seen, records_written: written, error_code: null, finished_at: finishedAt }),
+      }),
+      serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connection.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "connected", last_synced_at: finishedAt, updated_at: finishedAt }),
+      }),
+    ]);
+  } catch {
+    const finishedAt = new Date().toISOString();
+    await Promise.allSettled([
+      serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ status: "failed", records_seen: seen, records_written: written, error_code: "slack_backfill_failed", finished_at: finishedAt }),
+      }),
+      markSlackConnectionAttention(connection.id),
+    ]);
+    throw new Error("Slack history backfill failed.");
+  }
+}
+
+async function listPublicChannels(accessToken: string): Promise<SlackChannel[]> {
+  const query = new URLSearchParams({ exclude_archived: "true", limit: "50", types: "public_channel" });
+  const payload = await slackApi<{ channels?: SlackChannel[] }>(`conversations.list?${query}`, accessToken);
+  // Slack only permits history reads for channels the installed bot belongs to.
+  // Skipping other public channels avoids turning one inaccessible channel into
+  // a failed workspace import.
+  return (payload.channels ?? []).filter(channel => channel.id && channel.is_member && !channel.is_archived).slice(0, 20);
+}
+
+async function listChannelHistory(accessToken: string, channelId: string): Promise<SlackMessage[]> {
+  const query = new URLSearchParams({ channel: channelId, limit: "100" });
+  const payload = await slackApi<{ messages?: SlackMessage[] }>(`conversations.history?${query}`, accessToken);
+  const messages = (payload.messages ?? []).slice(0, 100);
+  const threadRoots = messages.filter(message => (message.reply_count ?? 0) > 0 && message.ts).slice(0, 3);
+  const replies = await Promise.allSettled(threadRoots.map(async root => {
+    const replyQuery = new URLSearchParams({ channel: channelId, limit: "100", ts: root.ts ?? "" });
+    const replyPayload = await slackApi<{ messages?: SlackMessage[] }>(`conversations.replies?${replyQuery}`, accessToken);
+    return (replyPayload.messages ?? []).filter(message => message.ts !== root.ts);
+  }));
+  return messages.concat(...replies.flatMap(result => result.status === "fulfilled" ? result.value : []));
+}
+
+async function slackApi<T>(method: string, accessToken: string): Promise<T> {
+  const response = await fetch(`https://slack.com/api/${method}`, {
+    cache: "no-store",
+    headers: { authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(SLACK_REQUEST_TIMEOUT_MS),
+  });
+  const payload = await response.json().catch(() => null) as (T & { error?: string; ok?: boolean }) | null;
+  if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Slack API request failed.");
+  return payload;
+}
+
+async function markSlackConnectionAttention(connectionId: string): Promise<void> {
+  await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ status: "attention", updated_at: new Date().toISOString() }),
+  }).catch(() => undefined);
 }
 
 async function processSlackEvent(payload: SlackEnvelope): Promise<boolean> {
