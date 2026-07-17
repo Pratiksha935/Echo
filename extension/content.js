@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.0";
+  const EXTENSION_VERSION = "0.4.1";
   if (window.__foundExtensionVersion === EXTENSION_VERSION) return;
   window.__foundExtensionVersion = EXTENSION_VERSION;
 
@@ -35,17 +35,26 @@
 
   async function pairBrowser() {
     if (location.origin !== FOUND_ORIGIN) return;
+    const status = document.querySelector("[data-found-pair-status]");
+    const detail = document.querySelector("[data-found-pair-detail]");
     try {
       const response = await fetch("/api/browser/session", { credentials: "include" });
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
+        if (status) status.textContent = response.status === 401 ? "Sign in to connect." : "Workspace access required.";
+        if (detail) detail.textContent = "Found could not authorise this browser for a workspace yet.";
         return;
       }
       const payload = await response.json();
       if (payload?.token && payload?.profile) {
         await chrome.storage.local.set({ [TOKEN_KEY]: payload.token, [PROFILE_KEY]: payload.profile });
+        if (status) status.textContent = "Browser connected.";
+        if (detail) detail.textContent = `${payload.profile.organisationName} · ${payload.profile.email}. Return to the page you were reading; Found is ready.`;
       }
-    } catch { /* Pairing retries on the next authenticated Found page load. */ }
+    } catch {
+      if (status) status.textContent = "Connection could not be completed.";
+      if (detail) detail.textContent = "Reload the extension and try this connection page once more.";
+    }
   }
 
   function safeSourceUrl(value) {

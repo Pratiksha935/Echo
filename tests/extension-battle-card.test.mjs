@@ -82,3 +82,20 @@ test("live battlecards surface cross-source insight rather than repeating the op
   assert.match(matcher, /ranked\.slice\(0, 3\)/);
   assert.match(matcher, /before creating another proposal or ticket/);
 });
+
+test("workspace pairing has a dedicated visible confirmation surface", async () => {
+  const [page, content, popup, manifest] = await Promise.all([
+    source("app/browser/connect/page.tsx"),
+    source("extension/content.js"),
+    source("extension/popup.html"),
+    source("extension/manifest.json"),
+  ]);
+  assert.match(page, /data-found-pair-status/);
+  assert.match(page, /data-found-pair-detail/);
+  assert.match(page, /requireFoundUser\("\/browser\/connect"\)/);
+  assert.match(content, /Browser connected\./);
+  assert.match(content, /payload\.profile\.organisationName/);
+  assert.match(popup, /\/browser\/connect/);
+  assert.match(popup, /Connect or switch workspace/);
+  assert.match(manifest, /"version": "0\.4\.1"/);
+});
