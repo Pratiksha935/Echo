@@ -106,8 +106,16 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.8"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.8"/);
+  assert.match(manifest, /"version": "0\.4\.9"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.9"/);
+});
+
+test("Found never matches or renders a battlecard inside its own product", async () => {
+  const content = await source("extension/content.js");
+  const hostGuard = content.indexOf("FOUND_PRODUCT_HOST.test(location.hostname)");
+  const runtimeSetup = content.indexOf("window.__foundExtensionRuntime");
+  assert.match(content, /sage-profiterole-3b1c22\\\.netlify\\\.app/);
+  assert.ok(hostGuard >= 0 && hostGuard < runtimeSetup);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {

@@ -1,5 +1,7 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.8";
+  const EXTENSION_VERSION = "0.4.9";
+  const FOUND_PRODUCT_HOST = /^(?:[a-z0-9-]+--)?sage-profiterole-3b1c22\.netlify\.app$/i;
+  if (FOUND_PRODUCT_HOST.test(location.hostname)) return;
   const runtime = window.__foundExtensionRuntime;
   if (runtime) return;
   window.__foundExtensionRuntime = { version: EXTENSION_VERSION };
