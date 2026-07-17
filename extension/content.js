@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.3.2";
+  const EXTENSION_VERSION = "0.3.3";
   if (window.__foundExtensionVersion === EXTENSION_VERSION) return;
   window.__foundExtensionVersion = EXTENSION_VERSION;
 
@@ -174,6 +174,17 @@
     }
     checking = false;
   }
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "found:run") return;
+    (async () => {
+      const match = await findMatch();
+      if (match) render(match);
+      sendResponse({ matched: Boolean(match) });
+    })().catch(error => sendResponse({ error: error?.message || "check_failed", matched: false }));
+    return true;
+  });
+
   const detector = setInterval(runDetector, 500);
   runDetector();
 })();

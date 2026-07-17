@@ -37,3 +37,15 @@ test("battle card is explicit about source preservation and silent Slack behavio
   assert.match(content, /Silent in Slack · no automatic replies/);
   assert.doesNotMatch(content, /Analysed locally|searching|processing|trace/i);
 });
+
+test("toolbar check explicitly reruns the matcher and reports the outcome", async () => {
+  const [content, popup] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/popup.js"),
+  ]);
+  assert.match(content, /message\?\.type !== "found:run"/);
+  assert.match(content, /sendResponse\(\{ matched: Boolean\(match\) \}\)/);
+  assert.match(popup, /sendMessage\(tab\.id, \{ type: "found:run" \}\)/);
+  assert.match(popup, /Match found\. The battlecard is open/);
+  assert.match(popup, /No matching company knowledge was found/);
+});

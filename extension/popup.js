@@ -9,7 +9,10 @@ runButton.addEventListener("click", async () => {
     if (!tab?.id || !/^https?:/.test(tab.url || "")) throw new Error("Open a web page first.");
     await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ["content.css", "update.css"] });
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-    status.textContent = "Found is checking the page. A matching battlecard will open automatically.";
+    const result = await chrome.tabs.sendMessage(tab.id, { type: "found:run" });
+    status.textContent = result?.matched
+      ? "Match found. The battlecard is open on this page."
+      : "No matching company knowledge was found for this page.";
   } catch (error) {
     status.textContent = error?.message || "Found could not run on this page.";
   } finally {
