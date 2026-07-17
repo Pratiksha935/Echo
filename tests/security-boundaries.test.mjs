@@ -156,7 +156,7 @@ test("magic-link recovery uses PKCE and never exposes session tokens to browser 
   assert.match(emailRoute, /code_challenge/);
   assert.match(emailRoute, /code_challenge_method: "s256"/);
   assert.match(emailRoute, /PKCE_COOKIE/);
-  assert.match(emailRoute, /sameOrigin\(request\)/);
+  assert.match(emailRoute, /hasSamePublicOrigin\(request\)/);
   assert.match(callback, /exchangePkceCode/);
   assert.doesNotMatch(clientFiles, /access_token|refresh_token/);
 });

@@ -4,6 +4,7 @@ import { getFoundUser } from "../../../auth";
 import { getFoundWorkspace } from "../../../../lib/auth/workspace";
 import { encryptIntegrationSecret } from "../../../../lib/integrations/secrets";
 import { saveIntegrationConnection } from "../../../../lib/integrations/store";
+import { publicRequestOrigin } from "../../../../lib/auth/origin";
 
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
 const SLACK_ORG_COOKIE = "found_slack_oauth_org";
@@ -17,9 +18,10 @@ type SlackOAuthResponse = {
 };
 
 export async function GET(request: NextRequest) {
-  const destination = new URL("/integrations", request.url);
+  const appUrl = publicRequestOrigin(request);
+  const destination = new URL("/integrations", appUrl);
   const user = await getFoundUser();
-  if (!user) return NextResponse.redirect(new URL("/login?return_to=%2Fintegrations", request.url));
+  if (!user) return NextResponse.redirect(new URL("/login?return_to=%2Fintegrations", appUrl));
 
   const store = await cookies();
   const expectedState = store.get(SLACK_STATE_COOKIE)?.value;
@@ -41,8 +43,7 @@ export async function GET(request: NextRequest) {
 
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (!clientId || !clientSecret || !appUrl) {
+  if (!clientId || !clientSecret) {
     destination.searchParams.set("error", "slack_not_configured");
     return NextResponse.redirect(destination);
   }

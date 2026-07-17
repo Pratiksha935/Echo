@@ -2,14 +2,15 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { requireSupabasePublicConfig } from "../../../lib/auth/config";
 import { OAUTH_STATE_COOKIE, PKCE_COOKIE, RETURN_TO_COOKIE, randomBase64Url, safeReturnPath, sha256Base64Url } from "../../../lib/auth/session";
+import { hasSamePublicOrigin, publicRequestOrigin } from "../../../lib/auth/origin";
 
 export async function POST(request: NextRequest) {
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const returnTo = safeReturnPath(String(form.get("return_to") ?? ""));
-  if (!sameOrigin(request) || !/^\S+@\S+\.\S+$/.test(email)) return loginRedirect(request, "email_failed", returnTo);
+  if (!hasSamePublicOrigin(request) || !/^\S+@\S+\.\S+$/.test(email)) return loginRedirect(request, "email_failed", returnTo);
   const config = requireSupabasePublicConfig();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? request.nextUrl.origin;
+  const appUrl = publicRequestOrigin(request);
   const verifier = randomBase64Url(48);
   const state = randomBase64Url(24);
   const challenge = await sha256Base64Url(verifier);
@@ -31,20 +32,15 @@ export async function POST(request: NextRequest) {
   store.set(OAUTH_STATE_COOKIE, state, cookieOptions);
   store.set(RETURN_TO_COOKIE, returnTo, cookieOptions);
 
-  const url = new URL("/login", request.url);
+  const url = new URL("/login", publicRequestOrigin(request));
   url.searchParams.set("sent", "true");
   url.searchParams.set("email", email);
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url, 303);
 }
 
-function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  return Boolean(origin && origin === request.nextUrl.origin);
-}
-
 function loginRedirect(request: NextRequest, error: string, returnTo: string) {
-  const url = new URL("/login", request.url);
+  const url = new URL("/login", publicRequestOrigin(request));
   url.searchParams.set("error", error);
   url.searchParams.set("return_to", returnTo);
   return NextResponse.redirect(url, 303);

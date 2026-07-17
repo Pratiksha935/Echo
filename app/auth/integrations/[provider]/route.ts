@@ -4,6 +4,7 @@ import { getFoundUser } from "../../../auth";
 import { getFoundWorkspace } from "../../../../lib/auth/workspace";
 import { randomBase64Url } from "../../../../lib/auth/session";
 import { buildAuthorizationUrl, isConnectableProvider } from "../../../../lib/integrations/oauth";
+import { publicRequestOrigin } from "../../../../lib/auth/origin";
 
 export const INTEGRATION_STATE_COOKIE = "found_integration_oauth_state";
 export const INTEGRATION_ORG_COOKIE = "found_integration_oauth_org";
@@ -13,13 +14,14 @@ type RouteContext = { params: Promise<{ provider: string }> };
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { provider } = await context.params;
-  if (!isConnectableProvider(provider)) return NextResponse.redirect(new URL("/integrations?error=unsupported_provider", request.url));
+  const appUrl = publicRequestOrigin(request);
+  if (!isConnectableProvider(provider)) return NextResponse.redirect(new URL("/integrations?error=unsupported_provider", appUrl));
 
   const user = await getFoundUser();
-  if (!user) return NextResponse.redirect(new URL(`/login?return_to=${encodeURIComponent(`/auth/integrations/${provider}`)}`, request.url));
+  if (!user) return NextResponse.redirect(new URL(`/login?return_to=${encodeURIComponent(`/auth/integrations/${provider}`)}`, appUrl));
   const workspace = await getFoundWorkspace();
   if (!workspace || !["owner", "admin"].includes(workspace.role)) {
-    return NextResponse.redirect(new URL("/integrations?error=admin_required", request.url));
+    return NextResponse.redirect(new URL("/integrations?error=admin_required", appUrl));
   }
 
   try {
@@ -32,6 +34,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
     store.set(INTEGRATION_PROVIDER_COOKIE, provider, options);
     return NextResponse.redirect(buildAuthorizationUrl(provider, state));
   } catch {
-    return NextResponse.redirect(new URL(`/integrations?error=${provider}_not_configured`, request.url));
+    return NextResponse.redirect(new URL(`/integrations?error=${provider}_not_configured`, appUrl));
   }
 }

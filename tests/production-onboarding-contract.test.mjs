@@ -39,9 +39,26 @@ test("Google login keeps a safe return_to value across PKCE authorization", asyn
   assert.match(start, /store\.set\(RETURN_TO_COOKIE, returnTo, cookieOptions\)/);
   assert.match(start, /code_challenge_method", "s256"/);
   assert.match(callback, /safeReturnPath\(store\.get\(RETURN_TO_COOKIE\)\?\.value\)/);
-  assert.match(callback, /NextResponse\.redirect\(new URL\(returnTo, request\.url\)\)/);
+  assert.match(callback, /NextResponse\.redirect\(new URL\(returnTo, publicRequestOrigin\(request\)\)\)/);
   assert.match(callback, /exchangePkceCode\(code, verifier\)/);
   assert.match(session, /if \(!value\?\.startsWith\("\/"\) \|\| value\.startsWith\("\/\/"\)\) return fallback/);
+});
+
+test("all authentication callbacks use one canonical public origin", async () => {
+  const [origin, google, callback, slack, slackCallback, connectorCallback] = await Promise.all([
+    source("lib/auth/origin.ts"),
+    source("app/auth/google/route.ts"),
+    source("app/auth/callback/route.ts"),
+    source("app/auth/slack/route.ts"),
+    source("app/auth/slack/callback/route.ts"),
+    source("app/auth/integrations/[provider]/callback/route.ts"),
+  ]);
+
+  assert.match(origin, /\[process\.env\.URL, process\.env\.NEXT_PUBLIC_APP_URL\]/);
+  for (const route of [google, callback, slack, slackCallback, connectorCallback]) {
+    assert.match(route, /publicRequestOrigin\(request\)/);
+  }
+  assert.doesNotMatch(google + callback + slack + slackCallback + connectorCallback, /new URL\([^\n]+request\.url/);
 });
 
 test("Google and Slack remain two separate explicit connector consents", async () => {

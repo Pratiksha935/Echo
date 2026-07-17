@@ -6,15 +6,17 @@ import { encryptIntegrationSecret } from "../../../../../lib/integrations/secret
 import { exchangeGitHubInstallation, exchangeIntegrationCode, isConnectableProvider, type OAuthProvider } from "../../../../../lib/integrations/oauth";
 import { saveIntegrationConnection } from "../../../../../lib/integrations/store";
 import { INTEGRATION_ORG_COOKIE, INTEGRATION_PROVIDER_COOKIE, INTEGRATION_STATE_COOKIE } from "../route";
+import { publicRequestOrigin } from "../../../../../lib/auth/origin";
 
 type RouteContext = { params: Promise<{ provider: string }> };
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { provider } = await context.params;
-  const destination = new URL("/integrations", request.url);
+  const appUrl = publicRequestOrigin(request);
+  const destination = new URL("/integrations", appUrl);
   if (!isConnectableProvider(provider)) return fail(destination, "unsupported_provider");
   const user = await getFoundUser();
-  if (!user) return NextResponse.redirect(new URL("/login?return_to=%2Fintegrations", request.url));
+  if (!user) return NextResponse.redirect(new URL("/login?return_to=%2Fintegrations", appUrl));
 
   const store = await cookies();
   const expectedState = store.get(INTEGRATION_STATE_COOKIE)?.value;

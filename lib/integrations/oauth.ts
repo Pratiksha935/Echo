@@ -1,4 +1,5 @@
 import type { IntegrationProvider } from "./catalog";
+import { publicAppOriginFromEnvironment } from "../auth/origin";
 
 export type OAuthProvider = "notion" | "jira" | "google";
 export type ConnectableProvider = OAuthProvider | "github";
@@ -32,7 +33,7 @@ export function isConnectableProvider(value: string): value is ConnectableProvid
 }
 
 export function integrationCallbackUrl(provider: ConnectableProvider): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const appUrl = publicAppOriginFromEnvironment();
   if (!appUrl) throw new Error("Public application URL is missing.");
   return `${appUrl}/auth/integrations/${provider}/callback`;
 }
