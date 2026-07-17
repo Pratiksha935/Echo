@@ -13,6 +13,8 @@
 
 The extension sends the current page URL and a limited text extract to the authenticated Found matching endpoint. Retrieval is restricted to the paired organisation and membership is revalidated on every request. A battlecard appears only when live indexed company knowledge produces a sufficiently strong match and links to the internal decision timeline.
 
+On Slack web, Found reads the newest rendered channel or thread messages rather than the surrounding Slack interface. Channel changes and newly rendered messages trigger a debounced recheck; Found does not post a reply into Slack.
+
 ## Updating memory
 
 Use **Correct or update Found memory** in a battlecard to add a timestamped overlay. The original Slack message or Google document is never edited.

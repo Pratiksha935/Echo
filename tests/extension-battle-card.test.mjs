@@ -103,8 +103,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.6"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.6"/);
+  assert.match(manifest, /"version": "0\.4\.7"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.7"/);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
@@ -169,6 +169,18 @@ test("automatic checks retry after editor load and follow single-page navigation
   assert.match(content, /visibilitychange/);
   assert.match(content, /app\\\.slack\\\.com/);
   assert.match(content, /dynamicSignature/);
+  assert.match(content, /MutationObserver/);
+  assert.match(content, /setTimeout\(checkCurrentPage, 900\)/);
+});
+
+test("Slack web matching reads recent rendered messages instead of the surrounding application chrome", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /function slackPageText/);
+  assert.match(content, /message_content/);
+  assert.match(content, /c-message_kit__text/);
+  assert.match(content, /messages\.slice\(-40\)/);
+  assert.match(content, /recentMessages/);
+  assert.match(content, /context\.pageText\.slice\(-1200\)/);
 });
 
 test("teams can deliberately capture a browser page into a classified workspace department", async () => {
