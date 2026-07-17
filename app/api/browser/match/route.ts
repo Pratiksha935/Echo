@@ -26,7 +26,11 @@ export async function POST(request: NextRequest) {
 
   const rows = await serviceRest<BrowserKnowledgeRow[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=source_updated_at.desc&limit=200`);
   const records = rows.map(row => ({ authorName: row.author_name, body: row.body, department: row.department, externalId: row.external_id, source: row.source, sourceUrl: row.source_url, status: row.metadata?.status ?? "Indexed", title: row.title }));
-  const query = `${pageTitle} ${pageText}`.toLowerCase();
+  const pageResourceId = googleResourceId(pageUrl);
+  const sourceRecord = pageResourceId
+    ? records.find(record => record.externalId === pageResourceId || googleResourceId(record.sourceUrl) === pageResourceId)
+    : records.find(record => canonicalUrl(record.sourceUrl) === canonicalUrl(pageUrl));
+  const query = `${sourceRecord?.title ?? ""} ${sourceRecord?.body ?? ""} ${pageTitle} ${pageText}`.toLowerCase();
   const terms = [...new Set(query.split(/\W+/).filter(term => term.length > 3 && !STOP_WORDS.has(term)))].slice(0, 80);
   const ranked = records.map(record => {
     const title = record.title.toLowerCase();
@@ -34,15 +38,21 @@ export async function POST(request: NextRequest) {
     const matchedTerms = terms.filter(term => evidence.includes(term));
     const score = matchedTerms.reduce((total, term) => total + (title.includes(term) ? 4 : 1), 0);
     return { record, matchedTerms: matchedTerms.length, score };
-  }).filter(candidate => candidate.score >= 5 && candidate.matchedTerms >= 2).sort((a, b) => b.score - a.score);
+  }).filter(candidate => candidate.record.externalId !== sourceRecord?.externalId)
+    .filter(candidate => candidate.score >= 5 && candidate.matchedTerms >= 2)
+    .sort((a, b) => b.score - a.score);
 
-  const best = ranked[0];
+  const best = ranked[0] ?? (sourceRecord ? { record: sourceRecord, matchedTerms: terms.length, score: 12 } : null);
   if (!best) return NextResponse.json({ match: null }, { headers });
-  const related = records.filter(record => normaliseTitle(record.title) === normaliseTitle(best.record.title));
+  const related = records.filter(record =>
+    record.externalId === sourceRecord?.externalId ||
+    record.externalId === best.record.externalId ||
+    normaliseTitle(record.title) === normaliseTitle(best.record.title)
+  );
   const sources = [...new Set(related.map(record => record.source))];
   return NextResponse.json({ match: {
     id: best.record.externalId,
-    links: [{ label: "Open original evidence", url: best.record.sourceUrl }],
+    links: related.slice(0, 4).map(record => ({ label: `${record.source} evidence`, url: record.sourceUrl })),
     live: true,
     owner: best.record.authorName ?? "Company knowledge",
     recommendation: "Review the original evidence before creating a duplicate proposal or ticket.",
@@ -75,4 +85,23 @@ type BrowserKnowledgeRow = { author_name: string | null; body: string; departmen
 
 function normaliseTitle(value: string): string {
   return value.toLowerCase().replace(/^\[[^\]]+\]\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function googleResourceId(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (!/(^|\.)google\.com$/.test(url.hostname)) return null;
+    return url.pathname.match(/\/(?:document|spreadsheets|presentation|file)\/d\/([^/]+)/)?.[1] ?? url.searchParams.get("id");
+  } catch {
+    return null;
+  }
+}
+
+function canonicalUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`.replace(/\/$/, "");
+  } catch {
+    return value;
+  }
 }

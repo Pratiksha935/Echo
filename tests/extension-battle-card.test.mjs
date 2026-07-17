@@ -49,3 +49,11 @@ test("toolbar check explicitly reruns the matcher and reports the outcome", asyn
   assert.match(popup, /Match found\. The battlecard is open/);
   assert.match(popup, /No matching company knowledge was found/);
 });
+
+test("live matching recognises indexed Google files by URL before reading editor text", async () => {
+  const route = await source("app/api/browser/match/route.ts");
+  assert.match(route, /const pageResourceId = googleResourceId\(pageUrl\)/);
+  assert.match(route, /record\.externalId === pageResourceId/);
+  assert.match(route, /sourceRecord\?\.title/);
+  assert.match(route, /related\.slice\(0, 4\)/);
+});
