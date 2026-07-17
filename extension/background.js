@@ -3,10 +3,40 @@ const TOKEN_KEY = "found:browser-session";
 const PROFILE_KEY = "found:browser-profile";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "found:connect-workspace") return;
-  connectWorkspace().then(sendResponse).catch(error => sendResponse({ ok: false, error: error?.message || "Connection failed." }));
+  if (message?.type === "found:connect-workspace") {
+    connectWorkspace().then(sendResponse).catch(error => sendResponse({ ok: false, error: error?.message || "Connection failed." }));
+    return true;
+  }
+  if (message?.type !== "found:match-page") return;
+  matchPage(message.page).then(sendResponse).catch(() => sendResponse({ match: null, reason: "service_unavailable" }));
   return true;
 });
+
+async function matchPage(page) {
+  const stored = await chrome.storage.local.get([TOKEN_KEY]);
+  const token = stored[TOKEN_KEY];
+  if (!token) return { match: null, reason: "not_connected" };
+  try {
+    const response = await fetch(`${FOUND_ORIGIN}/api/browser/match`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        pageText: typeof page?.pageText === "string" ? page.pageText.slice(0, 8000) : "",
+        pageTitle: typeof page?.pageTitle === "string" ? page.pageTitle.slice(0, 500) : "",
+        pageUrl: typeof page?.pageUrl === "string" ? page.pageUrl.slice(0, 2000) : "",
+      }),
+    });
+    if (response.status === 401 || response.status === 403) {
+      await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
+      return { match: null, reason: response.status === 403 ? "workspace_access_revoked" : "session_expired" };
+    }
+    if (!response.ok) return { match: null, reason: "service_unavailable" };
+    const payload = await response.json();
+    return payload?.match ? { match: payload.match, reason: "matched" } : { match: null, reason: "no_match" };
+  } catch {
+    return { match: null, reason: "service_unavailable" };
+  }
+}
 
 async function connectWorkspace() {
   const redirectUri = chrome.identity.getRedirectURL("found");

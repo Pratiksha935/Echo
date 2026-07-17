@@ -10,24 +10,15 @@
 
   async function findMatch() {
     if (/^https:\/\/www\.google\.[^/]+\/search/i.test(location.href)) return { match: null, reason: "unsupported_page" };
-    const stored = await chrome.storage.local.get([TOKEN_KEY, PROFILE_KEY]);
-    const token = stored[TOKEN_KEY];
-    if (!token) return { match: null, reason: "not_connected" };
-
     const pageText = (document.querySelector("main")?.innerText || document.body?.innerText || "").slice(0, 8000);
     try {
-      const response = await fetch(`${FOUND_ORIGIN}/api/browser/match`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ pageText, pageTitle: document.title, pageUrl: location.href }),
+      const result = await chrome.runtime.sendMessage({
+        type: "found:match-page",
+        page: { pageText, pageTitle: document.title, pageUrl: location.href },
       });
-      if (response.status === 401 || response.status === 403) {
-        await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
-        return { match: null, reason: response.status === 403 ? "workspace_access_revoked" : "session_expired" };
-      }
-      if (!response.ok) return { match: null, reason: "service_unavailable" };
-      const payload = await response.json();
-      return payload?.match ? { match: payload.match, reason: "matched" } : { match: null, reason: "no_match" };
+      return result?.match
+        ? { match: result.match, reason: "matched" }
+        : { match: null, reason: result?.reason || "service_unavailable" };
     } catch {
       return { match: null, reason: "service_unavailable" };
     }
