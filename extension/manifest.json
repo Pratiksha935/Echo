@@ -3,7 +3,7 @@
   "name": "Found — Organisational Memory",
   "version": "0.4.3",
   "description": "Surfaces relevant organisational knowledge while you browse.",
-  "permissions": ["activeTab", "storage", "scripting", "identity"],
+  "permissions": ["activeTab", "storage", "identity"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [
     {

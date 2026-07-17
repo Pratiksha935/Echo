@@ -51,3 +51,16 @@ test("unindexed and unrelated pages do not fabricate a battlecard", () => {
   });
   assert.equal(match, null);
 });
+
+test("an exact indexed Google Doc URL matches without editor title or text", () => {
+  const match = matchBrowserKnowledge({
+    pageText: "",
+    pageTitle: "",
+    pageUrl: `https://docs.google.com/document/d/${documentId}/edit`,
+    records: [records[0]],
+  });
+  assert.ok(match);
+  assert.equal(match.id, documentId);
+  assert.equal(match.title, "Dynamic security deposits for trusted renters");
+  assert.match(match.summary, /exact indexed company source/);
+});

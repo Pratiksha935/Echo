@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const pageTitle = typeof body?.pageTitle === "string" ? body.pageTitle.slice(0, 500) : "";
   const pageText = typeof body?.pageText === "string" ? body.pageText.slice(0, 8_000) : "";
   const pageUrl = typeof body?.pageUrl === "string" ? body.pageUrl.slice(0, 2_000) : "";
-  if (!pageTitle && !pageText) return NextResponse.json({ match: null }, { headers });
+  if (!pageTitle && !pageText && !pageUrl) return NextResponse.json({ match: null }, { headers });
 
   const rows = await serviceRest<BrowserKnowledgeRow[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=source_updated_at.desc&limit=200`);
   const records = rows.map(row => ({ authorName: row.author_name, body: row.body, department: row.department, externalId: row.external_id, source: row.source, sourceUrl: row.source_url, status: row.metadata?.status ?? "Indexed", title: row.title }));
