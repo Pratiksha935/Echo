@@ -85,6 +85,48 @@ test("live authentication callback does not seed fictional demo knowledge", asyn
   assert.doesNotMatch(callback, /seedDemoWorkspace|DEMO_ACCESS_EMAIL/);
 });
 
+test("password login uses the server-side Supabase grant and HttpOnly session cookies", async () => {
+  const [route, session] = await Promise.all([
+    source("app/auth/password/route.ts"),
+    source("lib/auth/session.ts"),
+  ]);
+  assert.match(session, /\/auth\/v1\/token\?grant_type=password/);
+  assert.match(route, /signInWithPassword\(email, password\)/);
+  assert.match(route, /sameOrigin\(request\)/);
+  assert.match(route, /safeReturnPath[\s\S]*"\/integrations"/);
+  assert.doesNotMatch(route, /access_token|refresh_token/);
+  assert.match(session, /ACCESS_COOKIE[\s\S]*httpOnly: true/);
+  assert.match(session, /REFRESH_COOKIE[\s\S]*httpOnly: true/);
+  assert.match(session, /secure/);
+});
+
+test("password failures are generic and secrets are not hardcoded", async () => {
+  const [route, login] = await Promise.all([
+    source("app/auth/password/route.ts"),
+    source("app/login/page.tsx"),
+  ]);
+  assert.match(route, /invalid_credentials/);
+  assert.doesNotMatch(route + login, /anuj\.modi@nurix\.ai/i);
+  assert.doesNotMatch(login, /user not found|wrong password|password is invalid/i);
+  assert.match(login, /email or password is incorrect/i);
+  assert.match(login, /action="\/auth\/email"/);
+  assert.match(login, /action="\/auth\/password"/);
+});
+
+test("magic-link recovery uses PKCE and never exposes session tokens to browser code", async () => {
+  const [emailRoute, callback, clientFiles] = await Promise.all([
+    source("app/auth/email/route.ts"),
+    source("app/auth/callback/route.ts"),
+    Promise.all([source("app/login/page.tsx"), source("app/auth.ts")]).then(files => files.join("\n")),
+  ]);
+  assert.match(emailRoute, /code_challenge/);
+  assert.match(emailRoute, /code_challenge_method: "s256"/);
+  assert.match(emailRoute, /PKCE_COOKIE/);
+  assert.match(emailRoute, /sameOrigin\(request\)/);
+  assert.match(callback, /exchangePkceCode/);
+  assert.doesNotMatch(clientFiles, /access_token|refresh_token/);
+});
+
 test("Google connector requests only read-only content scopes", async () => {
   const oauth = await source("lib/integrations/oauth.ts");
   assert.match(oauth, /drive\.readonly/);

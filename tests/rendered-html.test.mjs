@@ -48,28 +48,25 @@ test("renders the public login activation surface", async () => {
   assert.match(html, /Supabase environment values/);
 });
 
-test("renders the default Supabase magic-link callback surface", async () => {
-  const response = await render("/auth/magic?return_to=%2Fintegrations");
-  assert.equal(response.status, 200);
-  const html = await response.text();
-  assert.match(html, /Opening your/);
-  assert.match(html, /Securing your Found session/);
-});
-
-test("rejects cross-origin magic-link session exchanges", async () => {
+test("rejects cross-origin password login without contacting authentication", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-magic-session`);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-password-origin`);
   const { default: worker } = await import(workerUrl.href);
   const response = await worker.fetch(
-    new Request("http://localhost/auth/magic/session", {
-      method:"POST",
-      headers:{"content-type":"application/json","origin":"https://attacker.example"},
-      body:JSON.stringify({accessToken:"untrusted",refreshToken:"untrusted"}),
+    new Request("http://localhost/auth/password", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", origin: "https://attacker.example" },
+      body: new URLSearchParams({ email: "founder@example.com", password: "not-a-real-password", return_to: "//attacker.example" }),
     }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
-  assert.equal(response.status, 403);
+  assert.equal(response.status, 303);
+  const location = new URL(response.headers.get("location"));
+  assert.equal(location.pathname, "/login");
+  assert.equal(location.searchParams.get("error"), "invalid_credentials");
+  assert.equal(location.searchParams.get("return_to"), "/integrations");
+  assert.equal(response.headers.get("set-cookie"), null);
 });
 
 test("rejects unauthenticated company-knowledge API calls", async () => {
