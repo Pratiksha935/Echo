@@ -43,8 +43,9 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
 });
 
 test("browser battle cards use authenticated tenant memory", async () => {
-  const [route, session, token, extension] = await Promise.all([
+  const [route, handler, session, token, extension] = await Promise.all([
     source("app/api/browser/match/route.ts"),
+    source("lib/browser/match-route.js"),
     source("app/api/browser/session/route.ts"),
     source("lib/auth/browser-token.ts"),
     source("extension/content.js"),
@@ -54,10 +55,10 @@ test("browser battle cards use authenticated tenant memory", async () => {
   assert.match(token, /createHmac/);
   assert.match(token, /timingSafeEqual/);
   assert.match(route, /verifyBrowserToken/);
-  assert.match(route, /organisation_id=eq/);
-  assert.match(route, /chrome-extension/);
-  assert.match(route, /authorization, content-type/);
-  assert.doesNotMatch(route, /integration_secrets/);
+  assert.match(handler, /organisation_id=eq/);
+  assert.match(handler, /chrome-extension/);
+  assert.match(handler, /authorization, content-type/);
+  assert.doesNotMatch(route + handler, /integration_secrets/);
   assert.match(extension, /\/api\/browser\/session/);
   assert.match(extension, /Bearer \$\{token\}/);
   assert.match(extension, /\/api\/browser\/match/);
