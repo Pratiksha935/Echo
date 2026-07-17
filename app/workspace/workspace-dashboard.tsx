@@ -3,227 +3,107 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import type { MemoryUpdate, WorkspaceKnowledgeRecord } from "../../lib/auth/workspace";
+import { buildDecisionMemory, decisionPath, departments, formatMoment, type DecisionMemory, type Department } from "../../lib/workspace/intelligence";
 
-const views = ["Overview", "Executive", "Product", "GTM", "Sales", "Engineering", "Research", "Browser"] as const;
+const views = ["Overview", ...departments] as const;
 type View = typeof views[number];
-const demoRecords = [
-  {team:"Product",title:"Dynamic security deposits for trusted renters",owner:"Rohan Desai",state:"Approved",source:"Notion · RLP-101",sourceUrl:"https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507",keys:"deposit trusted clean returns"},
-  {team:"Product",title:"Fit confidence and backup-size reservation",owner:"Ananya Sharma",state:"Discovery complete",source:"Notion · RLP-102",sourceUrl:"https://app.notion.com/p/39b630edf61f81428907d392653ae37f",keys:"fit backup adjacent size"},
-  {team:"GTM",title:"Wedding Wardrobe Week",owner:"Aarav Shah",state:"13.9× ROAS",source:"Slack · #gtm-ideas",sourceUrl:"https://newworkspace-2bk3073.slack.com/archives/C0BGVQAPU0L",keys:"wedding campaign roas itinerary"},
-  {team:"GTM",title:"Customer measurement and proof-of-value problem",owner:"Rhea Bose",state:"Evidence confirmed",source:"Slack · #sales-floor",sourceUrl:"https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629",keys:"measurement roi proof value pilot"},
-  {team:"Engineering",title:"Progressive delivery guardrails",owner:"Leena Rao",state:"Implementation approved",source:"Slack · LOOP-42",sourceUrl:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX",keys:"canary rollback feature flag deployment"},
-  {team:"Engineering",title:"Developer portal and service maturity scorecards",owner:"Vikram Rao",state:"Pilot running",source:"Slack · ENG-214",sourceUrl:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX",keys:"harness portal catalog scorecard"},
-];
-const links=[
-  {kind:"COMPETITOR",title:"Rent the Runway membership model",owner:"Nisha Kapoor",tag:"retention · rental"},
-  {kind:"ARTICLE",title:"Harness developer portal patterns",owner:"Vikram Rao",tag:"platform · scorecards"},
-  {kind:"CODE",title:"Shared risk-adjusted deposit service",owner:"Ishaan Verma",tag:"deposit · checkout"},
+
+const demoRecords: WorkspaceKnowledgeRecord[] = [
+  record("RLP-101","Product","Dynamic security deposits for trusted renters","Rohan Desai","Experiment approved","Notion","https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507","Customers with five clean returns receive a 50% reduction in the standard security deposit.","2026-07-17T10:30:00.000Z"),
+  record("slack:RLP-101","Product","Dynamic security deposits for trusted renters","Rohan Desai","Latest Slack update","Slack","https://newworkspace-2bk3073.slack.com/archives/C0BGVQAPU0L","The team rejected a blanket zero-deposit policy and retained the risk-adjusted hold.","2026-07-17T11:10:00.000Z"),
+  record("RLP-102","Product","Fit confidence and backup-size reservation","Ananya Sharma","Discovery complete","Notion","https://app.notion.com/p/39b630edf61f81428907d392653ae37f","Reserve an adjacent size when fit confidence is low.","2026-07-16T15:20:00.000Z"),
+  record("SALES-MEASUREMENT-001","Sales","Customer measurement and proof-of-value problem","Rhea Bose","Evidence confirmed","Slack","https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629","Paid 30-day proof of value with one written success metric replaces default free pilots.","2026-07-17T09:45:00.000Z"),
+  record("GTM-WEDDING-01","GTM","Wedding Wardrobe Week","Aarav Shah","13.9× ROAS","Google Sheets","https://docs.google.com/spreadsheets/","Wedding-event bundles produced the strongest qualified-renter conversion among seasonal campaigns.","2026-07-15T13:00:00.000Z"),
+  record("LOOP-42","Engineering","Progressive delivery guardrails","Leena Rao","Implementation approved","Slack","https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX","Shared feature flags, canary cohorts, health verification and rollback are the approved release path.","2026-07-17T08:20:00.000Z"),
+  record("BROWSER-HARNESS","Research","Harness developer portal patterns","Vikram Rao","Research linked","Browser","https://www.harness.io/products/internal-developer-portal","Competitor research linked to the existing developer portal pilot.","2026-07-14T10:00:00.000Z"),
 ];
 
-type Props = {
-  connectedCount: number;
-  demoMode: boolean;
-  displayName: string;
-  memoryUpdates: MemoryUpdate[];
-  records: WorkspaceKnowledgeRecord[];
-  workspaceName: string;
-};
+type Props = { connectedCount:number; demoMode:boolean; displayName:string; memoryUpdates:MemoryUpdate[]; records:WorkspaceKnowledgeRecord[]; workspaceName:string };
 
-type BattleCard = {
-  conclusion: string;
-  confidence: string;
-  department: string;
-  explanation: string;
-  latestUpdate: string;
-  matchType: "Exact" | "Same idea" | "Source record";
-  owner: string;
-  sourceUrl?: string;
-  status: string;
-  title: string;
-};
+export default function WorkspaceDashboard({ connectedCount, demoMode, displayName, memoryUpdates, records, workspaceName }: Props) {
+  const [view,setView] = useState<View>("Overview");
+  const [query,setQuery] = useState("");
+  const [submitted,setSubmitted] = useState("");
+  const [graphId,setGraphId] = useState("");
+  const effectiveRecords = demoMode ? demoRecords : records;
+  const decisions = useMemo(() => buildDecisionMemory(effectiveRecords,memoryUpdates),[effectiveRecords,memoryUpdates]);
+  const selectedDepartment = view === "Overview" ? null : view as Department;
+  const departmentDecisions = useMemo(() => selectedDepartment ? decisions.filter(item=>item.department===selectedDepartment) : [],[decisions,selectedDepartment]);
+  const searchResults = useMemo(() => searchDecisions(decisions,submitted),[decisions,submitted]);
+  const graphDecisions = decisions.slice(0,5);
+  const selectedGraph = graphDecisions.find(item=>item.id===graphId) ?? graphDecisions[0];
+  const sourceKinds = new Set(decisions.flatMap(item=>item.sources.map(source=>source.kind)));
+  const activeDepartments = departments.filter(department=>decisions.some(item=>item.department===department));
+  const latestUpdates = decisions.slice(0,6);
 
-const platformBattleCard: BattleCard = {
-  conclusion: "Continue the Backstage-based pilot and evaluate Harness scorecard patterns before considering a vendor change.",
-  confidence: "Strong match because the proposal and the recorded initiative share the same intervention: one developer portal with canonical ownership metadata, service scorecards and paved deployment paths. Slack, Google Docs, Jira and an existing code asset converge on that initiative.",
-  department: "Platform Engineering",
-  explanation: "The current proposal repeats the portal, service-catalogue and maturity-scorecard scope already recorded under ENG-214.",
-  latestUpdate: "12 Jul 2026 · Pilot running",
-  matchType: "Same idea",
-  owner: "Vikram Rao",
-  status: "Pilot running",
-  title: "Developer portal and service maturity scorecards",
-};
+  function search(event:FormEvent) { event.preventDefault(); setSubmitted(query.trim()); }
+  function selectView(next:View) { setView(next); setSubmitted(""); window.scrollTo({top:0,behavior:"smooth"}); }
 
-const platformEvidence = [
-  {kind:"Slack",date:"12 Jul 2026",detail:"Decision to continue the Backstage-based pilot and evaluate Harness patterns.",href:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX",label:"Open Slack channel"},
-  {kind:"Google Docs",date:"Current source",detail:"Original document used by the Found browser demonstration for this initiative.",href:"https://docs.google.com/document/d/1eh7J9rAhvuWYWuB8MD-A3h97MAFWhYRtysFI53ABBYE",label:"Open original Doc"},
-  {kind:"Jira",date:"Current status",detail:"ENG-214 · Pilot running. The CV1 dataset has no Jira deep link.",label:"No source URL indexed"},
-  {kind:"Code",date:"Existing asset",detail:"resolveServiceOwner · services/catalog/src/ownership.ts · used by developer-portal and incident-bot.",label:"No source URL indexed"},
-] as const;
-
-const executiveTrends = [
-  {change:"3 linked sources",department:"Product",impact:"Checkout policy",momentum:"03",owner:"Rohan Desai",source:"Notion · Slack · RLP-101",sourceUrl:"https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507",title:"Trusted renters move to a lower deposit after five clean returns"},
-  {change:"2 linked sources",department:"Sales",impact:"Pilot policy",momentum:"02",owner:"Rhea Bose",source:"Slack · #sales-floor",sourceUrl:"https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629",title:"Paid proof-of-value replaces default free pilots"},
-  {change:"3 linked sources",department:"Engineering",impact:"Release policy",momentum:"03",owner:"Leena Rao",source:"Slack · Jira LOOP-42 · Code",sourceUrl:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX",title:"Progressive delivery guardrails become the shared release path"},
-];
-
-const graphNodes = [
-  {id:"deposit",label:"Trusted renter deposit",kind:"DECISION",className:"kgDeposit",sourceUrl:"https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507"},
-  {id:"measurement",label:"Proof-of-value metric",kind:"CUSTOMER SIGNAL",className:"kgMeasurement",sourceUrl:"https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629"},
-  {id:"portal",label:"Developer portal",kind:"INITIATIVE",className:"kgPortal",sourceUrl:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX"},
-  {id:"slack",label:"Slack",kind:"SOURCE",className:"kgSlack",sourceUrl:"https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX"},
-  {id:"docs",label:"Google Docs",kind:"SOURCE",className:"kgDocs",sourceUrl:"https://docs.google.com/document/d/1eh7J9rAhvuWYWuB8MD-A3h97MAFWhYRtysFI53ABBYE"},
-  {id:"code",label:"Code",kind:"SOURCE",className:"kgCode",sourceUrl:"https://github.com/Pratiksha935/echocheck-engineering-demo"},
-];
-
-export default function WorkspaceDashboard({connectedCount,demoMode,displayName,memoryUpdates,records,workspaceName}:Props) {
-  const [view,setView]=useState<View>("Overview");
-  const [graphFocus,setGraphFocus]=useState("deposit");
-  const [query,setQuery]=useState("");
-  const [submitted,setSubmitted]=useState("");
-  const companyRecords=useMemo(()=>{
-    const base=demoMode?demoRecords:records.map(item=>({
-      team:item.department??"Company",title:item.title,owner:item.authorName??"Unknown owner",state:item.status,source:`${item.source} · ${item.externalId}`,sourceKind:item.source,sourceUrl:item.sourceUrl,keys:`${item.title} ${item.body} ${item.department??""}`
-    }));
-    const updates=memoryUpdates.map(item=>({team:"Company",title:item.currentTitle,owner:"Company update",state:"Latest memory layer",source:`${item.origin.toUpperCase()} · VERSIONED UPDATE`,sourceKind:item.origin,sourceUrl:item.sourceUrl,keys:`${item.currentTitle} ${item.updateText}`}));
-    return [...updates,...base];
-  },[demoMode,memoryUpdates,records]);
-  const trending=useMemo(()=>demoMode?executiveTrends:buildExecutiveTrends(companyRecords),[companyRecords,demoMode]);
-  const activeGraphNodes=useMemo(()=>demoMode?graphNodes:[...companyRecords.slice(0,3).map((item,index)=>({id:`memory-${index}`,label:item.title,kind:"MEMORY",className:["kgDeposit","kgMeasurement","kgPortal"][index],sourceUrl:item.sourceUrl})),...Array.from(new Set(records.map(item=>item.source))).slice(0,4).map((source,index)=>({id:`source-${index}`,label:source,kind:"SOURCE",className:["kgSlack","kgDocs","kgJira","kgCode"][index],sourceUrl:records.find(item=>item.source===source)?.sourceUrl??"/workspace"}))],[companyRecords,demoMode,records]);
-  const selectedGraphNode=activeGraphNodes.find(node=>node.id===graphFocus)??activeGraphNodes[0];
-  const matches=useMemo(()=>rankMatches(companyRecords,submitted),[companyRecords,submitted]);
-  const departmentRecords=useMemo(()=>companyRecords.filter(item=>item.team.toLowerCase()===view.toLowerCase()),[companyRecords,view]);
-  const visibleRecords=useMemo(()=>view==="Overview"?curateOverview(companyRecords):departmentRecords.slice(0,6),[companyRecords,departmentRecords,view]);
-  const visibleTotal=view==="Overview"?companyRecords.length:departmentRecords.length;
-  const primaryCard=useMemo<BattleCard>(()=>{
-    if(demoMode) return platformBattleCard;
-    const record=matches[0]??companyRecords[0];
-    if(!record) return {
-      conclusion:"Connect an approved source to create the first evidence-backed battle card.",confidence:"No confidence assessment is available because no company evidence is indexed.",department:"Company",explanation:"Found has no source record to compare yet.",latestUpdate:"No verified update",matchType:"Source record",owner:"No owner indexed",status:"Awaiting evidence",title:"No battle card available",
-    };
-    return {
-      conclusion:record.state,
-      confidence:`This card is grounded in the indexed ${record.source}. Found has not inferred corroboration from sources that are not present.`,
-      department:record.team,
-      explanation:submitted?`This is the strongest title and evidence-text match for “${submitted}”.`:`This is the highest-signal indexed record currently available in this workspace.`,
-      latestUpdate:memoryUpdates.find(update=>update.currentTitle===record.title)?.updateText??"No append-only correction recorded",
-      matchType:submitted?"Same idea":"Source record",
-      owner:record.owner,
-      sourceUrl:record.sourceUrl,
-      status:record.state,
-      title:record.title,
-    };
-  },[companyRecords,demoMode,matches,memoryUpdates,submitted]);
-  function search(event:FormEvent){event.preventDefault();setSubmitted(query.trim())}
-  function selectView(item:View){
-    setView(item);
-    setSubmitted("");
-    window.scrollTo({top:0,behavior:"smooth"});
-  }
-  return <main className="foundWorkspace">
-    <aside className="wsRail"><Link href="/" className="wsLogo">Found<span>.</span></Link><nav>{views.map(item=><button key={item} className={view===item?"active":""} onClick={()=>selectView(item)}><i/>{item}</button>)}</nav><div><Link href="/integrations">Connect sources ↗</Link><small>{demoMode?"Demo memory":`${connectedCount} source${connectedCount===1?"":"s"} connected`}</small></div></aside>
+  return <main className="foundWorkspace workspaceV2">
+    <aside className="wsRail">
+      <Link href="/" className="wsLogo">Found<span>.</span></Link>
+      <nav>{views.map(item=><button type="button" key={item} className={view===item?"active":""} onClick={()=>selectView(item)}><i/>{item}</button>)}</nav>
+      <div><Link href="/integrations">Manage sources ↗</Link><small>{connectedCount} authorised source{connectedCount===1?"":"s"}</small></div>
+    </aside>
     <section className="wsMain">
-      <header className="wsTop"><div><span>{workspaceName.toUpperCase()} / COMPANY INTELLIGENCE</span><b>{view}</b></div><div><i/> {demoMode?"DEMO MEMORY":"PRIVATE WORKSPACE"} <strong>{displayName}</strong></div></header>
-      <section className="wsHero"><p>THE GENERAL INTELLIGENCE OF YOUR COMPANY</p><h1>Everything your team<br/>has already learned.</h1><form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Ask about a decision, campaign, customer insight, or code…"/><button>Find it ↗</button></form></section>
-      <BattleCardSurface card={primaryCard} demoMode={demoMode} memoryUpdates={memoryUpdates}/>
-      {submitted&&<section className="wsResults" aria-live="polite"><header><span>FOUND IN COMPANY MEMORY</span><b>{matches.length} strong matches</b></header>{matches.length?matches.map(item=><article key={item.title}><span>{item.team}</span><div><h3>{item.title}</h3><p>{item.owner} · {item.source}</p></div><a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.state} ↗</a></article>):<p>No strong prior work found. Found stays silent on weak matches.</p>}</section>}
-      <section className="wsMetrics"><article><span>MEMORY RECORDS</span><b>{demoMode?"18":String(records.length).padStart(2,"0")}</b><p>Across approved sources</p></article><article><span>CONNECTED SOURCES</span><b>{demoMode?"05":String(connectedCount).padStart(2,"0")}</b><p>Workspace-authorised</p></article><article><span>EVIDENCE LINKS</span><b>{demoMode?"94%":records.length?"100%":"—"}</b><p>Original sources retained</p></article><article><span>WORKSPACE MODE</span><b>{demoMode?"CV1":"ACL"}</b><p>{demoMode?"Seeded product demo":"Tenant isolated"}</p></article></section>
-      {memoryUpdates.length>0&&<section className="wsUpdateBanner"><span>MEMORY CHANGED</span><div><b>{memoryUpdates[0].currentTitle}</b><p>{memoryUpdates[0].updateText}</p></div><a href={memoryUpdates[0].sourceUrl} target="_blank" rel="noreferrer">VERIFY ORIGINAL ↗</a></section>}
-      {(view==="Overview"||view==="Executive")&&<section className="wsExecutive">
-        <header><div><span>EXECUTIVE PULSE · TODAY</span><h2>Trending decisions<br/>across the company.</h2></div><p>Ranked by retained evidence, source diversity and the latest verified memory layers—not by message volume alone.</p></header>
-        <div className="wsTrendGrid">{trending.map((item,index)=><a href={item.sourceUrl} target="_blank" rel="noreferrer" key={item.title} className={index===0?"lead":""}><div><span>{item.department}</span><em>{item.change}</em></div><h3>{item.title}</h3><p>{item.owner} · {item.source}</p><footer><span>{item.impact}</span><b>{item.momentum}</b></footer></a>)}</div>
-        <div className="wsPulseGrid"><article><span>SOURCED ACTIVITY · TODAY</span><div className="wsPulseBars">{[54,78,66,92].map((height,index)=><i key={index} style={{height:`${height}%`}}/>)}</div><footer><small>EARLIER</small><b>4 verified changes shown</b><small>LATEST</small></footer></article><article className="wsChangeFeed"><span>LATEST VERIFIED CHANGES</span>{[
-          ["NEW","Product","Deposit experiment approved","Notion + Slack"],
-          ["NEW","Sales","POV metric attached to pilot","Slack"],
-          ["LINK","Engineering","Canary contract reused","Jira + Code"],
-          ["DATA","GTM","Wedding campaign benchmarked","Sheet"],
-        ].map(item=><div key={item[0]}><time>{item[0]}</time><p><b>{item[1]}</b>{item[2]}</p><small>{item[3]}</small></div>)}</article></div>
-      </section>}
-      {(view==="Overview"||view==="Executive")&&<section className="wsKnowledgeGraph"><header><span>ORGANISATIONAL KNOWLEDGE GRAPH</span><div><h2>See how the company<br/>reached a decision.</h2><p>Every node keeps its source receipt. Select an idea to inspect the evidence network around it.</p></div></header><div className="kgLayout"><div className="kgCanvas" aria-label="Interactive company knowledge graph"><i className="kgLine kgL1"/><i className="kgLine kgL2"/><i className="kgLine kgL3"/><i className="kgLine kgL4"/><i className="kgLine kgL5"/>{activeGraphNodes.map(node=><button type="button" onClick={()=>setGraphFocus(node.id)} className={`kgNode ${node.className} ${graphFocus===node.id?"active":""}`} key={node.id}><span>{node.kind}</span><b>{node.label}</b></button>)}</div><aside><span>SELECTED MEMORY</span><h3>{selectedGraphNode?.label??"Connect a source"}</h3><p>{graphFocus==="deposit"?"Three Slack conversations and three linked records converge on the same approved intervention: reduce the hold after five clean returns.":"This node is connected through retained source evidence and its latest append-only memory updates."}</p><dl><div><dt>CONNECTED EVIDENCE</dt><dd>{graphFocus==="deposit"?"06":"04"}</dd></div><div><dt>LATEST LAYER</dt><dd>{memoryUpdates.length?"New update":"Latest indexed"}</dd></div><div><dt>CONFIDENCE</dt><dd>{demoMode?"94%":"Evidence linked"}</dd></div></dl><a href={selectedGraphNode?.sourceUrl??"/workspace"} target="_blank" rel="noreferrer">OPEN ORIGINAL SOURCE ↗</a></aside></div></section>}
-      {!demoMode&&<section className="wsSection wsLiveMemory"><header><span>{view.toUpperCase()} MEMORY · {visibleRecords.length} OF {visibleTotal}</span><h2>{records.length?"The few records that change the next decision.":"Connect a source to begin."}</h2></header>{visibleRecords.length?<><div className="wsLiveRecords">{visibleRecords.map(item=><article key={`${item.source}-${item.title}`}><span>{item.team}</span><div><h3><a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.title}</a></h3><p>{item.owner} · {item.source}</p></div><b>{item.state}</b></article>)}</div>{visibleTotal>visibleRecords.length&&<p className="wsRecordNote">Showing the highest-signal records. Search reaches all {visibleTotal} approved memories.</p>}</>:<div className="wsEmpty"><p>No company records are visible in this department.</p><Link href="/integrations">Manage Slack and Google Workspace ↗</Link></div>}</section>}
-      {demoMode&&(view==="Overview"||view==="Product")&&<section className="wsSection"><header><span>PRODUCT MEMORY</span><h2>Decisions before<br/>feature requests.</h2></header><div className="wsDecision"><div><span>P0 · CONFLICT DETECTED</span><h3>“Zero deposit for everyone” is already a known dead end.</h3><p>The approved path is a 50% lower hold after five clean returns. The blanket zero-deposit campaign was stopped.</p><a className="wsDecisionSource" href="https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507" target="_blank" rel="noreferrer">VERIFY ORIGINAL DECISION ↗</a></div><aside><b>94%</b><span>SAME IDEA</span><dl><div><dt>OWNER</dt><dd>Rohan Desai</dd></div><div><dt>STATUS</dt><dd>Experiment approved</dd></div><div><dt>SOURCES</dt><dd>Notion · Slack · RLP-101</dd></div></dl></aside></div></section>}
-      {demoMode&&(view==="Overview"||view==="GTM")&&<section className="wsSection wsGtm"><header><span>GTM INTELLIGENCE</span><h2>What worked.<br/>What did not.</h2></header><div className="wsCampaigns"><article><b>33.6×</b><span>Return & Earn</span><i style={{width:"100%"}}/></article><article><b>13.9×</b><span>Wedding Wardrobe Week</span><i style={{width:"62%"}}/></article><article><b>4.4×</b><span>Trust Your Rental</span><i style={{width:"27%"}}/></article><article><b>1.3×</b><span>Office Edit Trial</span><i style={{width:"8%"}}/></article></div></section>}
-      {demoMode&&(view==="Overview"||view==="Engineering")&&<section className="wsSection"><header><span>ENGINEERING MEMORY</span><h2>Reuse the behavior.<br/>Not just the file.</h2></header><div className="wsCode"><article><span>LOOP-42</span><code>createCanaryPlan()</code><p>packages/release-guard/src/canary.ts</p><b>Leena Rao ↗</b></article><article><span>ENG-214</span><code>resolveServiceOwner()</code><p>services/catalog/src/ownership.ts</p><b>Vikram Rao ↗</b></article><article><span>LOOP-63</span><code>extract_failure_taxonomy()</code><p>tools/incident-linker/index.py</p><b>Kabir Malhotra ↗</b></article></div><Link className="wsModuleLink" href="/code-review">Open PR duplicate guard ↗</Link></section>}
-      {demoMode&&(view==="Overview"||view==="Research")&&<section className="wsSection"><header><span>LINK DUMP</span><h2>Save it now.<br/>Find it when it matters.</h2></header><div className="wsLinks">{links.map(item=><article key={item.title}><span>{item.kind}</span><h3>{item.title}</h3><p>{item.owner}</p><b>{item.tag}</b><i>↗</i></article>)}</div><button className="wsAdd">+ ADD ARTICLE, REPOSITORY, OR COMPETITOR LINK</button></section>}
-      {demoMode&&(view==="Overview"||view==="Browser")&&<section className="wsBrowser"><div><span>BROWSER INTELLIGENCE</span><h2>Found follows the idea,<br/>not your browsing history.</h2><p>On supported articles, the extension checks page meaning against approved company memory and surfaces only strong matches.</p><Link href="/demo-article">Open article demo ↗</Link></div><article><span>96% · PRIOR WORK</span><h3>Developer portal and service maturity scorecards</h3><p>Vikram Rao is already running this pilot.</p><a href="https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX" target="_blank" rel="noreferrer">VERIFY IN SLACK ↗</a></article></section>}
+      <header className="wsTop"><div><span>{workspaceName.toUpperCase()} / LIVE COMPANY MEMORY</span><b>{view}</b></div><div><i/> {demoMode?"DEMO WORKSPACE":"TENANT-ISOLATED"} <strong>{displayName}</strong></div></header>
+      <section className="pulseHero">
+        <div><span>{view==="Overview"?"COMPANY PULSE":"DEPARTMENT MEMORY"} · {formatDay(new Date())}</span>
+          <h1>{view==="Overview"?<>What changed across<br/>{workspaceName}.</>:<>Everything {view}<br/>needs to know.</>}</h1>
+          <p>{view==="Overview"?"A current, evidence-weighted view of decisions, changed assumptions and emerging work. Raw source records stay inside their department and decision timelines.":`${departmentDecisions.length} classified decisions, ordered by the latest verified layer.`}</p>
+        </div>
+        <form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Ask about a decision, campaign, client, competitor, or implementation…"/><button>Search memory ↗</button></form>
+      </section>
+
+      {submitted&&<SearchResults query={submitted} results={searchResults}/>}
+
+      {view==="Overview" ? <>
+        <section className="pulseMetrics" aria-label="Company memory health">
+          <Metric label="ACTIVE DECISIONS" value={String(decisions.length).padStart(2,"0")} detail="Consolidated across duplicate sources"/>
+          <Metric label="CHANGED THIS WEEK" value={String(decisions.filter(item=>withinDays(item.latestAt,7)).length).padStart(2,"0")} detail="New evidence or memory layers"/>
+          <Metric label="DEPARTMENTS MOVING" value={String(activeDepartments.length).padStart(2,"0")} detail={activeDepartments.join(" · ")||"No classified activity"}/>
+          <Metric label="SOURCE COVERAGE" value={String(sourceKinds.size).padStart(2,"0")} detail={[...sourceKinds].join(" · ")||"Connect company sources"}/>
+        </section>
+        <section className="companyPulse">
+          <header><div><span>TRENDING NOW</span><h2>The decisions<br/>shaping this week.</h2></div><p>Momentum is based on recency, source diversity and explicit memory updates—not message volume.</p></header>
+          <div className="trendLedger">{decisions.slice(0,4).map((decision,index)=><DecisionCard decision={decision} rank={index+1} key={decision.id}/>)}</div>
+        </section>
+        <section className="pulseSplit">
+          <div className="changeStream"><header><span>LATEST VERIFIED CHANGES</span><b>Newest first</b></header>{latestUpdates.map(item=><Link href={decisionPath(item.id)} key={item.id}><time>{formatMoment(item.latestAt)}</time><div><b>{item.department}</b><h3>{item.title}</h3><p>{truncate(item.latestText,150)}</p></div><span>{item.status} ↗</span></Link>)}</div>
+          <div className="departmentPulse"><header><span>DEPARTMENT PULSE</span><b>Classified automatically</b></header>{departments.map(department=>{const items=decisions.filter(item=>item.department===department);return <button type="button" key={department} onClick={()=>selectView(department)}><span>{department}</span><b>{String(items.length).padStart(2,"0")}</b><small>{items[0]?`Latest · ${formatRelative(items[0].latestAt)}`:"No activity yet"}</small></button>})}</div>
+        </section>
+        <section className="knowledgeGraphV2">
+          <header><div><span>LIVE KNOWLEDGE GRAPH</span><h2>Decisions connected<br/>to their evidence.</h2></div><p>Select a decision to see its department, source diversity, latest memory layer and timeline. Nodes are generated from live records—never duplicated decoration.</p></header>
+          {graphDecisions.length ? <div className="graphGrid">
+            <div className="graphDepartments"><span>DEPARTMENTS</span>{[...new Set(graphDecisions.map(item=>item.department))].map(item=><b key={item}>{item}</b>)}</div>
+            <div className="graphDecisions"><span>DECISIONS</span>{graphDecisions.map(item=><button type="button" className={selectedGraph?.id===item.id?"active":""} onClick={()=>setGraphId(item.id)} key={item.id}><small>{item.department}</small><b>{item.title}</b><em>{item.sources.length} source{item.sources.length===1?"":"s"}</em></button>)}</div>
+            <aside><span>SELECTED MEMORY</span><h3>{selectedGraph?.title}</h3><p>{truncate(selectedGraph?.latestText??"",240)}</p><dl><div><dt>OWNER</dt><dd>{selectedGraph?.owner}</dd></div><div><dt>LATEST LAYER</dt><dd>{selectedGraph?formatMoment(selectedGraph.latestAt):"—"}</dd></div><div><dt>EVIDENCE</dt><dd>{selectedGraph?.sources.map(source=>source.kind).join(" · ")}</dd></div></dl>{selectedGraph&&<Link href={decisionPath(selectedGraph.id)}>OPEN DECISION TIMELINE ↗</Link>}</aside>
+          </div>:<EmptyState/>}
+        </section>
+      </> : <DepartmentView department={selectedDepartment!} decisions={departmentDecisions}/>}
     </section>
-  </main>
+  </main>;
 }
 
-function BattleCardSurface({card,demoMode,memoryUpdates}:{card:BattleCard;demoMode:boolean;memoryUpdates:MemoryUpdate[]}) {
-  const relevantUpdates=memoryUpdates.filter(update=>update.currentTitle===card.title);
-  return <section className="wsBattle" aria-labelledby="battle-card-title">
-    <header><div><span>PRIMARY INTELLIGENCE · BATTLE CARD</span><h2 id="battle-card-title">The conclusion,<br/>with its receipts.</h2></div><p>Found presents evidence here. It does not post this analysis back into Slack.</p></header>
-    <article className="wsBattleCard">
-      <div className="wsBattleSummary">
-        <div className="wsBattleBadges"><b>{card.matchType}</b><span>{card.status}</span></div>
-        <p className="wsBattleTitle">{card.title}</p>
-        <p className="wsBattleLabel">INTERNAL CONCLUSION</p>
-        <h3>{card.conclusion}</h3>
-        <p className="wsBattleWhy"><b>Why it matches</b>{card.explanation}</p>
-        <dl><div><dt>OWNER</dt><dd>{card.owner}</dd></div><div><dt>DEPARTMENT</dt><dd>{card.department}</dd></div><div><dt>STATUS</dt><dd>{card.status}</dd></div><div><dt>LATEST UPDATE</dt><dd>{card.latestUpdate}</dd></div></dl>
-        <section className="wsConfidence"><span>WHY FOUND IS CONFIDENT</span><p>{card.confidence}</p></section>
-      </div>
-      <div className="wsEvidence">
-        <header><span>EVIDENCE TIMELINE</span><b>{demoMode?"4 original sources":`${card.title==="No battle card available"?0:1} indexed source`}</b></header>
-        <div className="wsEvidenceGroup"><p>ORIGINAL EVIDENCE · SOURCE SYSTEMS REMAIN AUTHORITATIVE</p>{demoMode?platformEvidence.map(item=><article key={item.kind}><i/><div><span>{item.kind} · {item.date}</span><p>{item.detail}</p>{"href" in item?<a href={item.href} target="_blank" rel="noreferrer">{item.label} ↗</a>:<small>{item.label}</small>}</div></article>):<article><i/><div><span>INDEXED SOURCE</span><p>{card.title}</p>{card.sourceUrl?<a href={card.sourceUrl} target="_blank" rel="noreferrer">Open original source ↗</a>:<small>No source URL indexed.</small>}</div></article>}</div>
-        <div className="wsCorrections"><p>APPEND-ONLY CORRECTIONS · ORIGINALS ARE NOT OVERWRITTEN</p>{relevantUpdates.length?relevantUpdates.map(update=><article key={`${update.sourceRecordId}-${update.createdAt}`}><span>{formatUpdateDate(update.createdAt)} · {update.origin.toUpperCase()}</span><p>{update.updateText}</p><a href={update.sourceUrl} target="_blank" rel="noreferrer">Verify original source ↗</a></article>):<small>No corrections recorded for this card.</small>}</div>
-      </div>
-    </article>
-  </section>;
+function DepartmentView({department,decisions}:{department:Department;decisions:DecisionMemory[]}) {
+  const sources=new Set(decisions.flatMap(item=>item.sources.map(source=>source.kind)));
+  return <>
+    <section className="departmentSummary"><div><span>{department.toUpperCase()} / CURRENT MEMORY</span><h2>{departmentHeading(department)}</h2><p>{departmentDescription(department)}</p></div><dl><div><dt>DECISIONS</dt><dd>{String(decisions.length).padStart(2,"0")}</dd></div><div><dt>UPDATED THIS WEEK</dt><dd>{String(decisions.filter(item=>withinDays(item.latestAt,7)).length).padStart(2,"0")}</dd></div><div><dt>SOURCE TYPES</dt><dd>{String(sources.size).padStart(2,"0")}</dd></div></dl></section>
+    <section className="decisionRegistry"><header><span>LATEST FIRST</span><h2>Decision memory</h2><p>One row per decision. Duplicate Slack, Docs and browser captures are consolidated into its evidence timeline.</p></header>{decisions.length?<div>{decisions.map(decision=><Link href={decisionPath(decision.id)} key={decision.id}><div><span>{formatMoment(decision.latestAt)}</span><em>{decision.status}</em></div><h3>{decision.title}</h3><p>{truncate(decision.latestText,220)}</p><footer><span>{decision.owner}</span><b>{decision.sources.map(source=>source.kind).join(" · ")}</b><strong>Open timeline ↗</strong></footer></Link>)}</div>:<EmptyState/>}</section>
+    {department==="Browser"&&<section className="browserOperatingModel"><span>BROWSER MEMORY</span><h2>Capture deliberately.<br/>Discover automatically.</h2><div><article><b>01</b><h3>Ambient insight</h3><p>Found checks supported pages in the background and opens a battlecard only for strong workspace matches.</p></article><article><b>02</b><h3>Team capture</h3><p>Research, GTM, Product and Sales can save the current page with a department and explicit note from the extension.</p></article><article><b>03</b><h3>Decision routing</h3><p>Every surfaced insight opens its internal timeline; source systems remain receipts, not the primary interface.</p></article></div></section>}
+  </>;
 }
 
-function formatUpdateDate(value:string) {
-  const date=new Date(value);
-  return Number.isNaN(date.getTime())?"Date unavailable":new Intl.DateTimeFormat("en-IN",{day:"2-digit",month:"short",year:"numeric"}).format(date);
-}
+function DecisionCard({decision,rank}:{decision:DecisionMemory;rank:number}) { return <Link href={decisionPath(decision.id)}><div><span>0{rank}</span><em>{decision.department}</em></div><h3>{decision.title}</h3><p>{truncate(decision.latestText,170)}</p><footer><span>{formatRelative(decision.latestAt)}</span><b>{decision.sources.length} evidence source{decision.sources.length===1?"":"s"} ↗</b></footer></Link>; }
+function SearchResults({query,results}:{query:string;results:DecisionMemory[]}) { return <section className="searchOverlay"><header><span>RESULTS FOR “{query}”</span><b>{results.length} decision{results.length===1?"":"s"}</b></header>{results.length?results.map(item=><Link href={decisionPath(item.id)} key={item.id}><span>{item.department}</span><div><h3>{item.title}</h3><p>{truncate(item.latestText,140)}</p></div><b>{formatRelative(item.latestAt)} ↗</b></Link>):<p>No strong company-memory match. Found does not manufacture an answer.</p>}</section>; }
+function Metric({label,value,detail}:{label:string;value:string;detail:string}) { return <article><span>{label}</span><b>{value}</b><p>{detail}</p></article>; }
+function EmptyState() { return <div className="workspaceEmpty"><h3>No classified memory yet.</h3><p>Connect an approved source or capture a page from the Found extension.</p><Link href="/integrations">Manage integrations ↗</Link></div>; }
 
-function curateOverview<T extends { sourceKind?: string; team: string }>(items: T[]): T[] {
-  const perTeam = new Map<string, number>();
-  const sourcePairs = new Set<string>();
-  return items.filter(item => {
-    const count = perTeam.get(item.team) ?? 0;
-    if (count >= 2) return false;
-    const pair = `${item.team}:${item.sourceKind ?? "demo"}`;
-    if (sourcePairs.has(pair)) return false;
-    perTeam.set(item.team, count + 1);
-    sourcePairs.add(pair);
-    return true;
-  }).slice(0, 8);
-}
-
-function buildExecutiveTrends<T extends { owner:string; source:string; sourceUrl:string; team:string; title:string }>(items:T[]) {
-  const groups=new Map<string,{count:number;item:T;sources:Set<string>}>();
-  for(const item of items){
-    const key=item.title.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-    const group=groups.get(key);
-    if(group){group.count+=1;group.sources.add(item.source)}else{groups.set(key,{count:1,item,sources:new Set([item.source])})}
-  }
-  return [...groups.values()].sort((a,b)=>b.sources.size-a.sources.size||b.count-a.count).slice(0,3).map(group=>({
-    change:`${group.count} linked record${group.count===1?"":"s"}`,
-    department:group.item.team,
-    impact:"Company memory",
-    momentum:String(group.sources.size).padStart(2,"0"),
-    owner:group.item.owner,
-    source:[...group.sources].join(" · "),
-    sourceUrl:group.item.sourceUrl,
-    title:group.item.title,
-  }));
-}
-
-const SEARCH_STOP_WORDS = new Set(["about","after","again","already","could","from","have","into","should","that","their","there","these","this","what","when","where","which","with","would"]);
-
-function rankMatches<T extends { keys: string; title: string }>(items: T[], query: string): T[] {
-  const terms = [...new Set(query.toLowerCase().split(/\W+/).filter(term => term.length > 3 && !SEARCH_STOP_WORDS.has(term)))];
-  if (!terms.length) return [];
-  return items.map(item => {
-    const title = item.title.toLowerCase();
-    const evidence = item.keys.toLowerCase();
-    const score = terms.reduce((total, term) => total + (title.includes(term) ? 3 : evidence.includes(term) ? 1 : 0), 0);
-    const matchedTerms = terms.filter(term => evidence.includes(term)).length;
-    return { item, matchedTerms, score };
-  }).filter(result => result.score >= 2 && (result.matchedTerms >= 2 || result.score >= 3))
-    .sort((a,b) => b.score - a.score)
-    .slice(0,6)
-    .map(result => result.item);
-}
+function searchDecisions(items:DecisionMemory[],query:string):DecisionMemory[] { const terms=query.toLowerCase().split(/\W+/).filter(term=>term.length>2); if(!terms.length)return[]; return items.map(item=>({item,score:terms.reduce((score,term)=>score+(item.title.toLowerCase().includes(term)?4:`${item.latestText} ${item.department} ${item.owner}`.toLowerCase().includes(term)?1:0),0)})).filter(result=>result.score>=2).sort((a,b)=>b.score-a.score).slice(0,8).map(result=>result.item); }
+function departmentHeading(department:Department):string { return ({Product:"What customers need—and what we decided.",GTM:"Campaign intelligence that compounds.",Sales:"Client evidence before the next call.",Engineering:"Implementation memory before the next PR.",Research:"Signals worth carrying into the roadmap.",Browser:"The web, connected to company context."})[department]; }
+function departmentDescription(department:Department):string { return ({Product:"Approved product choices, rejected alternatives, experiments and the newest context attached by the team.",GTM:"Campaign results, positioning decisions and reusable patterns grouped by the work they influence.",Sales:"Customer signals, proof-of-value criteria and account intelligence retained with the original receipt.",Engineering:"Architecture choices, existing implementations and operational learning consolidated across code and conversation.",Research:"Competitor moves, articles and market evidence deliberately captured by the team.",Browser:"Items explicitly saved from the web plus strong organisational matches surfaced while the team browses."})[department]; }
+function record(externalId:string,department:string,title:string,authorName:string,status:string,source:string,sourceUrl:string,body:string,sourceUpdatedAt:string):WorkspaceKnowledgeRecord { return {externalId,department,title,authorName,status,source,sourceUrl,body,sourceUpdatedAt}; }
+function truncate(value:string,max:number):string { const clean=value.replace(/\s+/g," ").trim(); return clean.length>max?`${clean.slice(0,max-1).trim()}…`:clean; }
+function withinDays(value:string,days:number):boolean { const time=Date.parse(value); return !Number.isNaN(time)&&Date.now()-time<=days*86400000; }
+function formatRelative(value:string):string { const time=Date.parse(value); if(Number.isNaN(time))return"Time not indexed"; const days=Math.max(0,Math.floor((Date.now()-time)/86400000)); return days===0?"Today":days===1?"Yesterday":`${days} days ago`; }
+function formatDay(date:Date):string { return new Intl.DateTimeFormat("en",{day:"2-digit",month:"short",year:"numeric"}).format(date); }

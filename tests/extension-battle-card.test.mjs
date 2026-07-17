@@ -7,12 +7,15 @@ const source = path => readFile(new URL(path, root), "utf8");
 
 test("browser battle card presents the complete prior-work receipt", async () => {
   const content = await source("extension/content.js");
-  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHAT FOUND KNOWS", "RECOMMENDED NEXT STEP", "SOURCE RECEIPTS"]) {
+  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHAT FOUND KNOWS", "RECOMMENDED NEXT STEP", "CONTINUE IN FOUND"]) {
     assert.match(content, new RegExp(label));
   }
   assert.match(content, /safeSourceUrl/);
   assert.match(content, /Array\.isArray\(match\.links\)/);
-  assert.match(content, /class="ec-original"/);
+  assert.match(content, /Open decision timeline/);
+  assert.match(content, /seenUrls/);
+  assert.match(content, /seenKinds/);
+  assert.doesNotMatch(content, /Open page ↗|class="ec-original"/);
 });
 
 test("corrections use the authenticated extension worker and append-only centralized memory", async () => {
@@ -37,7 +40,7 @@ test("corrections use the authenticated extension worker and append-only central
 test("battle card preserves original sources and exposes no internal traces", async () => {
   const [content, popup] = await Promise.all([source("extension/content.js"), source("extension/popup.html")]);
   assert.match(content, /Original Slack and Google sources stay untouched/);
-  assert.match(popup, /Live authorised evidence only/);
+  assert.match(popup, /Ambient matching/);
   assert.doesNotMatch(content, /Analysed locally|searching|processing|trace/i);
   assert.doesNotMatch(content, /findDemoMatch|Offline demo memory|const knowledge/);
 });
@@ -100,8 +103,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.5"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.5"/);
+  assert.match(manifest, /"version": "0\.4\.6"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.6"/);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
@@ -164,6 +167,20 @@ test("automatic checks retry after editor load and follow single-page navigation
   assert.match(content, /location\.href !== lastCheckedUrl/);
   assert.match(content, /automaticAttempts < 3/);
   assert.match(content, /visibilitychange/);
+  assert.match(content, /app\\\.slack\\\.com/);
+  assert.match(content, /dynamicSignature/);
+});
+
+test("teams can deliberately capture a browser page into a classified workspace department", async () => {
+  const [popup,background,content,route]=await Promise.all([source("extension/popup.html"),source("extension/background.js"),source("extension/content.js"),source("app/api/browser/capture/route.ts")]);
+  for(const department of ["Research","Product","GTM","Sales","Engineering","Browser"]) assert.match(popup,new RegExp(`value="${department}"`));
+  assert.match(content,/found:page-context/);
+  assert.match(background,/found:capture-page/);
+  assert.match(background,/\/api\/browser\/capture/);
+  assert.match(route,/DEPARTMENTS/);
+  assert.match(route,/organisation_id:token\.organisationId/);
+  assert.match(route,/submitted_by:token\.userId/);
+  assert.match(route,/source:"Browser"/);
 });
 
 test("the extension worker owns the authenticated cross-origin match request", async () => {

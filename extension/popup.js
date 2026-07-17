@@ -4,7 +4,8 @@ const runButton = document.getElementById("run");
 const status = document.getElementById("status");
 const account = document.getElementById("account");
 const connectButton = document.getElementById("connect");
-const EXTENSION_VERSION = "0.4.5";
+const EXTENSION_VERSION = "0.4.6";
+const captureForm = document.getElementById("capture");
 
 async function showConnection() {
   const stored = await chrome.storage.local.get([TOKEN_KEY, PROFILE_KEY]);
@@ -51,6 +52,19 @@ runButton.addEventListener("click", async () => {
 });
 
 showConnection();
+
+captureForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const button=captureForm.querySelector('button[type="submit"]');button.disabled=true;button.textContent="ADDING…";
+  try{
+    const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+    if(!tab?.id||!/^https?:/.test(tab.url||""))throw new Error("invalid_page");
+    const context=await chrome.tabs.sendMessage(tab.id,{type:"found:page-context"});
+    const result=await chrome.runtime.sendMessage({type:"found:capture-page",capture:{...context,department:document.getElementById("department").value,note:document.getElementById("note").value.trim()}});
+    if(!result?.ok)throw new Error(result?.reason||"capture_failed");
+    captureForm.classList.add("saved");button.textContent="ADDED TO FOUND ✓";document.getElementById("note").value="";status.textContent="Saved to the selected department with this page as its source receipt.";
+  }catch{button.disabled=false;button.textContent="ADD TO FOUND ↗";status.textContent="Found could not save this page. Reconnect the workspace or reload the page.";}
+});
 
 connectButton.addEventListener("click", async () => {
   connectButton.disabled = true;

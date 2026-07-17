@@ -115,17 +115,14 @@ test("renders the centralized workspace for an authenticated user", async () => 
   const response = await render("/workspace", { "oai-authenticated-user-email": "founder@example.com" });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /GENERAL INTELLIGENCE OF YOUR COMPANY/);
-  assert.match(html, /PRIVATE WORKSPACE/);
-  assert.match(html, /Connect a source to begin/);
-  assert.match(html, /EXECUTIVE PULSE · TODAY/);
-  assert.match(html, /ORGANISATIONAL KNOWLEDGE GRAPH/);
-  assert.match(html, /OPEN ORIGINAL SOURCE/);
-  assert.match(html, /PRIMARY INTELLIGENCE · BATTLE CARD/);
-  assert.match(html, /The conclusion,[\s\S]*with its receipts/);
-  assert.match(html, /APPEND-ONLY CORRECTIONS · ORIGINALS ARE NOT OVERWRITTEN/);
-  assert.match(html, /Found presents evidence here. It does not post this analysis back into Slack/);
-  assert.doesNotMatch(html, /DEMO MEMORY/);
+  assert.match(html, /COMPANY PULSE/);
+  assert.match(html, /TENANT-ISOLATED/);
+  assert.match(html, /What changed across/);
+  assert.match(html, /TRENDING NOW/);
+  assert.match(html, /LATEST VERIFIED CHANGES/);
+  assert.match(html, /DEPARTMENT PULSE/);
+  assert.match(html, /LIVE KNOWLEDGE GRAPH/);
+  assert.doesNotMatch(html, /PRIMARY INTELLIGENCE · BATTLE CARD|OPEN ORIGINAL SOURCE|DEMO MEMORY/);
 });
 
 test("renders the source-preserving memory update review", async () => {

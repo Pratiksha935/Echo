@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       status: "Memory updated",
       summary: `Latest team update: ${latestUpdate.update_text} ${match.summary}`.slice(0, 700),
     } : {}),
+    dashboardUrl: new URL(`/workspace/decision/${encodeURIComponent(match.id)}`, request.url).toString(),
     url: pageUrl,
   } }, { headers });
 }
