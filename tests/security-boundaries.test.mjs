@@ -181,6 +181,8 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /does not replace or silently approve Google Workspace or Slack consent/);
   assert.match(onboarding, /this page does not pretend to detect it/);
   assert.match(onboarding, /Production store distribution pending/);
+  assert.match(onboarding, /\/found-extension-v0\.4\.3\.zip/);
+  assert.match(onboarding, /remove older Found versions/i);
 });
 
 test("Google connector requests only read-only content scopes", async () => {

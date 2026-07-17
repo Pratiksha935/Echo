@@ -97,7 +97,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(content, /payload\.profile\.organisationName/);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.2"/);
+  assert.match(manifest, /"version": "0\.4\.3"/);
+  assert.match(content, /EXTENSION_VERSION = "0\.4\.3"/);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
