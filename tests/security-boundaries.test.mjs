@@ -31,6 +31,9 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
   assert.match(migration, /unique \(provider, external_event_id\)/);
   assert.match(google, /changes\/startPageToken/);
   assert.match(google, /newStartPageToken/);
+  assert.match(google, /GOOGLE_SYNC_TIMEOUT_MS = 20_000/);
+  assert.match(google, /const controller = new AbortController\(\)/);
+  assert.match(google, /parentSignal\?\.addEventListener\("abort", abort/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
@@ -45,7 +48,7 @@ test("Google ingestion isolates unreadable files and always records a terminal r
 test("Google ingestion skips uncredentialed seeds and preserves incremental cursors", async () => {
   const google = await source("lib/integrations/google-sync.ts");
   assert.match(google, /integration_secrets!inner\(connection_id\)/);
-  assert.match(google, /const nextCursor = await getStartPageToken\(accessToken\);[\s\S]*const files = await listFiles\(accessToken\)/);
+  assert.match(google, /const nextCursor = await getStartPageToken\(accessToken, signal\);[\s\S]*const files = await listFiles\(accessToken, signal\)/);
   assert.match(google, /let nextCursor = cursor/);
   assert.match(google, /if \(payload\.newStartPageToken\) nextCursor = payload\.newStartPageToken/);
   assert.match(google, /cursor: delta\.nextCursor/);

@@ -39,7 +39,8 @@ type KnowledgeRecord = {
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
 const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", "research"]);
-const GOOGLE_REQUEST_TIMEOUT_MS = 8_000;
+const GOOGLE_REQUEST_TIMEOUT_MS = 6_000;
+const GOOGLE_SYNC_TIMEOUT_MS = 20_000;
 
 export async function syncAllGoogleConnections(limit = 10): Promise<{ attempted: number; succeeded: number }> {
   await failInterruptedRuns();
@@ -48,13 +49,17 @@ export async function syncAllGoogleConnections(limit = 10): Promise<{ attempted:
   );
   let succeeded = 0;
   for (const connection of connections) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GOOGLE_SYNC_TIMEOUT_MS);
     try {
       const stored = await loadConnectionCredential(connection.id);
       const credential = await refreshGoogleCredentialIfNeeded(connection.id, stored);
-      await syncGoogleWorkspace(connection.organisation_id, connection.id, credential, connection.cursor);
+      await syncGoogleWorkspace(connection.organisation_id, connection.id, credential, connection.cursor, controller.signal);
       succeeded += 1;
     } catch {
       await markConnectionAttention(connection.id);
+    } finally {
+      clearTimeout(timeout);
     }
   }
   return { attempted: connections.length, succeeded };
@@ -65,6 +70,7 @@ export async function syncGoogleWorkspace(
   connectionId: string,
   credential: IntegrationCredential,
   cursor: string | null = null,
+  signal?: AbortSignal,
 ): Promise<{ seen: number; written: number }> {
   const runId = randomUUID();
   const startedAt = new Date().toISOString();
@@ -76,11 +82,11 @@ export async function syncGoogleWorkspace(
 
   try {
     const delta = cursor
-      ? await listChanges(credential.accessToken, cursor)
-      : await listFilesFromStableCursor(credential.accessToken);
+      ? await listChanges(credential.accessToken, cursor, signal)
+      : await listFilesFromStableCursor(credential.accessToken, signal);
     const files = delta.files.filter(isApprovedFile);
     const fileResults = await Promise.allSettled(
-      files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken)),
+      files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken, signal)),
     );
     const records = fileResults
       .filter((result): result is PromiseFulfilledResult<KnowledgeRecord | null> => result.status === "fulfilled")
@@ -124,11 +130,11 @@ export async function syncGoogleWorkspace(
   }
 }
 
-async function listFilesFromStableCursor(accessToken: string): Promise<{ files: DriveFile[]; removedIds: string[]; nextCursor: string }> {
+async function listFilesFromStableCursor(accessToken: string, signal?: AbortSignal): Promise<{ files: DriveFile[]; removedIds: string[]; nextCursor: string }> {
   // Capture the cursor before the backfill so changes made while files are being
   // listed are picked up by the next incremental run rather than being skipped.
-  const nextCursor = await getStartPageToken(accessToken);
-  const files = await listFiles(accessToken);
+  const nextCursor = await getStartPageToken(accessToken, signal);
+  const files = await listFiles(accessToken, signal);
   return { files, removedIds: [], nextCursor };
 }
 
@@ -147,7 +153,7 @@ async function recordGoogleSyncFailure(organisationId: string, connectionId: str
   ]);
 }
 
-async function listFiles(accessToken: string): Promise<DriveFile[]> {
+async function listFiles(accessToken: string, signal?: AbortSignal): Promise<DriveFile[]> {
   const files: DriveFile[] = [];
   let pageToken: string | undefined;
   do {
@@ -161,7 +167,7 @@ async function listFiles(accessToken: string): Promise<DriveFile[]> {
       q: `trashed = false and name contains '[' and (mimeType = '${GOOGLE_DOC}' or mimeType = '${GOOGLE_SHEET}')`,
     });
     if (pageToken) query.set("pageToken", pageToken);
-    const response = await googleFetch(`https://www.googleapis.com/drive/v3/files?${query}`, accessToken);
+    const response = await googleFetch(`https://www.googleapis.com/drive/v3/files?${query}`, accessToken, signal);
     const payload = await response.json() as { files?: DriveFile[]; nextPageToken?: string };
     files.push(...(payload.files ?? []));
     pageToken = payload.nextPageToken;
@@ -175,14 +181,14 @@ function isApprovedFile(file: DriveFile): boolean {
   return Boolean(department && APPROVED_DEPARTMENTS.has(department));
 }
 
-async function getStartPageToken(accessToken: string): Promise<string> {
-  const response = await googleFetch("https://www.googleapis.com/drive/v3/changes/startPageToken", accessToken);
+async function getStartPageToken(accessToken: string, signal?: AbortSignal): Promise<string> {
+  const response = await googleFetch("https://www.googleapis.com/drive/v3/changes/startPageToken", accessToken, signal);
   const payload = await response.json() as { startPageToken?: string };
   if (!payload.startPageToken) throw new Error("Google change cursor was unavailable.");
   return payload.startPageToken;
 }
 
-async function listChanges(accessToken: string, cursor: string): Promise<{ files: DriveFile[]; removedIds: string[]; nextCursor: string }> {
+async function listChanges(accessToken: string, cursor: string, signal?: AbortSignal): Promise<{ files: DriveFile[]; removedIds: string[]; nextCursor: string }> {
   const files: DriveFile[] = [];
   const removedIds: string[] = [];
   let pageToken = cursor;
@@ -194,7 +200,7 @@ async function listChanges(accessToken: string, cursor: string): Promise<{ files
       spaces: "drive",
       fields: "nextPageToken,newStartPageToken,changes(fileId,removed,file(id,name,mimeType,modifiedTime,webViewLink))",
     });
-    const response = await googleFetch(`https://www.googleapis.com/drive/v3/changes?${query}`, accessToken);
+    const response = await googleFetch(`https://www.googleapis.com/drive/v3/changes?${query}`, accessToken, signal);
     const payload = await response.json() as { changes?: DriveChange[]; nextPageToken?: string; newStartPageToken?: string };
     for (const change of payload.changes ?? []) {
       if (change.removed || !change.file) removedIds.push(change.fileId);
@@ -211,10 +217,11 @@ async function toKnowledgeRecord(
   organisationId: string,
   connectionId: string,
   accessToken: string,
+  signal?: AbortSignal,
 ): Promise<KnowledgeRecord | null> {
   const text = file.mimeType === GOOGLE_DOC
-    ? await readDocument(file.id, accessToken)
-    : await exportSheet(file.id, accessToken);
+    ? await readDocument(file.id, accessToken, signal)
+    : await exportSheet(file.id, accessToken, signal);
   const cleaned = text.replace(/\r/g, "").trim();
   if (cleaned.length < 40) return null;
 
@@ -235,8 +242,8 @@ async function toKnowledgeRecord(
   };
 }
 
-async function readDocument(fileId: string, accessToken: string): Promise<string> {
-  const response = await googleFetch(`https://docs.googleapis.com/v1/documents/${encodeURIComponent(fileId)}`, accessToken);
+async function readDocument(fileId: string, accessToken: string, signal?: AbortSignal): Promise<string> {
+  const response = await googleFetch(`https://docs.googleapis.com/v1/documents/${encodeURIComponent(fileId)}`, accessToken, signal);
   const document = await response.json() as GoogleDocument;
   return (document.body?.content ?? [])
     .flatMap(block => block.paragraph?.elements ?? [])
@@ -244,9 +251,9 @@ async function readDocument(fileId: string, accessToken: string): Promise<string
     .join("");
 }
 
-async function exportSheet(fileId: string, accessToken: string): Promise<string> {
+async function exportSheet(fileId: string, accessToken: string, signal?: AbortSignal): Promise<string> {
   const query = new URLSearchParams({ mimeType: "text/csv" });
-  const response = await googleFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?${query}`, accessToken);
+  const response = await googleFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?${query}`, accessToken, signal);
   return response.text();
 }
 
@@ -262,14 +269,23 @@ function parseMetadata(text: string, fileName: string) {
   };
 }
 
-async function googleFetch(url: string, accessToken: string): Promise<Response> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: { authorization: `Bearer ${accessToken}` },
-    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) throw new Error("Google Workspace backfill failed.");
-  return response;
+async function googleFetch(url: string, accessToken: string, parentSignal?: AbortSignal): Promise<Response> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timeout = setTimeout(abort, GOOGLE_REQUEST_TIMEOUT_MS);
+  parentSignal?.addEventListener("abort", abort, { once: true });
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error("Google Workspace backfill failed.");
+    return response;
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener("abort", abort);
+  }
 }
 
 async function failInterruptedRuns(): Promise<void> {
