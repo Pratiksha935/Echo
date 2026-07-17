@@ -30,6 +30,7 @@ export type WorkspaceKnowledgeRecord = {
 };
 
 export type MemoryUpdate = {
+  actorUserId: string | null;
   createdAt: string;
   currentTitle: string;
   hermesReview: string | null;
@@ -59,6 +60,7 @@ type KnowledgeRow = {
   metadata: { status?: string } | null;
 };
 type MemoryUpdateRow = {
+  actor_user_id: string | null;
   created_at: string;
   current_title: string;
   hermes_review: string | null;
@@ -142,13 +144,14 @@ export async function listMemoryUpdates(organisationId: string): Promise<MemoryU
   const context = await getSupabaseAuthContext();
   if (!context) return [];
   const query = new URLSearchParams({
-    select: "source_record_id,original_source_url,current_title,update_text,origin,hermes_review,created_at",
+    select: "actor_user_id,source_record_id,original_source_url,current_title,update_text,origin,hermes_review,created_at",
     organisation_id: `eq.${organisationId}`,
     order: "created_at.desc",
     limit: "100",
   });
   const rows = await userRest<MemoryUpdateRow[]>(`/memory_updates?${query}`, context.accessToken);
   return rows.map(row => ({
+    actorUserId: row.actor_user_id,
     createdAt: row.created_at,
     currentTitle: row.current_title,
     hermesReview: row.hermes_review,

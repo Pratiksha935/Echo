@@ -8,7 +8,7 @@ The existing onboarding contract also verifies Google PKCE login, separate Googl
 
 ## Demonstrated defect and minimal fix
 
-The previous v0.4.3 content script made the authenticated match request from the visited-page execution context. That made the request-origin boundary dependent on content-script cross-origin behaviour instead of the extension service worker. From v0.4.4 onward, matching travels through a `found:match-page` runtime message; only `background.js` reads the browser token and calls the production API. The visited page never receives the token. v0.4.5 added append-only updates and resilient automatic matching. v0.4.6 added explicit department capture, decision-timeline routing and receipt deduplication. v0.4.7 reads Slack's newest rendered messages and rechecks after Slack SPA updates.
+The previous v0.4.3 content script made the authenticated match request from the visited-page execution context. That made the request-origin boundary dependent on content-script cross-origin behaviour instead of the extension service worker. From v0.4.4 onward, matching travels through a `found:match-page` runtime message; only `background.js` reads the browser token and calls the production API. The visited page never receives the token. v0.4.5 added append-only updates and resilient automatic matching. v0.4.6 added explicit department capture, decision-timeline routing and receipt deduplication. v0.4.7 reads Slack's newest rendered messages and rechecks after Slack SPA updates. v0.4.8 turns append confirmation into an authenticated decision-timeline handoff.
 
 ## Pass criteria
 
@@ -19,7 +19,7 @@ The previous v0.4.3 content script made the authenticated match request from the
 - body-supplied tenant IDs are ignored and both persistence reads use token claims;
 - the known Google Docs resource ID returns a source-linked Google Docs + Slack battlecard;
 - unrelated/unindexed pages return `{ "match": null }`;
-- the downloadable ZIP contains manifest v0.4.7 and is byte-identical to all required extension source files;
+- the downloadable ZIP contains manifest v0.4.8 and is byte-identical to all required extension source files;
 - the content script delegates matching to the background worker and contains no match-API URL or bearer header.
 
 ## Reproduction

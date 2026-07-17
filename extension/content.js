@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.7";
+  const EXTENSION_VERSION = "0.4.8";
   const runtime = window.__foundExtensionRuntime;
   if (runtime) return;
   window.__foundExtensionRuntime = { version: EXTENSION_VERSION };
@@ -149,8 +149,18 @@
       if (result?.ok) {
         input.value = "";
         input.disabled = true;
-        button.textContent = "APPENDED TO FOUND ✓";
-        note.textContent = "Saved as a timestamped memory layer. The original source was not changed.";
+        const decisionUrl = safeSourceUrl(match.dashboardUrl);
+        button.textContent = decisionUrl ? "VIEW UPDATED DECISION ↗" : "APPENDED TO FOUND ✓";
+        button.type = "button";
+        button.disabled = false;
+        if (decisionUrl) button.addEventListener("click", () => {
+          const anchor = document.createElement("a");
+          anchor.href = decisionUrl;
+          anchor.target = "_blank";
+          anchor.rel = "noreferrer";
+          anchor.click();
+        });
+        note.textContent = decisionUrl ? "Saved as a timestamped memory layer. Open the decision timeline to review it." : "Saved as a timestamped memory layer. The original source was not changed.";
         form.classList.add("saved");
         return;
       }
