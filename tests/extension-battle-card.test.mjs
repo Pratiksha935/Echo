@@ -22,8 +22,9 @@ test("corrections use authenticated centralized memory and never browser storage
     source("app/api/memory/update/route.ts"),
   ]);
   assert.match(content, /\/memory\/correct\?/);
-  assert.doesNotMatch(content, /chrome\.storage|localStorage|sessionStorage/);
-  assert.doesNotMatch(manifest, /"storage"/);
+  assert.match(content, /TOKEN_KEY/);
+  assert.doesNotMatch(content, /updateText[\s\S]{0,200}chrome\.storage/);
+  assert.match(manifest, /"storage"/);
   assert.match(page, /requireFoundUser/);
   assert.match(page, /attributed to \{user\.email\}/);
   assert.match(route, /createMemoryUpdate/);

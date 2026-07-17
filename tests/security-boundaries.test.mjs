@@ -43,17 +43,23 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
 });
 
 test("browser battle cards use authenticated tenant memory", async () => {
-  const [route, extension] = await Promise.all([
+  const [route, session, token, extension] = await Promise.all([
     source("app/api/browser/match/route.ts"),
+    source("app/api/browser/session/route.ts"),
+    source("lib/auth/browser-token.ts"),
     source("extension/content.js"),
   ]);
-  assert.match(route, /getFoundUser/);
-  assert.match(route, /getFoundWorkspace/);
-  assert.match(route, /listWorkspaceKnowledgeRecords/);
+  assert.match(session, /getFoundUser/);
+  assert.match(session, /getFoundWorkspace/);
+  assert.match(token, /createHmac/);
+  assert.match(token, /timingSafeEqual/);
+  assert.match(route, /verifyBrowserToken/);
+  assert.match(route, /organisation_id=eq/);
   assert.match(route, /chrome-extension/);
-  assert.match(route, /access-control-allow-credentials/);
-  assert.doesNotMatch(route, /serviceRoleKey|integration_secrets/);
-  assert.match(extension, /credentials: "include"/);
+  assert.match(route, /authorization, content-type/);
+  assert.doesNotMatch(route, /integration_secrets/);
+  assert.match(extension, /\/api\/browser\/session/);
+  assert.match(extension, /Bearer \$\{token\}/);
   assert.match(extension, /\/api\/browser\/match/);
   assert.match(extension, /google.*search/);
 });

@@ -3,6 +3,7 @@
   window.__echoCheckLoaded = true;
 
   const FOUND_ORIGIN = "https://sage-profiterole-3b1c22.netlify.app";
+  const TOKEN_KEY = "found:browser-session";
   const knowledge = [
     {
       id: "ENG-PLAT-014",
@@ -82,10 +83,12 @@
     if (/^https:\/\/www\.google\.[^/]+\/search/i.test(location.href)) return null;
     const pageText = (document.querySelector("main")?.innerText || document.body?.innerText || "").slice(0, 8000);
     try {
+      const stored = await chrome.storage.local.get(TOKEN_KEY);
+      const token = stored[TOKEN_KEY];
+      if (!token) return findDemoMatch();
       const response = await fetch(`${FOUND_ORIGIN}/api/browser/match`, {
         method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
         body: JSON.stringify({ pageText, pageTitle: document.title, pageUrl: location.href }),
       });
       if (response.ok) {
@@ -94,6 +97,16 @@
       }
     } catch { /* Fall through to the bundled offline demo. */ }
     return findDemoMatch();
+  }
+
+  async function pairBrowser() {
+    if (location.origin !== FOUND_ORIGIN) return;
+    try {
+      const response = await fetch("/api/browser/session", { credentials: "include" });
+      if (!response.ok) return;
+      const payload = await response.json();
+      if (payload?.token) await chrome.storage.local.set({ [TOKEN_KEY]: payload.token });
+    } catch { /* Pairing is retried on the next Found page load. */ }
   }
 
   function render(match) {
@@ -145,6 +158,7 @@
   }
 
   let attempts = 0;
+  pairBrowser();
   let checking = false;
   const detector = setInterval(async () => {
     if (checking) return;
