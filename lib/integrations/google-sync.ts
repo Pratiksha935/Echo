@@ -108,6 +108,19 @@ export async function syncGoogleWorkspace(
       await serviceRest(`/knowledge_records?organisation_id=eq.${encodeURIComponent(organisationId)}&connection_id=eq.${encodeURIComponent(connectionId)}&external_id=in.(${encodeURIComponent(ids)})`, { method: "DELETE" });
     }
     const finishedAt = new Date().toISOString();
+    // Mark a completed backfill independently of the incremental cursor. Some
+    // providers can return a cursor value that PostgREST rejects; that must not
+    // hide successfully indexed data or keep onboarding in an unfinished state.
+    await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ last_synced_at: finishedAt, status: "connected", updated_at: finishedAt }),
+    });
+    await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ cursor: delta.nextCursor }),
+    }).catch(() => undefined);
     await serviceRest("/integration_sync_runs?on_conflict=id", {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
@@ -122,11 +135,6 @@ export async function syncGoogleWorkspace(
         started_at: startedAt,
         finished_at: finishedAt,
       }),
-    });
-    await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ cursor: delta.nextCursor, last_synced_at: finishedAt, status: "connected", updated_at: finishedAt }),
     });
     return { seen: files.length, written: records.length };
   } catch (error) {
