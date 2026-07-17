@@ -42,7 +42,7 @@ const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", 
 
 export async function syncAllGoogleConnections(limit = 10): Promise<{ attempted: number; succeeded: number }> {
   const connections = await serviceRest<StoredConnection[]>(
-    `/integration_connections?select=id,organisation_id,provider,cursor&provider=eq.google&status=in.(connected,pending,attention)&order=last_synced_at.asc.nullsfirst&limit=${limit}`,
+    `/integration_connections?select=id,organisation_id,provider,cursor,integration_secrets!inner(connection_id)&provider=eq.google&status=in.(connected,pending,attention)&order=last_synced_at.asc.nullsfirst&limit=${limit}`,
   );
   let succeeded = 0;
   for (const connection of connections) {
@@ -75,10 +75,16 @@ export async function syncGoogleWorkspace(
   try {
     const delta = cursor
       ? await listChanges(credential.accessToken, cursor)
-      : { files: await listFiles(credential.accessToken), removedIds: [] as string[], nextCursor: await getStartPageToken(credential.accessToken) };
+      : await listFilesFromStableCursor(credential.accessToken);
     const files = delta.files.filter(isApprovedFile);
-    const records = (await Promise.all(files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken))))
+    const fileResults = await Promise.allSettled(
+      files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken)),
+    );
+    const records = fileResults
+      .filter((result): result is PromiseFulfilledResult<KnowledgeRecord | null> => result.status === "fulfilled")
+      .map(result => result.value)
       .filter((record): record is KnowledgeRecord => Boolean(record));
+    const unreadableFiles = fileResults.filter(result => result.status === "rejected").length;
 
     if (records.length) {
       await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
@@ -95,7 +101,13 @@ export async function syncGoogleWorkspace(
     await serviceRest(`/integration_sync_runs?id=eq.${encodeURIComponent(runId)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "succeeded", records_seen: files.length, records_written: records.length, finished_at: finishedAt }),
+      body: JSON.stringify({
+        status: unreadableFiles ? "partial" : "succeeded",
+        records_seen: files.length,
+        records_written: records.length,
+        error_code: unreadableFiles ? "google_files_unreadable" : null,
+        finished_at: finishedAt,
+      }),
     });
     await serviceRest(`/integration_connections?id=eq.${encodeURIComponent(connectionId)}`, {
       method: "PATCH",
@@ -108,6 +120,14 @@ export async function syncGoogleWorkspace(
     await recordGoogleSyncFailure(organisationId, connectionId, runId, finishedAt);
     throw new Error("Google Workspace sync failed.");
   }
+}
+
+async function listFilesFromStableCursor(accessToken: string): Promise<{ files: DriveFile[]; removedIds: string[]; nextCursor: string }> {
+  // Capture the cursor before the backfill so changes made while files are being
+  // listed are picked up by the next incremental run rather than being skipped.
+  const nextCursor = await getStartPageToken(accessToken);
+  const files = await listFiles(accessToken);
+  return { files, removedIds: [], nextCursor };
 }
 
 async function recordGoogleSyncFailure(organisationId: string, connectionId: string, runId: string, finishedAt: string): Promise<void> {

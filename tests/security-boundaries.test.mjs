@@ -33,6 +33,24 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
   assert.match(google, /newStartPageToken/);
 });
 
+test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
+  const google = await source("lib/integrations/google-sync.ts");
+  assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);
+  assert.match(google, /status: unreadableFiles \? "partial" : "succeeded"/);
+  assert.match(google, /error_code: unreadableFiles \? "google_files_unreadable" : null/);
+  assert.match(google, /status: "failed", error_code: "google_workspace_sync_failed"/);
+  assert.doesNotMatch(google, /error_code:\s*(?:error|reason|result\.reason)/);
+});
+
+test("Google ingestion skips uncredentialed seeds and preserves incremental cursors", async () => {
+  const google = await source("lib/integrations/google-sync.ts");
+  assert.match(google, /integration_secrets!inner\(connection_id\)/);
+  assert.match(google, /const nextCursor = await getStartPageToken\(accessToken\);[\s\S]*const files = await listFiles\(accessToken\)/);
+  assert.match(google, /let nextCursor = cursor/);
+  assert.match(google, /if \(payload\.newStartPageToken\) nextCursor = payload\.newStartPageToken/);
+  assert.match(google, /cursor: delta\.nextCursor/);
+});
+
 test("Slack event ingestion enforces signatures, a five-minute timestamp window, and message permalinks", async () => {
   const [route, ingestion] = await Promise.all([
     source("app/api/slack/events/route.ts"),
