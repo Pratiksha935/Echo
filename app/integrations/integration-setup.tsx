@@ -48,7 +48,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
           <div className="connectorMeta"><span className="connectorMark">{item.shortName}</span><em>{connectionState(connection, isConfigured, isLocked)}</em></div>
           <h2>{item.name}</h2><p>{item.description}</p>
           <ul>{item.ingests.map(value => <li key={value}>{value}</li>)}</ul>
-          <footer><span>{connectionDetails(connection, item.syncMode)}</span><button disabled={isLocked} onClick={() => setSelected(item)}>{isAuthorised ? "Review status" : isLocked ? "Approve Google first" : "Review & approve"} ↗</button></footer>
+          <footer><span>{connectionDetails(connection, item.syncMode)}</span><button disabled={isLocked} onClick={() => setSelected(item)}>{connection?.lastSyncedAt ? "Indexed ✓" : isAuthorised ? "Review status" : isLocked ? "Approve Google first" : "Review & approve"} ↗</button></footer>
         </article>})}</div>
       {onboardingComplete && <Link className="workspaceEntry" href="/workspace">ENTER WORKSPACE ↗</Link>}
       <div className="connectorHeading moreHeading"><span>MORE INTEGRATIONS</span><p>Optional connectors stay separate from initial onboarding and do not block workspace access.</p></div>
@@ -58,7 +58,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
         return <article className="connectorCard" key={item.provider} style={{"--connector-accent":item.accent} as React.CSSProperties}>
           <div className="connectorMeta"><span className="connectorMark">{item.shortName}</span><em>{connectionState(connection, isConfigured, false)}</em></div>
           <h2>{item.name}</h2><p>{item.description}</p>
-          <footer><span>{connectionDetails(connection, item.syncMode)}</span><button onClick={() => setSelected(item)}>{connection ? "Review status" : "Set up"} ↗</button></footer>
+          <footer><span>{connectionDetails(connection, item.syncMode)}</span><button onClick={() => setSelected(item)}>{connection?.lastSyncedAt ? "Indexed ✓" : connection ? "Review status" : "Set up"} ↗</button></footer>
         </article>})}</div>
     </section>
     <section className="pipelineStrip"><span>WHAT HAPPENS NEXT</span><p>Authorize → choose scope → backfill → apply permissions → index → retrieve → cite the original source</p></section>
