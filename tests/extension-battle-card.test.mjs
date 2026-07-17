@@ -15,21 +15,23 @@ test("browser battle card presents the complete prior-work receipt", async () =>
   assert.match(content, /class="ec-original"/);
 });
 
-test("corrections use authenticated centralized memory and never browser storage", async () => {
-  const [content, manifest, page, route] = await Promise.all([
+test("corrections use the authenticated extension worker and append-only centralized memory", async () => {
+  const [content, background, manifest, route] = await Promise.all([
     source("extension/content.js"),
+    source("extension/background.js"),
     source("extension/manifest.json"),
-    source("app/memory/correct/page.tsx"),
-    source("app/api/memory/update/route.ts"),
+    source("app/api/browser/memory-update/route.ts"),
   ]);
-  assert.match(content, /\/memory\/correct\?/);
+  assert.match(content, /type: "found:append-memory"/);
   assert.doesNotMatch(content, /chrome\.storage/);
-  assert.doesNotMatch(content, /updateText[\s\S]{0,200}chrome\.storage/);
+  assert.doesNotMatch(content, /window\.open|\/memory\/correct\?/);
+  assert.match(background, /message\?\.type === "found:append-memory"/);
+  assert.match(background, /\/api\/browser\/memory-update/);
   assert.match(manifest, /"storage"/);
-  assert.match(page, /requireFoundUser/);
-  assert.match(page, /attributed to \{user\.email\}/);
-  assert.match(route, /createMemoryUpdate/);
-  assert.match(route, /Do not overwrite the original source/);
+  assert.match(route, /organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}/);
+  assert.match(route, /actor_user_id: token\.userId/);
+  assert.match(route, /origin: "user"/);
+  assert.doesNotMatch(route, /PATCH|PUT|DELETE/);
 });
 
 test("battle card preserves original sources and exposes no internal traces", async () => {
@@ -98,8 +100,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.4"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.4"/);
+  assert.match(manifest, /"version": "0\.4\.5"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.5"/);
 });
 
 test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
@@ -151,6 +153,17 @@ test("a successful match makes both the companion and battlecard visible immedia
   assert.match(content, /avatar\.classList\.add\("arrive"\);\s*setOpen\(true\)/);
   assert.match(content, /existing\?\.querySelector\("\.ec-card"\)\?\.classList\.add\("open"\)/);
   assert.match(content, /setAttribute\("aria-hidden", "false"\)/);
+});
+
+test("automatic checks retry after editor load and follow single-page navigation", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /setTimeout\(checkCurrentPage, 700\)/);
+  assert.match(content, /setTimeout\(checkCurrentPage, 2500\)/);
+  assert.match(content, /setTimeout\(checkCurrentPage, 6000\)/);
+  assert.match(content, /setInterval\(checkCurrentPage, 4000\)/);
+  assert.match(content, /location\.href !== lastCheckedUrl/);
+  assert.match(content, /automaticAttempts < 3/);
+  assert.match(content, /visibilitychange/);
 });
 
 test("the extension worker owns the authenticated cross-origin match request", async () => {

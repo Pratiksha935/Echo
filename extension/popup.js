@@ -4,7 +4,7 @@ const runButton = document.getElementById("run");
 const status = document.getElementById("status");
 const account = document.getElementById("account");
 const connectButton = document.getElementById("connect");
-const EXTENSION_VERSION = "0.4.4";
+const EXTENSION_VERSION = "0.4.5";
 
 async function showConnection() {
   const stored = await chrome.storage.local.get([TOKEN_KEY, PROFILE_KEY]);

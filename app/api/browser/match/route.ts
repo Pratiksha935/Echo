@@ -31,9 +31,16 @@ export async function POST(request: NextRequest) {
   const records = rows.map(row => ({ authorName: row.author_name, body: row.body, department: row.department, externalId: row.external_id, source: row.source, sourceUrl: row.source_url, status: row.metadata?.status ?? "Indexed", title: row.title }));
   const match = matchBrowserKnowledge({ pageText, pageTitle, pageUrl, records });
   if (!match) return NextResponse.json({ match: null }, { headers });
+  const updates = await serviceRest<MemoryUpdateRow[]>(`/memory_updates?select=update_text,created_at&organisation_id=eq.${encodeURIComponent(token.organisationId)}&source_record_id=eq.${encodeURIComponent(match.id)}&order=created_at.desc&limit=1`);
+  const latestUpdate = updates[0];
   return NextResponse.json({ match: {
     account: { email: token.email, organisationName: token.organisationName },
     ...match,
+    ...(latestUpdate ? {
+      latestUpdate: { createdAt: latestUpdate.created_at, text: latestUpdate.update_text },
+      status: "Memory updated",
+      summary: `Latest team update: ${latestUpdate.update_text} ${match.summary}`.slice(0, 700),
+    } : {}),
     url: pageUrl,
   } }, { headers });
 }
@@ -55,3 +62,4 @@ function corsHeaders(origin: string): HeadersInit {
 }
 
 type BrowserKnowledgeRow = { author_name: string | null; body: string; department: string | null; external_id: string; metadata: { status?: string } | null; source: string; source_url: string; title: string };
+type MemoryUpdateRow = { created_at: string; update_text: string };
