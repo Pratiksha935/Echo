@@ -1,5 +1,7 @@
 # Found — CTO handoff
 
+Production onboarding sign-off is defined in [`PRODUCTION_ONBOARDING_QA.md`](./PRODUCTION_ONBOARDING_QA.md). Complete both its automated gate and live-provider smoke journey before sharing the build.
+
 ## What is live
 
 - Production URL: `https://sage-profiterole-3b1c22.netlify.app`
