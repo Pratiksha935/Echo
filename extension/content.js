@@ -1,12 +1,13 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.4";
+  const EXTENSION_VERSION = "0.4.5";
   const runtime = window.__foundExtensionRuntime;
   if (runtime) return;
   window.__foundExtensionRuntime = { version: EXTENSION_VERSION };
 
-  const FOUND_ORIGIN = "https://sage-profiterole-3b1c22.netlify.app";
   let rendered = false;
   let checkPromise = null;
+  let lastCheckedUrl = "";
+  let automaticAttempts = 0;
 
   async function findMatch() {
     if (/^https:\/\/www\.google\.[^/]+\/search/i.test(location.href)) return { match: null, reason: "unsupported_page" };
@@ -81,12 +82,41 @@
     const setOpen = open => { card.classList.toggle("open", open); card.setAttribute("aria-hidden", String(!open)); };
     avatar.addEventListener("click", () => setOpen(!card.classList.contains("open")));
     card.querySelector("header button").addEventListener("click", () => setOpen(false));
-    card.querySelector("form").addEventListener("submit", event => {
+    card.querySelector("form").addEventListener("submit", async event => {
       event.preventDefault();
-      const updateText = root.querySelector("#found-memory-update").value.trim();
+      const form = event.currentTarget;
+      const input = root.querySelector("#found-memory-update");
+      const button = form.querySelector('button[type="submit"]');
+      const note = form.querySelector("small");
+      const updateText = input.value.trim();
       if (updateText.length < 12) return;
-      const params = new URLSearchParams({ correction: updateText, record_id: match.id, source_url: location.href, title: match.title });
-      window.open(`${FOUND_ORIGIN}/memory/correct?${params}`, "_blank", "noopener,noreferrer");
+      button.disabled = true;
+      button.textContent = "APPENDING…";
+      note.textContent = "Reviewing this update against your authorised workspace…";
+      const result = await chrome.runtime.sendMessage({
+        type: "found:append-memory",
+        update: { recordId: match.id, sourceUrl: location.href, updateText },
+      }).catch(() => ({ ok: false, reason: "temporary_network_failure" }));
+      if (result?.ok) {
+        input.value = "";
+        input.disabled = true;
+        button.textContent = "APPENDED TO FOUND ✓";
+        note.textContent = "Saved as a timestamped memory layer. The original source was not changed.";
+        form.classList.add("saved");
+        return;
+      }
+      const errors = {
+        invalid_update: "Enter at least 12 characters.",
+        not_connected: "Reconnect this browser to Found and try again.",
+        session_expired: "Your Found browser session expired. Reconnect and try again.",
+        workspace_access_revoked: "Workspace access changed. Reconnect with an authorised account.",
+        record_not_found: "This evidence is no longer available in your workspace.",
+        service_unavailable: "Found is temporarily unavailable. Try again shortly.",
+        temporary_network_failure: "Found could not be reached. Try again shortly.",
+      };
+      note.textContent = errors[result?.reason] || "Found could not append this update. Try again.";
+      button.textContent = "REVIEW & APPEND ↗";
+      button.disabled = false;
     });
     avatar.classList.add("arrive");
     setOpen(true);
@@ -102,6 +132,25 @@
     return checkPromise;
   }
 
+  function scheduleAutomaticChecks() {
+    const checkCurrentPage = () => {
+      if (location.href !== lastCheckedUrl) {
+        lastCheckedUrl = location.href;
+        automaticAttempts = 0;
+      }
+      if (!rendered && automaticAttempts < 3) {
+        automaticAttempts += 1;
+        runCheck();
+      }
+    };
+    setTimeout(checkCurrentPage, 700);
+    setTimeout(checkCurrentPage, 2500);
+    setTimeout(checkCurrentPage, 6000);
+    setInterval(checkCurrentPage, 4000);
+    addEventListener("pageshow", checkCurrentPage);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) checkCurrentPage(); });
+  }
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "found:runtime-status") {
       sendResponse({ version: EXTENSION_VERSION });
@@ -112,5 +161,5 @@
     return true;
   });
 
-  setTimeout(runCheck, 700);
+  scheduleAutomaticChecks();
 })();

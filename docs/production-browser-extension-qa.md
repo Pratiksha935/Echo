@@ -8,7 +8,7 @@ The existing onboarding contract also verifies Google PKCE login, separate Googl
 
 ## Demonstrated defect and minimal fix
 
-The previous v0.4.3 content script made the authenticated match request from the visited-page execution context. That made the request-origin boundary dependent on content-script cross-origin behaviour instead of the extension service worker. In v0.4.4, matching travels through a `found:match-page` runtime message; only `background.js` reads the browser token and calls the production API. The visited page never receives the token.
+The previous v0.4.3 content script made the authenticated match request from the visited-page execution context. That made the request-origin boundary dependent on content-script cross-origin behaviour instead of the extension service worker. From v0.4.4 onward, matching travels through a `found:match-page` runtime message; only `background.js` reads the browser token and calls the production API. The visited page never receives the token. v0.4.5 also routes append-only memory updates through that worker and retries automatic matching after dynamic editors finish loading.
 
 ## Pass criteria
 
@@ -19,7 +19,7 @@ The previous v0.4.3 content script made the authenticated match request from the
 - body-supplied tenant IDs are ignored and both persistence reads use token claims;
 - the known Google Docs resource ID returns a source-linked Google Docs + Slack battlecard;
 - unrelated/unindexed pages return `{ "match": null }`;
-- the downloadable ZIP contains manifest v0.4.4 and is byte-identical to all required extension source files;
+- the downloadable ZIP contains manifest v0.4.5 and is byte-identical to all required extension source files;
 - the content script delegates matching to the background worker and contains no match-API URL or bearer header.
 
 ## Reproduction

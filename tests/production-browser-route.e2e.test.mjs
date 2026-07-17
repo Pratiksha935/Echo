@@ -15,6 +15,7 @@ const organisationId = "org-production-contract";
 const userId = "user-production-contract";
 const requests = [];
 let membershipActive = true;
+const writtenUpdates = [];
 
 const records = [
   {
@@ -54,7 +55,26 @@ test.before(async () => {
     }
     if (url.pathname.endsWith("/knowledge_records")) {
       const tenant = url.searchParams.get("organisation_id");
-      response.end(JSON.stringify(tenant === `eq.${organisationId}` ? records : []));
+      const externalId = url.searchParams.get("external_id");
+      const tenantRecords = tenant === `eq.${organisationId}` ? records : [];
+      response.end(JSON.stringify(externalId ? tenantRecords.filter(record => `eq.${record.external_id}` === externalId).map(record => ({ source_url: record.source_url, title: record.title })) : tenantRecords));
+      return;
+    }
+    if (url.pathname.endsWith("/memory_updates") && request.method === "POST") {
+      let body = "";
+      request.on("data", chunk => { body += chunk; });
+      request.on("end", () => {
+        writtenUpdates.push(JSON.parse(body));
+        response.statusCode = 201;
+        response.end(JSON.stringify([writtenUpdates.at(-1)]));
+      });
+      return;
+    }
+    if (url.pathname.endsWith("/memory_updates") && request.method === "GET") {
+      const tenant = url.searchParams.get("organisation_id");
+      const recordId = url.searchParams.get("source_record_id");
+      const matches = writtenUpdates.filter(update => tenant === `eq.${update.organisation_id}` && recordId === `eq.${update.source_record_id}`);
+      response.end(JSON.stringify(matches.slice(-1).map(update => ({ created_at: update.created_at, update_text: update.update_text }))));
       return;
     }
     response.statusCode = 404;
@@ -147,9 +167,9 @@ test("production browser route returns an explicit no-match response", async () 
   assert.deepEqual(await response.json(), { match: null });
 });
 
-test("downloadable v0.4.4 ZIP is byte-aligned with every required production extension file", async () => {
+test("downloadable v0.4.5 ZIP is byte-aligned with every required production extension file", async () => {
   const required = ["manifest.json", "background.js", "content.js", "content.css", "update.css", "popup.html", "popup.js", "popup.css", "README.md"];
-  const archive = new URL("public/found-extension-v0.4.4.zip", root);
+  const archive = new URL("public/found-extension-v0.4.5.zip", root);
   const entries = (await command("unzip", ["-Z1", archive.pathname])).trim().split("\n").sort();
   assert.deepEqual(entries, [...required].sort());
   for (const name of required) {
@@ -161,11 +181,36 @@ test("downloadable v0.4.4 ZIP is byte-aligned with every required production ext
   }
   const manifest = JSON.parse(await command("unzip", ["-p", archive.pathname, "manifest.json"]));
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.4");
+  assert.equal(manifest.version, "0.4.5");
   assert.deepEqual(manifest.background, { service_worker: "background.js" });
   assert.deepEqual(manifest.content_scripts[0].js, ["content.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["content.css", "update.css"]);
   assert.equal(manifest.action.default_popup, "popup.html");
+});
+
+test("production browser memory update revalidates membership and tenant-binds the record", async () => {
+  writtenUpdates.length = 0;
+  const matchedRecordId = records[1].external_id;
+  const response = await fetch(`${appOrigin}/api/browser/memory-update`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${browserToken(3600)}`, "content-type": "application/json", origin: extensionOrigin },
+    body: JSON.stringify({ organisationId: "org-attacker", recordId: matchedRecordId, sourceUrl: `https://docs.google.com/document/d/${documentId}/edit`, updateText: "The rollout is now approved for the next cohort." }),
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).ok, true);
+  assert.equal(writtenUpdates.length, 1);
+  assert.equal(writtenUpdates[0].organisation_id, organisationId);
+  assert.equal(writtenUpdates[0].actor_user_id, userId);
+  assert.equal(writtenUpdates[0].source_record_id, matchedRecordId);
+  assert.equal(writtenUpdates[0].origin, "user");
+
+  const refreshed = await matchRequest({
+    token: browserToken(3600),
+    body: { pageText: "", pageTitle: "Dynamic security deposits", pageUrl: `https://docs.google.com/document/d/${documentId}/edit` },
+  });
+  const refreshedMatch = (await refreshed.json()).match;
+  assert.equal(refreshedMatch.status, "Memory updated");
+  assert.match(refreshedMatch.summary, /Latest team update: The rollout is now approved/);
 });
 
 test("authenticated matching runs in the extension worker, never in the Google Docs page context", async () => {

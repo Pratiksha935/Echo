@@ -38,6 +38,9 @@
 .ec-update small { display:block; margin:7px 0 9px; color:#8fa9d4; font:7px/1.45 Inter,ui-sans-serif,sans-serif; }
 .ec-update form>button { width:100%; border:0; border-radius:9px; background:#2c73ee; color:#fff; padding:10px; font:700 8px Inter,ui-sans-serif,sans-serif; letter-spacing:.05em; cursor:pointer; }
 .ec-update form>button:hover { background:#3b82f6; }
+.ec-update form>button:disabled { cursor:wait; opacity:.72; }
+.ec-update form.saved { border-color:rgba(126,224,166,.38); }
+.ec-update form.saved>button { background:#147a4b; cursor:default; opacity:1; }
 .ec-card footer { display:flex; justify-content:space-between; padding:10px 16px 12px; border-color:rgba(151,190,255,.13); color:#6687bd; font-size:7px; }
 .ec-card footer span:first-child { color:#8eafe5; font-weight:700; letter-spacing:.08em; }
 @media(max-width:520px) { .ec-card { width:calc(100vw - 28px); } }

@@ -11,6 +11,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     matchPage(message.page).then(sendResponse).catch(() => sendResponse({ match: null, reason: "temporary_network_failure" }));
     return true;
   }
+  if (message?.type === "found:append-memory") {
+    appendMemory(message.update).then(sendResponse).catch(() => sendResponse({ ok: false, reason: "temporary_network_failure" }));
+    return true;
+  }
   return;
 });
 
@@ -43,6 +47,39 @@ async function matchPage(page) {
     return payload.match ? { match: payload.match, reason: "matched" } : { match: null, reason: "no_match" };
   } catch {
     return { match: null, reason: "temporary_network_failure" };
+  }
+}
+
+async function appendMemory(update) {
+  const stored = await chrome.storage.local.get([TOKEN_KEY]);
+  const token = stored[TOKEN_KEY];
+  if (!token) return { ok: false, reason: "not_connected" };
+  const body = {
+    recordId: typeof update?.recordId === "string" ? update.recordId.slice(0, 200) : "",
+    sourceUrl: typeof update?.sourceUrl === "string" ? update.sourceUrl.slice(0, 2000) : "",
+    updateText: typeof update?.updateText === "string" ? update.updateText.trim().slice(0, 800) : "",
+  };
+  if (!body.recordId || body.updateText.length < 12) return { ok: false, reason: "invalid_update" };
+  try {
+    const response = await fetch(`${FOUND_ORIGIN}/api/browser/memory-update`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.status === 401) {
+      await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
+      return { ok: false, reason: "session_expired" };
+    }
+    if (response.status === 403 && payload?.error === "workspace_access_revoked") {
+      await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
+      return { ok: false, reason: "workspace_access_revoked" };
+    }
+    if (response.status === 429 || response.status >= 500) return { ok: false, reason: "service_unavailable" };
+    if (!response.ok || !payload?.ok) return { ok: false, reason: payload?.error || "server_rejected" };
+    return { ok: true, createdAt: payload.createdAt };
+  } catch {
+    return { ok: false, reason: "temporary_network_failure" };
   }
 }
 
