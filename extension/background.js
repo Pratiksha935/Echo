@@ -15,6 +15,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     appendMemory(message.update).then(sendResponse).catch(() => sendResponse({ ok: false, reason: "temporary_network_failure" }));
     return true;
   }
+  if (message?.type === "found:capture-page") {
+    capturePage(message.capture).then(sendResponse).catch(() => sendResponse({ ok: false, reason: "temporary_network_failure" }));
+    return true;
+  }
   return;
 });
 
@@ -48,6 +52,19 @@ async function matchPage(page) {
   } catch {
     return { match: null, reason: "temporary_network_failure" };
   }
+}
+
+async function capturePage(capture) {
+  const stored=await chrome.storage.local.get([TOKEN_KEY]);const token=stored[TOKEN_KEY];
+  if(!token)return {ok:false,reason:"not_connected"};
+  try{
+    const response=await fetch(`${FOUND_ORIGIN}/api/browser/capture`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify(capture)});
+    const payload=await response.json().catch(()=>null);
+    if(response.status===401){await chrome.storage.local.remove([TOKEN_KEY,PROFILE_KEY]);return {ok:false,reason:"session_expired"}}
+    if(response.status===403&&payload?.error==="workspace_access_revoked"){await chrome.storage.local.remove([TOKEN_KEY,PROFILE_KEY]);return {ok:false,reason:"workspace_access_revoked"}}
+    if(!response.ok||!payload?.ok)return {ok:false,reason:payload?.error||"server_rejected"};
+    return payload;
+  }catch{return {ok:false,reason:"temporary_network_failure"}}
 }
 
 async function appendMemory(update) {

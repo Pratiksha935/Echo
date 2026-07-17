@@ -16,6 +16,7 @@ const userId = "user-production-contract";
 const requests = [];
 let membershipActive = true;
 const writtenUpdates = [];
+const capturedRecords = [];
 
 const records = [
   {
@@ -51,6 +52,16 @@ test.before(async () => {
     response.setHeader("content-type", "application/json");
     if (url.pathname.endsWith("/memberships")) {
       response.end(JSON.stringify(membershipActive ? [{ id: "membership-1" }] : []));
+      return;
+    }
+    if (url.pathname.endsWith("/knowledge_records") && request.method === "POST") {
+      let body = "";
+      request.on("data", chunk => { body += chunk; });
+      request.on("end", () => {
+        capturedRecords.push(JSON.parse(body));
+        response.statusCode = 201;
+        response.end(JSON.stringify([capturedRecords.at(-1)]));
+      });
       return;
     }
     if (url.pathname.endsWith("/knowledge_records")) {
@@ -153,8 +164,35 @@ test("production browser route tenant-filters the known Google Doc and returns c
   assert.match(payload.match.summary, /Slack evidence connected to this Google Docs document/);
   assert.deepEqual(payload.match.links.map(link => link.label), ["Google Docs evidence", "Slack evidence"]);
   assert.deepEqual(payload.match.account, { email: "cto@example.com", organisationName: "Production Contract" });
+  assert.match(payload.match.dashboardUrl, /\/workspace\/decision\//);
   assert.ok(requests.some(path => path.includes(`/memberships?`) && path.includes(`organisation_id=eq.${organisationId}`) && path.includes(`user_id=eq.${userId}`)));
   assert.ok(requests.some(path => path.includes(`/knowledge_records?`) && path.includes(`organisation_id=eq.${organisationId}`)));
+  assert.ok(requests.every(path => !path.includes("org-attacker-controlled-body")));
+});
+
+test("production browser capture writes explicit tenant-bound knowledge with a source receipt", async () => {
+  capturedRecords.length = 0;
+  const response = await fetch(`${appOrigin}/api/browser/capture`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${browserToken(3600)}`, "content-type": "application/json", origin: extensionOrigin },
+    body: JSON.stringify({
+      organisationId: "org-attacker-controlled-body",
+      department: "Research",
+      note: "Potential competitor signal for the ReLoop research team.",
+      pageTitle: "Rental market intelligence",
+      pageUrl: "https://example.com/rental-market-intelligence",
+    }),
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.match(payload.decisionUrl, /\/workspace\/decision\//);
+  assert.equal(capturedRecords.length, 1);
+  assert.equal(capturedRecords[0].organisation_id, organisationId);
+  assert.equal(capturedRecords[0].department, "Research");
+  assert.equal(capturedRecords[0].source, "Browser");
+  assert.equal(capturedRecords[0].metadata.submitted_by, userId);
+  assert.equal(capturedRecords[0].source_url, "https://example.com/rental-market-intelligence");
   assert.ok(requests.every(path => !path.includes("org-attacker-controlled-body")));
 });
 
@@ -167,9 +205,9 @@ test("production browser route returns an explicit no-match response", async () 
   assert.deepEqual(await response.json(), { match: null });
 });
 
-test("downloadable v0.4.5 ZIP is byte-aligned with every required production extension file", async () => {
+test("downloadable v0.4.6 ZIP is byte-aligned with every required production extension file", async () => {
   const required = ["manifest.json", "background.js", "content.js", "content.css", "update.css", "popup.html", "popup.js", "popup.css", "README.md"];
-  const archive = new URL("public/found-extension-v0.4.5.zip", root);
+  const archive = new URL("public/found-extension-v0.4.6.zip", root);
   const entries = (await command("unzip", ["-Z1", archive.pathname])).trim().split("\n").sort();
   assert.deepEqual(entries, [...required].sort());
   for (const name of required) {
@@ -181,7 +219,7 @@ test("downloadable v0.4.5 ZIP is byte-aligned with every required production ext
   }
   const manifest = JSON.parse(await command("unzip", ["-p", archive.pathname, "manifest.json"]));
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.5");
+  assert.equal(manifest.version, "0.4.6");
   assert.deepEqual(manifest.background, { service_worker: "background.js" });
   assert.deepEqual(manifest.content_scripts[0].js, ["content.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["content.css", "update.css"]);

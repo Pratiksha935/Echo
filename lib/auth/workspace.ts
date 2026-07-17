@@ -24,6 +24,7 @@ export type WorkspaceKnowledgeRecord = {
   externalId: string;
   source: string;
   sourceUrl: string;
+  sourceUpdatedAt: string;
   status: string;
   title: string;
 };
@@ -53,6 +54,7 @@ type KnowledgeRow = {
   external_id: string;
   source: string;
   source_url: string;
+  source_updated_at: string;
   title: string;
   metadata: { status?: string } | null;
 };
@@ -117,7 +119,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
   const context = await getSupabaseAuthContext();
   if (!context) return [];
   const query = new URLSearchParams({
-    select: "source,external_id,title,body,author_name,department,source_url,metadata",
+    select: "source,external_id,title,body,author_name,department,source_url,source_updated_at,metadata",
     organisation_id: `eq.${organisationId}`,
     order: "source_updated_at.desc",
     limit: String(Math.min(Math.max(limit, 1), 200)),
@@ -130,6 +132,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
     externalId: row.external_id,
     source: row.source,
     sourceUrl: row.source_url,
+    sourceUpdatedAt: row.source_updated_at,
     status: row.metadata?.status ?? "Indexed",
     title: row.title,
   }));
@@ -142,7 +145,7 @@ export async function listMemoryUpdates(organisationId: string): Promise<MemoryU
     select: "source_record_id,original_source_url,current_title,update_text,origin,hermes_review,created_at",
     organisation_id: `eq.${organisationId}`,
     order: "created_at.desc",
-    limit: "10",
+    limit: "100",
   });
   const rows = await userRest<MemoryUpdateRow[]>(`/memory_updates?${query}`, context.accessToken);
   return rows.map(row => ({
