@@ -27,7 +27,7 @@ export function requireSupabasePublicConfig(): SupabasePublicConfig {
 
 export function requireSupabaseServiceConfig(): SupabaseServiceConfig {
   const config = requireSupabasePublicConfig();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) throw new Error("Supabase service-role configuration is missing.");
   return { ...config, serviceRoleKey };
 }

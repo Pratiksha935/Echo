@@ -169,13 +169,17 @@ test("browser sessions are signed, tenant-bound, and valid for exactly one hour"
 });
 
 test("every browser insight revalidates membership and queries only the token tenant", async () => {
-  const route = await source("app/api/browser/match/route.ts");
+  const [route, handler] = await Promise.all([
+    source("app/api/browser/match/route.ts"),
+    source("lib/browser/match-route.js"),
+  ]);
 
-  assert.match(route, /verifyBrowserToken\(authorization\.slice\(7\)\)/);
-  assert.match(route, /\/memberships\?select=id&organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}&user_id=eq\.\$\{encodeURIComponent\(token\.userId\)\}/);
-  assert.match(route, /workspace_access_revoked/);
-  assert.match(route, /\/knowledge_records\?[^`]*organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}/);
-  assert.doesNotMatch(route, /body\?\.organisationId|requestedOrganisationId/);
+  assert.match(route, /verifyToken: verifyBrowserToken/);
+  assert.match(handler, /verifyToken\(authorization\.slice\(7\)\)/);
+  assert.match(handler, /\/memberships\?select=id&organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}&user_id=eq\.\$\{encodeURIComponent\(token\.userId\)\}/);
+  assert.match(handler, /workspace_access_revoked/);
+  assert.match(handler, /\/knowledge_records\?[^`]*organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}/);
+  assert.doesNotMatch(handler, /body\?\.organisationId|requestedOrganisationId/);
 });
 
 test("no live-data or browser-match path falls back to demo knowledge", async () => {
@@ -188,6 +192,6 @@ test("no live-data or browser-match path falls back to demo knowledge", async ()
 
   assert.match(workspacePage, /demoMode \? null : await getFoundWorkspace\(\)/);
   assert.match(workspacePage, /workspace[\s\S]*listWorkspaceKnowledgeRecords\(workspace\.organisationId\)/);
-  assert.match(browserRoute, /if \(!match\) return NextResponse\.json\(\{ match: null \}/);
+  assert.match(browserRoute, /handleBrowserMatch\(request\)/);
   assert.doesNotMatch(browserRoute + browserMatcher + callback, /notion-rental-kb|slack-reloop-seed|seedDemoWorkspace/);
 });

@@ -57,7 +57,7 @@ test("browser sessions are short-lived, workspace-bound, and revalidated", async
   const [token, session, match] = await Promise.all([
     source("lib/auth/browser-token.ts"),
     source("app/api/browser/session/route.ts"),
-    source("app/api/browser/match/route.ts"),
+    source("lib/browser/match-route.js"),
   ]);
   assert.match(token, /now \+ 60 \* 60/);
   assert.match(token, /organisationName/);
