@@ -1,24 +1,43 @@
-.ec-update {
-  margin: 0 16px 14px;
-  border-top: 1px solid rgba(255,255,255,.12);
-  padding-top: 12px;
-}
-.ec-update-toggle {
-  width: 100%;
-  border: 1px solid rgba(120,167,255,.45);
-  background: rgba(37,99,235,.16);
-  color: #dbe8ff;
-  border-radius: 10px;
-  padding: 10px 12px;
-  text-align: left;
-  font: 700 9px Arial;
-  cursor: pointer;
-}
-.ec-update form { margin-top: 10px; }
-.ec-update form[hidden] { display: none; }
-.ec-update label { display:block;color:#c8d6e8;font:9px/1.35 Arial;margin-bottom:7px; }
-.ec-update textarea { width:100%;min-height:78px;resize:vertical;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:#0b1f3a;color:#fff;padding:10px;font:11px/1.4 Arial;outline:none; }
-.ec-update textarea:focus { border-color:#78a7ff;box-shadow:0 0 0 2px rgba(120,167,255,.18); }
-.ec-update small { display:block;color:#8593a6;font:7px/1.4 Arial;margin:7px 0; }
-.ec-update form>button { width:100%;border:0;border-radius:9px;background:#2563eb;color:#fff;padding:10px;font:700 8px Arial;cursor:pointer; }
-.ec-update strong { display:block;color:#dbe8ff;font:700 10px/1.4 Arial; }
+/* Found prior-work battle card — compact blue companion surface. */
+#found-extension-root { color: #eaf2ff; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.ec-avatar { width: 56px; height: 56px; background: linear-gradient(145deg,#2874ff,#0a2f8f); border: 1px solid rgba(205,225,255,.72); box-shadow: 0 14px 42px rgba(8,39,112,.38), inset 0 1px rgba(255,255,255,.25); }
+.ec-avatar:hover { transform: translateY(-3px); }
+.ec-avatar em { background:#f2f7ff; color:#123d9b; border-color:#174db9; }
+.ec-face { width:31px; height:28px; border-color:#fff; }
+.ec-face i { background:#fff; box-shadow:0 0 8px rgba(255,255,255,.6); }
+.ec-face b { border-color:#fff; }
+
+.ec-card { width: 366px; max-height:min(620px,calc(100vh - 108px)); background:linear-gradient(160deg,rgba(13,44,112,.99),rgba(5,24,66,.99)); color:#eff5ff; border:1px solid rgba(151,190,255,.34); border-radius:18px; box-shadow:0 28px 80px rgba(3,18,54,.55); backdrop-filter:blur(20px); }
+.ec-card header { background:transparent; padding:15px 16px 6px; color:#a9c8ff; border:0; font-size:8px; font-weight:700; letter-spacing:.12em; }
+.ec-card header span { display:flex; align-items:center; gap:7px; }
+.ec-card header i { width:6px; height:6px; border-radius:50%; background:#6da5ff; box-shadow:0 0 0 4px rgba(109,165,255,.14); }
+.ec-card header button { width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:rgba(255,255,255,.08); color:#dce9ff; font-size:16px; }
+.ec-confidence { padding:3px 16px 0; gap:9px; }
+.ec-confidence b { color:#fff; font-size:30px; letter-spacing:-.05em; }
+.ec-confidence span { color:#82adf7; font-size:7px; font-weight:700; letter-spacing:.1em; padding-bottom:6px; }
+.ec-card h2 { margin:11px 16px 13px; color:#fff; font-size:23px; line-height:1.06; letter-spacing:-.04em; }
+.ec-card dl { display:grid; grid-template-columns:1fr 1fr; gap:7px; border:0; padding:0 16px; }
+.ec-card dl div { display:block; min-width:0; padding:9px 10px; border:1px solid rgba(151,190,255,.18); border-radius:9px; background:rgba(113,159,239,.08); }
+.ec-card dt { margin-bottom:4px; color:#7da6ed; font-size:7px; letter-spacing:.09em; }
+.ec-card dd { color:#edf4ff; font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ec-card .ec-explanation { margin:12px 16px 11px; padding:12px; border:1px solid rgba(159,195,255,.18); border-radius:11px; background:rgba(5,22,60,.48); color:#edf4ff; }
+.ec-card .ec-explanation span { color:#7faaf5; font-size:7px; font-weight:700; letter-spacing:.1em; }
+.ec-card .ec-explanation p { margin:6px 0 0; color:#c9dcfb; font:11px/1.45 Inter,ui-sans-serif,sans-serif; }
+.ec-card nav { display:block; padding:0 16px 13px; }
+.ec-card nav>span { display:block; margin-bottom:7px; color:#7199de; font-size:7px; font-weight:700; letter-spacing:.1em; }
+.ec-card nav>div { display:flex; gap:6px; overflow-x:auto; }
+.ec-card nav a { flex:0 0 auto; padding:8px 9px; border:1px solid rgba(159,195,255,.2); border-radius:8px; background:rgba(255,255,255,.08); color:#dbe9ff; font-size:8px; font-weight:700; }
+.ec-card nav a:first-child { background:#eaf2ff; color:#123d91; }
+
+.ec-update { margin:0 16px 13px; padding:12px; border:1px solid rgba(111,165,255,.28); border-radius:12px; background:rgba(25,87,194,.18); }
+.ec-update form { margin:0; }
+.ec-update label { display:block; margin-bottom:7px; color:#e5efff; font:700 9px/1.35 Inter,ui-sans-serif,sans-serif; }
+.ec-update input { width:100%; height:38px; border:1px solid rgba(170,203,255,.28); border-radius:9px; background:#071b46; color:#fff; padding:0 10px; font:10px Inter,ui-sans-serif,sans-serif; outline:none; }
+.ec-update input::placeholder { color:#6988bb; }
+.ec-update input:focus { border-color:#78a7ff; box-shadow:0 0 0 3px rgba(86,145,255,.16); }
+.ec-update small { display:block; margin:7px 0 9px; color:#8fa9d4; font:7px/1.45 Inter,ui-sans-serif,sans-serif; }
+.ec-update form>button { width:100%; border:0; border-radius:9px; background:#2c73ee; color:#fff; padding:10px; font:700 8px Inter,ui-sans-serif,sans-serif; letter-spacing:.05em; cursor:pointer; }
+.ec-update form>button:hover { background:#3b82f6; }
+.ec-card footer { display:flex; justify-content:space-between; padding:10px 16px 12px; border-color:rgba(151,190,255,.13); color:#6687bd; font-size:7px; }
+.ec-card footer span:first-child { color:#8eafe5; font-weight:700; letter-spacing:.08em; }
+@media(max-width:520px) { .ec-card { width:calc(100vw - 28px); } }

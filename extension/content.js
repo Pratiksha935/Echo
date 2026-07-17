@@ -14,8 +14,8 @@
       summary: "Platform Engineering began a pilot for a unified service catalog, ownership metadata, scorecards, and paved deployment paths three weeks ago.",
       recommendation: "Attach this article to ENG-214 and compare Harness IDP scorecards with the current Backstage-based pilot.",
       links: [
-        { label: "Open initiative", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" },
-        { label: "View engineering memory", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }
+        { label: "Slack", url: "https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX" },
+        { label: "Found record", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }
       ]
     },
     {
@@ -27,7 +27,7 @@
       source: "GitHub + Jira ENG-188",
       summary: "The engineering enablement team already maintains shared deployment templates with policy checks and rollback defaults.",
       recommendation: "Reuse the existing template package before proposing another delivery workflow abstraction.",
-      links: [{ label: "Open code reference", url: "https://sage-profiterole-3b1c22.netlify.app/code-review" }]
+      links: [{ label: "Code reference", url: "https://sage-profiterole-3b1c22.netlify.app/code-review" }]
     },
     {
       id: "LOOP-ENG-042",
@@ -39,7 +39,7 @@
       source: "Slack + Notion + Jira LOOP-42",
       summary: "Loop Engineering approved shared feature flags, canary cohorts, automated health verification and one-click rollback for high-risk releases.",
       recommendation: "Compare the article with LOOP-42 and attach any novel verification pattern to the existing rollout design.",
-      links: [{ label: "Open Loop initiative", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }]
+      links: [{ label: "Slack", url: "https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX" }, { label: "Found record", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }]
     },
     {
       id: "LOOP-ENG-057",
@@ -50,7 +50,7 @@
       source: "Slack + Notion + Jira LOOP-57",
       summary: "The team already measures deployment frequency, lead time, change failure rate and recovery time by service tier, with explicit warnings against individual developer scoring.",
       recommendation: "Reuse the service-level baseline and add only metrics that lead to a concrete platform action.",
-      links: [{ label: "View metrics decision", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }]
+      links: [{ label: "Slack", url: "https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX" }, { label: "Found record", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }]
     },
     {
       id: "LOOP-ENG-063",
@@ -61,7 +61,7 @@
       source: "Slack + GitHub + Jira LOOP-63",
       summary: "Loop is linking postmortems to services, owners, runbooks and repeated failure modes so new initiatives can discover earlier operational lessons.",
       recommendation: "Link this article to LOOP-63 if it adds a new incident taxonomy or retrieval method.",
-      links: [{ label: "View incident initiative", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }]
+      links: [{ label: "Slack", url: "https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX" }, { label: "Found record", url: "https://sage-profiterole-3b1c22.netlify.app/workspace" }]
     }
   ];
 
@@ -77,15 +77,9 @@
     return scored[0]?.score >= 2 ? scored[0] : null;
   }
 
-  async function render(match) {
+  function render(match) {
     if (rendered || document.getElementById("found-extension-root")) return;
     rendered = true;
-    const storageKey = `found:memory:${match.id}`;
-    const stored = await chrome.storage.local.get(storageKey);
-    const latest = stored[storageKey];
-    const displayedSummary = latest?.updateText || match.summary;
-    const displayedStatus = latest ? "Updated in Found" : match.status;
-
     const root = document.createElement("div");
     root.id = "found-extension-root";
     root.innerHTML = `
@@ -94,48 +88,37 @@
       <em>${match.score + 1}</em>
     </button>
     <aside class="ec-card" aria-hidden="true">
-      <header><span>FOUND · PRIOR WORK FOUND</span><button aria-label="Close">×</button></header>
-      <div class="ec-confidence"><b>${Math.min(96, 78 + match.score * 4)}%</b><span>semantic relevance</span></div>
+      <header><span><i></i> FOUND · PRIOR WORK</span><button aria-label="Close">×</button></header>
+      <div class="ec-confidence"><b>${Math.min(96, 78 + match.score * 4)}%</b><span>HIGH-CONFIDENCE MATCH</span></div>
       <h2>${match.title}</h2>
-      <p class="ec-summary"></p>
-      <dl><div><dt>OWNER</dt><dd>${match.owner}</dd></div><div><dt>STATUS</dt><dd class="ec-status">${displayedStatus}</dd></div><div><dt>SOURCES</dt><dd>${match.source}</dd></div></dl>
-      <section><span>WHAT TO DO</span><p>${match.recommendation}</p></section>
-      <nav><a href="${location.href}" target="_blank">Verify original ↗</a>${match.links.slice(0,1).map(link => `<a href="${link.url}" target="_blank">${link.label} ↗</a>`).join("")}</nav>
+      <dl><div><dt>OWNER</dt><dd>${match.owner}</dd></div><div><dt>STATUS</dt><dd>${match.status}</dd></div></dl>
+      <section class="ec-explanation"><span>WHY THIS MATCHES</span><p class="ec-summary"></p></section>
+      <nav aria-label="Sources"><span>SOURCE RECEIPTS</span><div><a class="ec-original" target="_blank" rel="noreferrer">Original doc ↗</a>${match.links.map(link => `<a href="${link.url}" target="_blank" rel="noreferrer">${link.label} ↗</a>`).join("")}</div></nav>
       <div class="ec-update">
-        <button class="ec-update-toggle" type="button">Something changed? Update Found</button>
-        <form hidden>
-          <label>What should the company remember now?</label>
-          <textarea maxlength="800" minlength="12" placeholder="Example: The pilot moved to rollout after platform review." required></textarea>
-          <small>The original Doc, Slack thread and Jira ticket will not be edited.</small>
-          <button type="submit">REVIEW MEMORY UPDATE ↗</button>
+        <form>
+          <label for="found-memory-update">Correct or update Found memory</label>
+          <input id="found-memory-update" type="text" maxlength="800" minlength="12" placeholder="What changed?" required>
+          <small>Opens signed-in review. Your update is appended with your identity; Slack and Google Docs stay untouched.</small>
+          <button type="submit">REVIEW &amp; APPEND <b>↗</b></button>
         </form>
       </div>
-      <footer>Analysed locally for the CV1 demo · page content was not transmitted</footer>
+      <footer><span>FOUND MEMORY</span><span>Silent in Slack · no automatic replies</span></footer>
     </aside>`;
     document.documentElement.appendChild(root);
-    root.querySelector(".ec-summary").textContent = displayedSummary;
+    root.querySelector(".ec-summary").textContent = match.summary;
+    root.querySelector(".ec-original").href = location.href;
     const avatar = root.querySelector(".ec-avatar");
     const card = root.querySelector(".ec-card");
     const close = card.querySelector("header button");
-    const updateToggle = card.querySelector(".ec-update-toggle");
     const updateForm = card.querySelector(".ec-update form");
-    const updateInput = updateForm.querySelector("textarea");
+    const updateInput = updateForm.querySelector("input");
     const setOpen = open => { card.classList.toggle("open", open); card.setAttribute("aria-hidden", String(!open)); };
     avatar.addEventListener("click", () => setOpen(!card.classList.contains("open")));
     close.addEventListener("click", () => setOpen(false));
-    updateToggle.addEventListener("click", () => {
-      updateForm.hidden = !updateForm.hidden;
-      updateToggle.textContent = updateForm.hidden ? "Something changed? Update Found" : "Cancel update";
-      if (!updateForm.hidden) updateInput.focus();
-    });
-    updateForm.addEventListener("submit", async event => {
+    updateForm.addEventListener("submit", event => {
       event.preventDefault();
       const updateText = updateInput.value.trim();
       if (updateText.length < 12) return;
-      await chrome.storage.local.set({ [storageKey]: { updateText, updatedAt: new Date().toISOString() } });
-      root.querySelector(".ec-summary").textContent = updateText;
-      root.querySelector(".ec-status").textContent = "Updated in Found";
-      updateForm.innerHTML = "<strong>Saved as a new memory layer.</strong><small>Confirm it in Found to sync it across the company.</small>";
       const params = new URLSearchParams({ correction: updateText, record_id: match.id, source_url: location.href, title: match.title });
       window.open(`https://sage-profiterole-3b1c22.netlify.app/memory/correct?${params}`, "_blank");
     });
