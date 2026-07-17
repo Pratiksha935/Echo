@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.6";
+  const EXTENSION_VERSION = "0.4.7";
   const runtime = window.__foundExtensionRuntime;
   if (runtime) return;
   window.__foundExtensionRuntime = { version: EXTENSION_VERSION };
@@ -12,9 +12,45 @@
   let lastDynamicSignature = "";
   let lastAutomaticCheckAt = 0;
 
+  function compactText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function slackPageText(maxLength) {
+    const selectors = [
+      '[data-qa="message_content"]',
+      '[data-qa="message-text"]',
+      '.c-message_kit__text',
+      '[data-qa="virtual-list-item"] .p-rich_text_section',
+    ];
+    const messages = [];
+    const seen = new Set();
+    for (const node of document.querySelectorAll(selectors.join(","))) {
+      const text = compactText(node.innerText || node.textContent);
+      if (text.length < 2 || seen.has(text)) continue;
+      seen.add(text);
+      messages.push(text);
+    }
+    const channel = compactText(
+      document.querySelector('[data-qa="channel_name"]')?.textContent ||
+      document.querySelector('[data-qa="channel-title"]')?.textContent ||
+      document.querySelector('h1')?.textContent,
+    );
+    const recentMessages = messages.slice(-40).join("\n\n");
+    return [channel, recentMessages].filter(Boolean).join("\n\n").slice(-maxLength);
+  }
+
+  function readPageText(maxLength) {
+    if (location.hostname === "app.slack.com") {
+      const slackText = slackPageText(maxLength);
+      if (slackText) return slackText;
+    }
+    return (document.querySelector("main")?.innerText || document.body?.innerText || "").slice(0, maxLength);
+  }
+
   async function findMatch() {
     if (/^https:\/\/www\.google\.[^/]+\/search/i.test(location.href)) return { match: null, reason: "unsupported_page" };
-    const pageText = (document.querySelector("main")?.innerText || document.body?.innerText || "").slice(0, 8000);
+    const pageText = readPageText(8000);
     try {
       return await chrome.runtime.sendMessage({
         type: "found:match-page",
@@ -136,8 +172,8 @@
   }
 
   function canonicalUrl(value) { try { const url=new URL(value); return `${url.origin}${url.pathname}`.replace(/\/$/,""); } catch { return value; } }
-  function pageContext() { return { pageText:(document.querySelector("main")?.innerText||document.body?.innerText||"").slice(0,2500),pageTitle:document.title,pageUrl:location.href }; }
-  function dynamicSignature() { const context=pageContext(); return `${context.pageUrl}|${context.pageTitle}|${context.pageText.slice(0,1200)}`; }
+  function pageContext() { return { pageText:readPageText(2500),pageTitle:document.title,pageUrl:location.href }; }
+  function dynamicSignature() { const context=pageContext(); const excerpt=location.hostname==="app.slack.com"?context.pageText.slice(-1200):context.pageText.slice(0,1200); return `${context.pageUrl}|${context.pageTitle}|${excerpt}`; }
 
   async function runCheck() {
     if (!checkPromise) {
@@ -158,7 +194,7 @@
       }
       const dynamicPage = /(?:app\.slack\.com|docs\.google\.com)/i.test(location.hostname);
       const signature = dynamicPage ? dynamicSignature() : "";
-      const dynamicChanged = dynamicPage && signature !== lastDynamicSignature && Date.now() - lastAutomaticCheckAt > 12_000;
+      const dynamicChanged = dynamicPage && signature !== lastDynamicSignature && Date.now() - lastAutomaticCheckAt > 3_000;
       if (dynamicChanged) { lastDynamicSignature = signature; automaticAttempts = 0; }
       if ((urlChanged || !rendered || dynamicChanged) && automaticAttempts < 3) {
         automaticAttempts += 1;
@@ -170,6 +206,14 @@
     setTimeout(checkCurrentPage, 2500);
     setTimeout(checkCurrentPage, 6000);
     setInterval(checkCurrentPage, 4000);
+    if (document.body && typeof MutationObserver === "function") {
+      let mutationTimer;
+      const observer = new MutationObserver(() => {
+        clearTimeout(mutationTimer);
+        mutationTimer = setTimeout(checkCurrentPage, 900);
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
     addEventListener("pageshow", checkCurrentPage);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) checkCurrentPage(); });
   }

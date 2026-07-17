@@ -4,6 +4,7 @@ import { createHmac } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { once } from "node:events";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 
@@ -97,7 +98,7 @@ test.before(async () => {
 
   const appPort = await availablePort();
   appOrigin = `http://127.0.0.1:${appPort}`;
-  app = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(appPort)], {
+  app = spawn(process.execPath, [fileURLToPath(import.meta.resolve("next/dist/bin/next")), "dev", "--webpack", "--hostname", "127.0.0.1", "--port", String(appPort)], {
     cwd: new URL("..", import.meta.url),
     env: {
       ...process.env,
@@ -205,9 +206,9 @@ test("production browser route returns an explicit no-match response", async () 
   assert.deepEqual(await response.json(), { match: null });
 });
 
-test("downloadable v0.4.6 ZIP is byte-aligned with every required production extension file", async () => {
+test("downloadable v0.4.7 ZIP is byte-aligned with every required production extension file", async () => {
   const required = ["manifest.json", "background.js", "content.js", "content.css", "update.css", "popup.html", "popup.js", "popup.css", "README.md"];
-  const archive = new URL("public/found-extension-v0.4.6.zip", root);
+  const archive = new URL("public/found-extension-v0.4.7.zip", root);
   const entries = (await command("unzip", ["-Z1", archive.pathname])).trim().split("\n").sort();
   assert.deepEqual(entries, [...required].sort());
   for (const name of required) {
@@ -219,7 +220,7 @@ test("downloadable v0.4.6 ZIP is byte-aligned with every required production ext
   }
   const manifest = JSON.parse(await command("unzip", ["-p", archive.pathname, "manifest.json"]));
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.4.6");
+  assert.equal(manifest.version, "0.4.7");
   assert.deepEqual(manifest.background, { service_worker: "background.js" });
   assert.deepEqual(manifest.content_scripts[0].js, ["content.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["content.css", "update.css"]);
