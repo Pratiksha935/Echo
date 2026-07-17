@@ -57,3 +57,12 @@ test("live matching recognises indexed Google files by URL before reading editor
   assert.match(route, /sourceRecord\?\.title/);
   assert.match(route, /related\.slice\(0, 4\)/);
 });
+
+test("live battlecards surface cross-source insight rather than repeating the open document", async () => {
+  const route = await source("app/api/browser/match/route.ts");
+  assert.match(route, /crossSource/);
+  assert.match(route, /evidence connected to this/);
+  assert.match(route, /overlap on/);
+  assert.match(route, /ranked\.slice\(0, 3\)/);
+  assert.match(route, /before creating another proposal or ticket/);
+});
