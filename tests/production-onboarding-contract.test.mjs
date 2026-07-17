@@ -55,10 +55,32 @@ test("all authentication callbacks use one canonical public origin", async () =>
   ]);
 
   assert.match(origin, /\[process\.env\.URL, process\.env\.NEXT_PUBLIC_APP_URL\]/);
+  assert.match(origin, /lastIndexOf\("--"\) \+ 2/);
   for (const route of [google, callback, slack, slackCallback, connectorCallback]) {
     assert.match(route, /publicRequestOrigin\(request\)/);
   }
   assert.doesNotMatch(google + callback + slack + slackCallback + connectorCallback, /new URL\([^\n]+request\.url/);
+});
+
+test("Netlify deploy aliases collapse to the stable production hostname", async () => {
+  const compiled = ts.transpileModule(await source("lib/auth/origin.ts"), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const { publicAppOriginFromEnvironment } = await import(
+    `data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`
+  );
+  const previousUrl = process.env.URL;
+  const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  try {
+    process.env.URL = "https://6a5a2bae3059d40008566768--sage-profiterole-3b1c22.netlify.app";
+    process.env.NEXT_PUBLIC_APP_URL = "https://main--sage-profiterole-3b1c22.netlify.app";
+    assert.equal(publicAppOriginFromEnvironment(), "https://sage-profiterole-3b1c22.netlify.app");
+  } finally {
+    if (previousUrl === undefined) delete process.env.URL;
+    else process.env.URL = previousUrl;
+    if (previousAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
+  }
 });
 
 test("Google and Slack remain two separate explicit connector consents", async () => {
