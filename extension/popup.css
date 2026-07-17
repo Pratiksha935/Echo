@@ -4,6 +4,7 @@ main { padding: 22px; }
 .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .13em; }
 h1 { margin: 16px 0 8px; font-size: 29px; letter-spacing: -.04em; }
 p { min-height: 42px; margin: 0 0 18px; color: #4c5f7c; font-size: 14px; line-height: 1.45; }
+#account { min-height: 0; margin-bottom: 10px; color: #173a78; font-size: 12px; font-weight: 750; }
 button { width: 100%; border: 0; border-radius: 12px; padding: 15px 17px; background: #2258b8; color: white; cursor: pointer; font-weight: 850; letter-spacing: .04em; text-align: left; }
 button b { float: right; }
 button:disabled { cursor: wait; opacity: .65; }

@@ -1,9 +1,18 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-type BrowserToken = { exp: number; organisationId: string; userId: string };
+export type BrowserToken = {
+  email: string;
+  exp: number;
+  iat: number;
+  organisationId: string;
+  organisationName: string;
+  userId: string;
+  version: 1;
+};
 
-export function issueBrowserToken(input: Omit<BrowserToken, "exp">): string {
-  const payload = Buffer.from(JSON.stringify({ ...input, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12 })).toString("base64url");
+export function issueBrowserToken(input: Omit<BrowserToken, "exp" | "iat" | "version">): string {
+  const now = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({ ...input, exp: now + 60 * 60, iat: now, version: 1 })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
@@ -16,7 +25,7 @@ export function verifyBrowserToken(value: string): BrowserToken | null {
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   try {
     const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<BrowserToken>;
-    if (!parsed.organisationId || !parsed.userId || typeof parsed.exp !== "number" || parsed.exp <= Date.now() / 1000) return null;
+    if (!parsed.email || !parsed.organisationId || !parsed.organisationName || !parsed.userId || parsed.version !== 1 || typeof parsed.exp !== "number" || parsed.exp <= Date.now() / 1000) return null;
     return parsed as BrowserToken;
   } catch { return null; }
 }

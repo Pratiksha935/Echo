@@ -7,10 +7,11 @@ const source = path => readFile(new URL(path, root), "utf8");
 
 test("browser battle card presents the complete prior-work receipt", async () => {
   const content = await source("extension/content.js");
-  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHY THIS MATCHES", "SOURCE RECEIPTS"]) {
+  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHAT FOUND KNOWS", "RECOMMENDED NEXT STEP", "SOURCE RECEIPTS"]) {
     assert.match(content, new RegExp(label));
   }
-  assert.match(content, /app\.slack\.com\/client\/T08LC40MYVB\/C0BGU0STURX/);
+  assert.match(content, /safeSourceUrl/);
+  assert.match(content, /Array\.isArray\(match\.links\)/);
   assert.match(content, /class="ec-original"/);
 });
 
@@ -31,11 +32,12 @@ test("corrections use authenticated centralized memory and never browser storage
   assert.match(route, /Do not overwrite the original source/);
 });
 
-test("battle card is explicit about source preservation and silent Slack behavior", async () => {
-  const content = await source("extension/content.js");
-  assert.match(content, /Slack and Google Docs stay untouched/);
-  assert.match(content, /Silent in Slack · no automatic replies/);
+test("battle card preserves original sources and exposes no internal traces", async () => {
+  const [content, popup] = await Promise.all([source("extension/content.js"), source("extension/popup.html")]);
+  assert.match(content, /Original Slack and Google sources stay untouched/);
+  assert.match(popup, /Live authorised evidence only/);
   assert.doesNotMatch(content, /Analysed locally|searching|processing|trace/i);
+  assert.doesNotMatch(content, /findDemoMatch|Offline demo memory|const knowledge/);
 });
 
 test("toolbar check explicitly reruns the matcher and reports the outcome", async () => {
@@ -44,10 +46,24 @@ test("toolbar check explicitly reruns the matcher and reports the outcome", asyn
     source("extension/popup.js"),
   ]);
   assert.match(content, /message\?\.type !== "found:run"/);
-  assert.match(content, /sendResponse\(\{ matched: Boolean\(match\) \}\)/);
+  assert.match(content, /reason: result\.reason/);
   assert.match(popup, /sendMessage\(tab\.id, \{ type: "found:run" \}\)/);
-  assert.match(popup, /Match found\. The battlecard is open/);
-  assert.match(popup, /No matching company knowledge was found/);
+  assert.match(popup, /Insight found\. The battlecard is open/);
+  assert.match(popup, /No sufficiently strong insight was found/);
+  assert.match(popup, /workspace_access_revoked/);
+});
+
+test("browser sessions are short-lived, workspace-bound, and revalidated", async () => {
+  const [token, session, match] = await Promise.all([
+    source("lib/auth/browser-token.ts"),
+    source("app/api/browser/session/route.ts"),
+    source("app/api/browser/match/route.ts"),
+  ]);
+  assert.match(token, /now \+ 60 \* 60/);
+  assert.match(token, /organisationName/);
+  assert.match(session, /profile/);
+  assert.match(match, /workspace_access_revoked/);
+  assert.match(match, /\/memberships\?select=id/);
 });
 
 test("live matching recognises indexed Google files by URL before reading editor text", async () => {
