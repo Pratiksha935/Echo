@@ -67,18 +67,18 @@ test("browser sessions are short-lived, workspace-bound, and revalidated", async
 });
 
 test("live matching recognises indexed Google files by URL before reading editor text", async () => {
-  const route = await source("app/api/browser/match/route.ts");
-  assert.match(route, /const pageResourceId = googleResourceId\(pageUrl\)/);
-  assert.match(route, /record\.externalId === pageResourceId/);
-  assert.match(route, /sourceRecord\?\.title/);
-  assert.match(route, /related\.slice\(0, 4\)/);
+  const matcher = await source("lib/browser/matcher.js");
+  assert.match(matcher, /const pageResourceId = googleResourceId\(pageUrl\)/);
+  assert.match(matcher, /record\.externalId === pageResourceId/);
+  assert.match(matcher, /sourceRecord\?\.title/);
+  assert.match(matcher, /related\.slice\(0, 4\)/);
 });
 
 test("live battlecards surface cross-source insight rather than repeating the open document", async () => {
-  const route = await source("app/api/browser/match/route.ts");
-  assert.match(route, /crossSource/);
-  assert.match(route, /evidence connected to this/);
-  assert.match(route, /overlap on/);
-  assert.match(route, /ranked\.slice\(0, 3\)/);
-  assert.match(route, /before creating another proposal or ticket/);
+  const matcher = await source("lib/browser/matcher.js");
+  assert.match(matcher, /crossSource/);
+  assert.match(matcher, /evidence connected to this/);
+  assert.match(matcher, /overlap on/);
+  assert.match(matcher, /ranked\.slice\(0, 3\)/);
+  assert.match(matcher, /before creating another proposal or ticket/);
 });
