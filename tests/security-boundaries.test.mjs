@@ -42,6 +42,22 @@ test("continuous ingestion is durable, silent, and authenticated", async () => {
   assert.doesNotMatch(slack, /status=in\.\(connected,pending,attention\)/);
 });
 
+test("browser battle cards use authenticated tenant memory", async () => {
+  const [route, extension] = await Promise.all([
+    source("app/api/browser/match/route.ts"),
+    source("extension/content.js"),
+  ]);
+  assert.match(route, /getFoundUser/);
+  assert.match(route, /getFoundWorkspace/);
+  assert.match(route, /listWorkspaceKnowledgeRecords/);
+  assert.match(route, /chrome-extension/);
+  assert.match(route, /access-control-allow-credentials/);
+  assert.doesNotMatch(route, /serviceRoleKey|integration_secrets/);
+  assert.match(extension, /credentials: "include"/);
+  assert.match(extension, /\/api\/browser\/match/);
+  assert.match(extension, /google.*search/);
+});
+
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
   const google = await source("lib/integrations/google-sync.ts");
   assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);

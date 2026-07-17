@@ -2,6 +2,7 @@
   if (window.__echoCheckLoaded) return;
   window.__echoCheckLoaded = true;
 
+  const FOUND_ORIGIN = "https://sage-profiterole-3b1c22.netlify.app";
   const knowledge = [
     {
       id: "ENG-PLAT-014",
@@ -67,7 +68,7 @@
 
   let rendered = false;
 
-  function findMatch() {
+  function findDemoMatch() {
     const pageText = `${location.href} ${document.title} ${document.querySelector("main")?.innerText || document.body?.innerText || ""}`.toLowerCase();
     const scored = knowledge.map(item => {
       const knownDocument = item.documentIds?.some(id => location.href.includes(id));
@@ -75,6 +76,24 @@
       return { ...item, score: knownDocument ? Math.max(4, semanticScore) : semanticScore };
     }).sort((a,b) => b.score-a.score);
     return scored[0]?.score >= 2 ? scored[0] : null;
+  }
+
+  async function findMatch() {
+    if (/^https:\/\/www\.google\.[^/]+\/search/i.test(location.href)) return null;
+    const pageText = (document.querySelector("main")?.innerText || document.body?.innerText || "").slice(0, 8000);
+    try {
+      const response = await fetch(`${FOUND_ORIGIN}/api/browser/match`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pageText, pageTitle: document.title, pageUrl: location.href }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        if (payload?.match) return payload.match;
+      }
+    } catch { /* Fall through to the bundled offline demo. */ }
+    return findDemoMatch();
   }
 
   function render(match) {
@@ -102,7 +121,7 @@
           <button type="submit">REVIEW &amp; APPEND <b>↗</b></button>
         </form>
       </div>
-      <footer><span>FOUND MEMORY</span><span>Silent in Slack · no automatic replies</span></footer>
+      <footer><span>FOUND MEMORY</span><span>${match.live ? "Live authorised workspace" : "Offline demo memory"} · Silent in Slack · no automatic replies</span></footer>
     </aside>`;
     document.documentElement.appendChild(root);
     root.querySelector(".ec-summary").textContent = match.summary;
@@ -126,14 +145,18 @@
   }
 
   let attempts = 0;
-  const detector = setInterval(() => {
+  let checking = false;
+  const detector = setInterval(async () => {
+    if (checking) return;
+    checking = true;
     attempts += 1;
-    const match = findMatch();
+    const match = await findMatch();
     if (match) {
       clearInterval(detector);
       render(match);
     } else if (attempts >= 30) {
       clearInterval(detector);
     }
+    checking = false;
   }, 500);
 })();
