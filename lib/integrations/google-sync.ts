@@ -135,7 +135,7 @@ export async function syncGoogleWorkspace(
         started_at: startedAt,
         finished_at: finishedAt,
       }),
-    });
+    }).catch(() => undefined);
     return { seen: files.length, written: records.length };
   } catch (error) {
     const finishedAt = new Date().toISOString();
