@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
   const token = authorization?.startsWith("Bearer ") ? verifyBrowserToken(authorization.slice(7)) : null;
   if (!token) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
 
+  const memberships = await serviceRest<Array<{ id: string }>>(`/memberships?select=id&organisation_id=eq.${encodeURIComponent(token.organisationId)}&user_id=eq.${encodeURIComponent(token.userId)}&limit=1`);
+  if (!memberships[0]) return NextResponse.json({ error: "workspace_access_revoked" }, { status: 403, headers });
+
   const body = await request.json().catch(() => null) as { pageText?: unknown; pageTitle?: unknown; pageUrl?: unknown } | null;
   const pageTitle = typeof body?.pageTitle === "string" ? body.pageTitle.slice(0, 500) : "";
   const pageText = typeof body?.pageText === "string" ? body.pageText.slice(0, 8_000) : "";
@@ -59,6 +62,7 @@ export async function POST(request: NextRequest) {
     ? `The open document and this ${best.record.source} record overlap on ${overlap}.`
     : "This page is an exact indexed company source.";
   return NextResponse.json({ match: {
+    account: { email: token.email, organisationName: token.organisationName },
     id: best.record.externalId,
     links: related.slice(0, 4).map(record => ({ label: `${record.source} evidence`, url: record.sourceUrl })),
     live: true,

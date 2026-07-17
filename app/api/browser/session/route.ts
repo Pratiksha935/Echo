@@ -8,5 +8,9 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const workspace = await getFoundWorkspace();
   if (!workspace) return NextResponse.json({ error: "workspace_forbidden" }, { status: 403 });
-  return NextResponse.json({ token: issueBrowserToken({ organisationId: workspace.organisationId, userId: user.id }) }, { headers: { "cache-control": "no-store" } });
+  const profile = { email: user.email, organisationId: workspace.organisationId, organisationName: workspace.organisationName };
+  return NextResponse.json({
+    profile,
+    token: issueBrowserToken({ ...profile, userId: user.id }),
+  }, { headers: { "cache-control": "no-store" } });
 }
