@@ -160,6 +160,13 @@ test("magic-link recovery uses PKCE and never exposes session tokens to browser 
   assert.doesNotMatch(clientFiles, /access_token|refresh_token/);
 });
 
+test("Google PKCE callback follows Supabase's code-and-verifier contract", async () => {
+  const [start, callback] = await Promise.all([source("app/auth/google/route.ts"), source("app/auth/callback/route.ts")]);
+  assert.doesNotMatch(start, /url\.searchParams\.set\("state"/);
+  assert.match(callback, /!code \|\| !verifier/);
+  assert.match(callback, /exchangePkceCode\(code, verifier\)/);
+});
+
 test("Google connector requests only read-only content scopes", async () => {
   const oauth = await source("lib/integrations/oauth.ts");
   assert.match(oauth, /drive\.readonly/);

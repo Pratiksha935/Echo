@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Found — Organisational Memory",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Surfaces relevant organisational knowledge while you browse.",
-  "permissions": ["activeTab", "storage", "scripting"],
+  "permissions": ["activeTab", "storage", "scripting", "identity"],
   "host_permissions": ["http://*/*", "https://*/*"],
   "content_scripts": [
     {
@@ -16,5 +16,6 @@
   "action": {
     "default_title": "Found",
     "default_popup": "popup.html"
-  }
+  },
+  "background": { "service_worker": "background.js" }
 }

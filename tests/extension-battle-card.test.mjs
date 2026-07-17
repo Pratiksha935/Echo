@@ -95,7 +95,25 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(page, /requireFoundUser\("\/browser\/connect"\)/);
   assert.match(content, /Browser connected\./);
   assert.match(content, /payload\.profile\.organisationName/);
-  assert.match(popup, /\/browser\/connect/);
-  assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.4\.1"/);
+  assert.match(popup, /id="connect"/);
+  assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
+  assert.match(manifest, /"version": "0\.4\.2"/);
+});
+
+test("browser pairing uses Chrome identity and an explicit workspace grant", async () => {
+  const [manifest, background, popup, page, route] = await Promise.all([
+    source("extension/manifest.json"),
+    source("extension/background.js"),
+    source("extension/popup.js"),
+    source("app/browser/authorize/page.tsx"),
+    source("app/browser/authorize/complete/route.ts"),
+  ]);
+  assert.match(manifest, /"identity"/);
+  assert.match(manifest, /"service_worker": "background\.js"/);
+  assert.match(background, /launchWebAuthFlow/);
+  assert.match(background, /chrome\.storage\.local\.set/);
+  assert.match(popup, /found:connect-workspace/);
+  assert.match(page, /Connect this browser\?/);
+  assert.match(route, /hasSamePublicOrigin/);
+  assert.match(route, /chromiumapp\\\.org/);
 });
