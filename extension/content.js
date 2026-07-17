@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.3";
+  const EXTENSION_VERSION = "0.4.4";
   const runtime = window.__foundExtensionRuntime;
   if (runtime) return;
   window.__foundExtensionRuntime = { version: EXTENSION_VERSION };
