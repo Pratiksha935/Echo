@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
   if (!pageTitle && !pageText && !pageUrl) return NextResponse.json({ match: null }, { headers });
 
   const rows = await serviceRest<BrowserKnowledgeRow[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=source_updated_at.desc&limit=200`);
-  const records = rows.map(row => ({ authorName: row.author_name, body: row.body, department: row.department, externalId: row.external_id, source: row.source, sourceUrl: row.source_url, status: row.metadata?.status ?? "Indexed", title: row.title }));
+  const exactRows = await loadExactSourceRows(token.organisationId, pageUrl);
+  const records = uniqueRows([...exactRows, ...rows]).map(row => ({ authorName: row.author_name, body: row.body, department: row.department, externalId: row.external_id, source: row.source, sourceUrl: row.source_url, status: row.metadata?.status ?? "Indexed", title: row.title }));
   const match = matchBrowserKnowledge({ pageText, pageTitle, pageUrl, records });
   if (!match) return NextResponse.json({ match: null }, { headers });
   const updates = await serviceRest<MemoryUpdateRow[]>(`/memory_updates?select=update_text,created_at&organisation_id=eq.${encodeURIComponent(token.organisationId)}&source_record_id=eq.${encodeURIComponent(match.id)}&order=created_at.desc&limit=1`);
@@ -64,3 +65,46 @@ function corsHeaders(origin: string): HeadersInit {
 
 type BrowserKnowledgeRow = { author_name: string | null; body: string; department: string | null; external_id: string; metadata: { status?: string } | null; source: string; source_url: string; title: string };
 type MemoryUpdateRow = { created_at: string; update_text: string };
+
+async function loadExactSourceRows(organisationId: string, pageUrl: string): Promise<BrowserKnowledgeRow[]> {
+  const googleId = googleResourceId(pageUrl);
+  if (googleId) {
+    const [externalRows, urlRows] = await Promise.all([
+      serviceRest<BrowserKnowledgeRow[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(organisationId)}&external_id=eq.${encodeURIComponent(googleId)}&limit=5`).catch(() => []),
+      serviceRest<BrowserKnowledgeRow[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(organisationId)}&source_url=ilike.*${encodeURIComponent(googleId)}*&limit=5`).catch(() => []),
+    ]);
+    return uniqueRows([...externalRows, ...urlRows]);
+  }
+  const canonical = canonicalUrl(pageUrl);
+  if (!canonical) return [];
+  return serviceRest<BrowserKnowledgeRow[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(organisationId)}&source_url=eq.${encodeURIComponent(canonical)}&limit=5`).catch(() => []);
+}
+
+function googleResourceId(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (!/(^|\.)google\.com$/.test(url.hostname)) return null;
+    return url.pathname.match(/\/(?:document|spreadsheets|presentation|file)\/d\/([^/]+)/)?.[1] ?? url.searchParams.get("id");
+  } catch {
+    return null;
+  }
+}
+
+function canonicalUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function uniqueRows(rows: BrowserKnowledgeRow[]): BrowserKnowledgeRow[] {
+  const seen = new Set<string>();
+  return rows.filter(row => {
+    const key = `${row.source}:${row.external_id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
