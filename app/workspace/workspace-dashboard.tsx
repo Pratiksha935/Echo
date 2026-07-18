@@ -24,6 +24,8 @@ export default function WorkspaceDashboard({ connectedCount, connectedProviders,
   const [view,setView] = useState<View>("Overview");
   const [query,setQuery] = useState("");
   const [submitted,setSubmitted] = useState("");
+  const [askAnswer,setAskAnswer] = useState("");
+  const [askStatus,setAskStatus] = useState<"idle"|"loading"|"answered"|"error">("idle");
   const [graphId,setGraphId] = useState("");
   const effectiveRecords = demoMode ? demoRecords : records;
   const decisions = useMemo(() => buildDecisionMemory(effectiveRecords,memoryUpdates),[effectiveRecords,memoryUpdates]);
@@ -35,8 +37,28 @@ export default function WorkspaceDashboard({ connectedCount, connectedProviders,
   const activeDepartments = departments.filter(department=>decisions.some(item=>item.department===department));
   const isReady = demoMode || ["google","slack"].every(provider=>connectedProviders.includes(provider));
 
-  function search(event:FormEvent) { event.preventDefault(); setSubmitted(query.trim()); }
-  function selectView(next:View) { setView(next); setSubmitted(""); window.scrollTo({top:0,behavior:"smooth"}); }
+  async function search(event:FormEvent) {
+    event.preventDefault();
+    const question = query.trim();
+    setSubmitted(question);
+    setAskAnswer("");
+    if (!question) { setAskStatus("idle"); return; }
+    setAskStatus("loading");
+    const response = await fetch("/api/knowledge/query", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ message: question }),
+    }).catch(() => null);
+    const payload = response ? await response.json().catch(() => null) as { answer?: string; error?: string } | null : null;
+    if (response?.ok && payload?.answer) {
+      setAskAnswer(payload.answer);
+      setAskStatus("answered");
+      return;
+    }
+    setAskAnswer(payload?.error === "temporarily_unavailable" ? "Hermes is temporarily unavailable. Try again shortly." : "I couldn’t find enough evidence in company knowledge to answer this.");
+    setAskStatus("error");
+  }
+  function selectView(next:View) { setView(next); setSubmitted(""); setAskAnswer(""); setAskStatus("idle"); window.scrollTo({top:0,behavior:"smooth"}); }
 
   return <main className="foundWorkspace workspaceV3">
     <aside className="kbSidebar">
@@ -51,9 +73,10 @@ export default function WorkspaceDashboard({ connectedCount, connectedProviders,
       <div className="kbContent">
         <section className="kbWelcome">
           <div><span>{view==="Overview"?"COMPANY INTELLIGENCE":"DEPARTMENT MEMORY"}</span><h1>{view==="Overview"?`Good ${greeting()}, ${firstName(displayName)}.`:`${view} knowledge`}</h1><p>{view==="Overview"?"A concise view of what changed, what is gaining momentum, and which decisions need attention.":departmentDescription(view as Department)}</p></div>
-          <form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search decisions, customers, campaigns, or code…"/><button aria-label="Search">⌕</button></form>
+          <form onSubmit={search}><input aria-label="Ask company knowledge" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Ask Hermes about decisions, customers, campaigns, or code…"/><button aria-label="Ask Hermes" disabled={askStatus==="loading"}>{askStatus==="loading"?"…":"⌕"}</button></form>
         </section>
 
+        {(askStatus==="loading"||askAnswer)&&<section className={`kbAskAnswer ${askStatus}`}><PanelHeader eyebrow="ASK HERMES" title={askStatus==="loading"?"Checking company memory…":"Source-grounded answer"} action="Closed-world"/><p>{askStatus==="loading"?"Hermes is reading indexed records and append-only memory updates.":askAnswer}</p></section>}
         {submitted&&<SearchResults query={submitted} results={searchResults}/>}
         {view==="Overview" ? <>
           {!isReady&&<SetupPanel connectedProviders={connectedProviders}/>}

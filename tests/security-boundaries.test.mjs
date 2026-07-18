@@ -103,6 +103,24 @@ test("browser matching uses Hermes as the final non-exact battlecard decision la
   assert.match(route, /return NextResponse\.json\(\{ match: null, reason: hermesVerdict\.reason \}/);
 });
 
+test("workspace Ask Hermes uses indexed memory and stays closed-world", async () => {
+  const [route, dashboard] = await Promise.all([
+    source("app/api/knowledge/query/route.ts"),
+    source("app/workspace/workspace-dashboard.tsx"),
+  ]);
+  assert.match(route, /getFoundUser/);
+  assert.match(route, /getFoundWorkspace/);
+  assert.match(route, /listWorkspaceKnowledgeRecords\(workspace\.organisationId,\s*80\)/);
+  assert.match(route, /listMemoryUpdates\(workspace\.organisationId\)/);
+  assert.match(route, /queryHermes\(evidencePrompt,\s*workspace\.organisationId\)/);
+  assert.match(route, /I couldn’t find enough evidence in company knowledge to answer this/);
+  assert.match(route, /Do not add external knowledge, generic frameworks, assumptions, or advice/);
+  assert.doesNotMatch(route, /internet|web search|fetch\(["']https?:\/\//i);
+  assert.match(dashboard, /\/api\/knowledge\/query/);
+  assert.match(dashboard, /ASK HERMES/);
+  assert.match(dashboard, /Closed-world/);
+});
+
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
   const google = await source("lib/integrations/google-sync.ts");
   assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);

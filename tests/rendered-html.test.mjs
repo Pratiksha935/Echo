@@ -122,6 +122,8 @@ test("renders the centralized workspace for an authenticated user", async () => 
   assert.match(html, /LATEST ACTIVITY/);
   assert.match(html, /DEPARTMENTS/);
   assert.match(html, /KNOWLEDGE GRAPH/);
+  assert.match(html, /Ask Hermes/);
+  assert.match(html, /Hermes intelligence layer/);
   assert.doesNotMatch(html, /PRIMARY INTELLIGENCE · BATTLE CARD|OPEN ORIGINAL SOURCE|DEMO MEMORY/);
 });
 
