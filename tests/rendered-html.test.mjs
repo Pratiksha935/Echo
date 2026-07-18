@@ -66,7 +66,7 @@ test("rejects cross-origin password login without contacting authentication", as
   const location = new URL(response.headers.get("location"));
   assert.equal(location.pathname, "/login");
   assert.equal(location.searchParams.get("error"), "invalid_credentials");
-  assert.equal(location.searchParams.get("return_to"), "/integrations");
+  assert.equal(location.searchParams.get("return_to"), "/workspace");
   assert.equal(response.headers.get("set-cookie"), null);
 });
 
@@ -98,11 +98,11 @@ test("renders integration onboarding for an authenticated user", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /GUIDED SETUP/);
-  assert.match(html, /One Found account/);
-  assert.match(html, /Install the extension/);
+  assert.match(html, /Set up Found/);
+  assert.match(html, /Install the browser companion/);
   assert.match(html, /Pair this browser/);
-  assert.match(html, /PRIVATE PREVIEW/);
-  assert.match(html, /Production store distribution pending/);
+  assert.match(html, /PRIVATE RELEASE/);
+  assert.match(html, /Chrome Web Store publishing is still pending/);
   assert.match(html, /AFTER ONBOARDING/);
   assert.match(html, /Slack/);
   assert.match(html, /Notion/);
@@ -115,13 +115,13 @@ test("renders the centralized workspace for an authenticated user", async () => 
   const response = await render("/workspace", { "oai-authenticated-user-email": "founder@example.com" });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /COMPANY PULSE/);
-  assert.match(html, /TENANT-ISOLATED/);
-  assert.match(html, /What changed across/);
-  assert.match(html, /TRENDING NOW/);
-  assert.match(html, /LATEST VERIFIED CHANGES/);
-  assert.match(html, /DEPARTMENT PULSE/);
-  assert.match(html, /LIVE KNOWLEDGE GRAPH/);
+  assert.match(html, /COMPANY INTELLIGENCE/);
+  assert.match(html, /Tenant isolated/);
+  assert.match(html, /Good (?:morning|afternoon|evening)/);
+  assert.match(html, /TRENDING/);
+  assert.match(html, /LATEST ACTIVITY/);
+  assert.match(html, /DEPARTMENTS/);
+  assert.match(html, /KNOWLEDGE GRAPH/);
   assert.doesNotMatch(html, /PRIMARY INTELLIGENCE · BATTLE CARD|OPEN ORIGINAL SOURCE|DEMO MEMORY/);
 });
 

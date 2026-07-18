@@ -34,7 +34,7 @@ test("Google login keeps a safe return_to value across PKCE authorization", asyn
     source("lib/auth/session.ts"),
   ]);
 
-  assert.match(login, /safeReturnPath\(single\(params\.return_to\), "\/integrations"\)/);
+  assert.match(login, /safeReturnPath\(single\(params\.return_to\), "\/workspace"\)/);
   assert.match(start, /safeReturnPath\(request\.nextUrl\.searchParams\.get\("return_to"\)\)/);
   assert.match(start, /store\.set\(RETURN_TO_COOKIE, returnTo, cookieOptions\)/);
   assert.match(start, /code_challenge_method", "s256"/);

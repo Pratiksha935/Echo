@@ -28,7 +28,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
 
   return <main className={styles.page}>
     <header className={styles.topbar}>
-      <Link href="/">Found<span>.</span></Link>
+      <Link href="/workspace">Found<span>.</span></Link>
       <span>{workspaceName.toUpperCase()} / ONBOARDING</span>
       <b>{displayName}</b>
     </header>
@@ -38,16 +38,16 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
     </div>}
 
     <section className={styles.hero}>
-      <div><span>GUIDED SETUP · {completedRequired}/3 REQUIRED STEPS COMPLETE</span><h1>One Found account.<br/>Explicit source access.</h1></div>
-      <p>Sign in once to Found, then review Google Workspace and Slack separately. Installing the browser extension does not grant either source access.</p>
+      <div><span>GUIDED SETUP · {completedRequired}/3 SOURCE STEPS COMPLETE</span><h1>Set up Found<br/>for daily work.</h1></div>
+      <p>Install the browser companion first, pair it with this workspace, then review Google Workspace and Slack separately.</p>
     </section>
 
     <nav className={styles.progress} aria-label="Onboarding progress">
       <a href="#account" className={styles.done}>01 <span>Account</span></a>
-      <a href="#google" className={googleApproved ? styles.done : styles.current}>02 <span>Google</span></a>
-      <a href="#slack" className={slackApproved ? styles.done : googleApproved ? styles.current : ""}>03 <span>Slack</span></a>
-      <a href="#extension">04 <span>Extension</span></a>
-      <a href="#pair">05 <span>Pair</span></a>
+      <a href="#extension" className={styles.current}>02 <span>Extension</span></a>
+      <a href="#pair">03 <span>Pair</span></a>
+      <a href="#google" className={googleApproved ? styles.done : ""}>04 <span>Google</span></a>
+      <a href="#slack" className={slackApproved ? styles.done : ""}>05 <span>Slack</span></a>
       <a href="#dashboard" className={readyForWorkspace ? styles.current : ""}>06 <span>Enter Found</span></a>
     </nav>
 
@@ -57,31 +57,31 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
         <dl><div><dt>ACCOUNT</dt><dd>{email}</dd></div><div><dt>WORKSPACE</dt><dd>{workspaceName}</dd></div></dl>
       </Step>
 
-      <Step id="google" number="02" title="Google Workspace" status={providerStatus(google, configuredProviders.includes("google"))} complete={googleApproved}>
+      <Step id="extension" number="02" title="Install the browser companion" status={extensionInstallUrl ? "CHROME WEB STORE" : "PRIVATE RELEASE"}>
+        {extensionInstallUrl ? <><p>Add Found to Chrome. The extension asks you to sign in or pair with a workspace the first time you use it.</p><a className={styles.action} href={extensionInstallUrl} target="_blank" rel="noreferrer">ADD FOUND TO CHROME ↗</a></> : <><p>Chrome Web Store publishing is still pending. For this private release, download the approved package and load it once in Developer mode.</p><a className={styles.action} href="/found-extension-v0.4.9.zip" download>DOWNLOAD FOUND v0.4.9 ↗</a><ol><li>Extract the downloaded ZIP.</li><li>Open <code>chrome://extensions</code> and remove older Found versions.</li><li>Turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and select the extracted folder.</li><li>Pin <b>Found — Organisational Memory</b>.</li></ol><div className={styles.pending}>Automatic one-click installation and updates begin after Chrome Web Store approval.</div></>}
+      </Step>
+
+      <Step id="pair" number="03" title="Pair this browser" status="CONFIRM IN EXTENSION">
+        <p>Open Found from Chrome and choose <b>Connect or switch workspace</b>. If you are signed out, Found asks you to authenticate before presenting the workspace approval.</p>
+        <div className={styles.explainer}><b>What pairing does</b><span>Links this browser to {workspaceName}</span><b>What it does not do</b><span>It does not approve Google Workspace or Slack access.</span></div>
+        <div className={styles.pending}>Pairing is confirmed inside the extension; this page never pretends to detect it.</div>
+      </Step>
+
+      <Step id="google" number="04" title="Google Workspace" status={providerStatus(google, configuredProviders.includes("google"))} complete={googleApproved}>
         <p>This is a separate Google Workspace consent for read-only Drive and Docs access. Your Google sign-in alone does not approve indexing.</p>
         <ScopeList values={["Drive files · read only", "Google Docs · read only", "Identity · email"]}/>
         {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <Link className={styles.action} href="/auth/integrations/google" prefetch={false}>REVIEW GOOGLE WORKSPACE CONSENT ↗</Link> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
-      <Step id="slack" number="03" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
+      <Step id="slack" number="05" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
         <p>Slack opens its own consent screen after Google. Found requests public-channel ingestion access and does not request permission to post messages.</p>
         <ScopeList values={["Public channels · read", "Public messages · read", "Users · read"]}/>
         {slackApproved ? <Connection connection={slack!}/> : !googleApproved ? <DisabledAction>APPROVE GOOGLE FIRST</DisabledAction> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
-      <Step id="extension" number="04" title="Install the extension" status={extensionInstallUrl ? "STORE LISTING AVAILABLE" : "PRIVATE PREVIEW · NOT VERIFIED"}>
-        {extensionInstallUrl ? <><p>Install Found from the configured Chrome Web Store listing. Found cannot verify installation from this page; confirm it in Chrome before pairing.</p><a className={styles.action} href={extensionInstallUrl} target="_blank" rel="noreferrer">OPEN CHROME WEB STORE ↗</a></> : <><p>Download the approved private-release package directly from Found. Remove older Found extensions before loading this version so only one content script runs on each page.</p><a className={styles.action} href="/found-extension-v0.4.9.zip" download>DOWNLOAD FOUND v0.4.9 ↗</a><ol><li>Extract the downloaded ZIP.</li><li>Open <code>chrome://extensions</code> in Chrome and remove older Found versions.</li><li>Turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and select the extracted folder.</li><li>Pin <b>Found — Organisational Memory</b> from the Extensions menu.</li></ol><div className={styles.pending}>Production store distribution pending · private package installation requires Chrome Developer mode</div></>}
-      </Step>
-
-      <Step id="pair" number="05" title="Pair this browser" status="AWAITING EXTENSION CONFIRMATION">
-        <p>Open the Found extension from Chrome’s toolbar and choose <b>Connect or switch workspace</b>. On the Found confirmation page, choose <b>Connect browser</b>. Return to the indexed document, open Found again, and choose <b>Check this page</b>.</p>
-        <div className={styles.explainer}><b>What pairing does</b><span>Links this browser to {workspaceName}</span><b>What it does not do</b><span>It does not replace or silently approve Google Workspace or Slack consent.</span></div>
-        <div className={styles.pending}>Pairing is confirmed inside the extension · this page does not pretend to detect it</div>
-      </Step>
-
       <Step id="dashboard" number="06" title="Enter Found" status={readyForWorkspace ? "READY" : "LOCKED UNTIL SOURCE CONSENT"} complete={readyForWorkspace} locked={!readyForWorkspace}>
-        <p>Once both required sources have saved authorisation, enter the dashboard. Indexing state stays visible separately from consent state.</p>
-        {readyForWorkspace ? <Link className={styles.action} href="/workspace">ENTER FOUND DASHBOARD ↗</Link> : <DisabledAction>COMPLETE GOOGLE AND SLACK CONSENT</DisabledAction>}
+        <p>Your overview remains available throughout setup. Once both sources are authorised, it begins filling with department knowledge and evidence-backed insights.</p>
+        <Link className={styles.action} href="/workspace">RETURN TO COMPANY OVERVIEW ↗</Link>
       </Step>
     </section>
 

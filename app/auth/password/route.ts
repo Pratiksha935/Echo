@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const password = String(form.get("password") ?? "");
-  const returnTo = safeReturnPath(String(form.get("return_to") ?? ""), "/integrations");
+  const returnTo = safeReturnPath(String(form.get("return_to") ?? ""), "/workspace");
 
   if (!hasSamePublicOrigin(request) || !validCredentials(email, password)) {
     return loginRedirect(request, returnTo);

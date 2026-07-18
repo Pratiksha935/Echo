@@ -1,5 +1,4 @@
 import { requireFoundUser } from "../auth";
-import { redirect } from "next/navigation";
 import WorkspaceDashboard from "./workspace-dashboard";
 import { getDemoMemoryCorrections } from "../../lib/auth/session";
 import { getFoundWorkspace, listIntegrationConnections, listMemoryUpdates, listWorkspaceKnowledgeRecords, type MemoryUpdate } from "../../lib/auth/workspace";
@@ -17,9 +16,6 @@ export default async function WorkspacePage() {
       listMemoryUpdates(workspace.organisationId).catch(() => []),
     ])
     : [[], [], []];
-  if (!demoMode && workspace && !["google", "slack"].every(provider => connections.some(item => item.provider === provider))) {
-    redirect("/integrations");
-  }
   const demoUpdates: MemoryUpdate[] = demoMode ? (await getDemoMemoryCorrections()).map(item => ({
     actorUserId: user.id,
     createdAt: item.createdAt,
@@ -32,6 +28,7 @@ export default async function WorkspacePage() {
   })) : [];
   return <WorkspaceDashboard
     connectedCount={connections.filter(item => item.status === "connected").length}
+    connectedProviders={connections.filter(item => item.status !== "disconnected").map(item => item.provider)}
     demoMode={demoMode}
     displayName={user.displayName}
     memoryUpdates={demoMode ? demoUpdates : storedUpdates}
