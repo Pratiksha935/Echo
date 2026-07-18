@@ -24,13 +24,14 @@ export default async function DecisionTimelinePage({params}:{params:Promise<{rec
   const updateEvents=decision.updates.map(update=>({actor:update.actorUserId===user.id?user.email:"Team member",at:update.createdAt,body:update.updateText,kind:update.origin==="slack"?"Slack update":"Team update",label:"Append-only memory",url:update.sourceUrl}));
   const timeline=[...sourceEvents,...updateEvents].sort((a,b)=>Date.parse(b.at)-Date.parse(a.at));
   const uniqueReceipts=decision.sources.filter((source,index,all)=>all.findIndex(item=>canonicalUrl(item.url)===canonicalUrl(source.url))===index);
+  const verifiedSummary=memorySummary(decision.verifiedText);
 
   return <main className="decisionPage">
     <nav><Link href="/workspace">Found<span>.</span></Link><div><span>{workspace.organisationName.toUpperCase()} / {decision.department}</span><b>DECISION TIMELINE</b></div><Link href="/workspace">Back to workspace ↗</Link></nav>
-    <header className="decisionHero"><div><span>{decision.status}</span><h1>{decision.title}</h1><p>{decision.verifiedText}</p></div><dl><div><dt>OWNER</dt><dd>{decision.owner}</dd></div><div><dt>DEPARTMENT</dt><dd>{decision.department}</dd></div><div><dt>LATEST ACTIVITY</dt><dd>{formatMoment(decision.latestAt)}</dd></div><div><dt>EVIDENCE SOURCES</dt><dd>{uniqueReceipts.length}</dd></div></dl></header>
+    <header className="decisionHero"><div><span>{decision.status}</span><h1>{decision.title}</h1><p>{verifiedSummary}</p></div><dl><div><dt>OWNER</dt><dd>{decision.owner}</dd></div><div><dt>DEPARTMENT</dt><dd>{decision.department}</dd></div><div><dt>LATEST ACTIVITY</dt><dd>{formatMoment(decision.latestAt)}</dd></div><div><dt>EVIDENCE SOURCES</dt><dd>{uniqueReceipts.length}</dd></div></dl></header>
     <section className="decisionBody">
-      <div className="timeline"><header><span>NEWEST FIRST</span><h2>How this memory evolved.</h2><p>Team updates are overlays. Slack messages, Docs and other source records remain untouched and directly verifiable.</p></header>{timeline.map((event,index)=><article key={`${event.kind}-${event.at}-${index}`}><time>{formatMoment(event.at)}</time><i/><div><span>{event.kind} · {event.label} · {event.actor}</span><p>{event.body}</p><a href={event.url} target="_blank" rel="noreferrer">Verify source receipt ↗</a></div></article>)}</div>
-      <aside className="decisionAside"><span>VERIFIED DECISION</span><h2>{decision.verifiedText}</h2><p>Source-backed company knowledge remains separate from user input until it is verified.</p>{decision.latestInput&&<div className="kbLatestInput"><small>LATEST TEAM INPUT</small><p>{decision.latestInput}</p><small>{formatMoment(decision.latestAt)} · retained in timeline</small></div>}<div><span>UNIQUE RECEIPTS</span>{uniqueReceipts.map(source=><a href={source.url} target="_blank" rel="noreferrer" key={`${source.kind}-${source.externalId}`}><b>{source.kind}</b><small>{formatMoment(source.recordedAt)}</small><em>↗</em></a>)}</div><Link href={`/memory/correct?${new URLSearchParams({record_id:decision.id,title:decision.title,source_url:uniqueReceipts[0]?.url??"https://sage-profiterole-3b1c22.netlify.app/workspace"})}`}>APPEND TEAM CONTEXT ↗</Link></aside>
+      <div className="timeline"><header><span>NEWEST FIRST</span><h2>How this memory evolved.</h2><p>Team updates are overlays. Slack messages, Docs and other source records remain untouched and directly verifiable.</p></header>{timeline.map((event,index)=><article key={`${event.kind}-${event.at}-${index}`}><time>{formatMoment(event.at)}</time><i/><div><span>{event.kind} · {event.label} · {event.actor}</span><p>{memorySummary(event.body)}</p><a href={event.url} target="_blank" rel="noreferrer">Verify source receipt ↗</a></div></article>)}</div>
+      <aside className="decisionAside"><span>VERIFIED DECISION</span><h2>{verifiedSummary}</h2><p>Source-backed company knowledge remains separate from user input until it is verified.</p>{decision.latestInput&&<div className="kbLatestInput"><small>LATEST TEAM INPUT</small><p>{memorySummary(decision.latestInput)}</p><small>{formatMoment(decision.latestAt)} · retained in timeline</small></div>}<div><span>UNIQUE RECEIPTS</span>{uniqueReceipts.map(source=><a href={source.url} target="_blank" rel="noreferrer" key={`${source.kind}-${source.externalId}`}><b>{source.kind}</b><small>{formatMoment(source.recordedAt)}</small><em>↗</em></a>)}</div><Link href={`/memory/correct?${new URLSearchParams({record_id:decision.id,title:decision.title,source_url:uniqueReceipts[0]?.url??"https://sage-profiterole-3b1c22.netlify.app/workspace"})}`}>APPEND TEAM CONTEXT ↗</Link></aside>
     </section>
   </main>;
 }
@@ -67,4 +68,20 @@ function exactRecordDecision(record:WorkspaceKnowledgeRecord,updates:MemoryUpdat
     updates: relatedUpdates,
     verifiedText: record.body,
   };
+}
+
+function memorySummary(value:string):string {
+  const clean=value.replace(/\s+/g," ").trim();
+  const [note,context]=clean.split(/Captured page context:/i);
+  const lines=[compactText(note,180)];
+  if(context?.trim()) lines.push(`Captured page: ${compactText(context,220)}`);
+  return lines.filter(Boolean).slice(0,2).join(" ");
+}
+
+function compactText(value:string,max:number):string {
+  const clean=value.replace(/\s+/g," ").trim();
+  if(!clean) return "";
+  const sentence=clean.match(/^.{40,}?[.!?](?:\s|$)/)?.[0]?.trim();
+  const preferred=sentence&&sentence.length<=max?sentence:clean;
+  return preferred.length>max?`${preferred.slice(0,max-1).trim()}…`:preferred;
 }
