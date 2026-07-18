@@ -69,6 +69,26 @@ test("browser battle cards use authenticated tenant memory", async () => {
   assert.doesNotMatch(extension, /credentials:\s*"include"/);
 });
 
+test("browser Ask Hermes stays tenant-scoped and closed-world", async () => {
+  const [askRoute, content, background] = await Promise.all([
+    source("app/api/browser/ask/route.ts"),
+    source("extension/content.js"),
+    source("extension/background.js"),
+  ]);
+  assert.match(askRoute, /verifyBrowserToken/);
+  assert.match(askRoute, /\/memberships\?select=id&organisation_id=eq/);
+  assert.match(askRoute, /\/knowledge_records\?select=/);
+  assert.match(askRoute, /organisation_id=eq\.\$\{encodeURIComponent\(token\.organisationId\)\}/);
+  assert.match(askRoute, /\/memory_updates\?select=/);
+  assert.match(askRoute, /queryHermes/);
+  assert.match(askRoute, /I couldn’t find enough evidence in company knowledge to answer this/);
+  assert.doesNotMatch(askRoute, /getFoundUser|integration_secrets|PATCH|PUT|DELETE/);
+  assert.match(content, /type: "found:ask-hermes"/);
+  assert.doesNotMatch(content, /\/api\/browser\/ask|authorization: `Bearer/);
+  assert.match(background, /\/api\/browser\/ask/);
+  assert.match(background, /hermes_unavailable/);
+});
+
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
   const google = await source("lib/integrations/google-sync.ts");
   assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);

@@ -271,6 +271,70 @@
   color: #fff;
 }
 
+.ec-ask {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ec-ask form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.ec-ask input {
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #ccdcef;
+  border-radius: 10px;
+  background: #f8fbff;
+  color: #0b1f3a;
+  font: 11px/1.35 Inter, ui-sans-serif, sans-serif;
+  outline: none;
+  padding: 0 10px;
+}
+
+.ec-ask input:focus {
+  border-color: #174ea6;
+  box-shadow: 0 0 0 3px rgba(23, 78, 166, .12);
+}
+
+.ec-ask button {
+  min-width: 72px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: #0b1f3a;
+  color: #fff;
+  cursor: pointer;
+  font: 850 10px/1 Inter, ui-sans-serif, sans-serif;
+  padding: 0 11px;
+}
+
+.ec-ask button:disabled {
+  cursor: wait;
+  opacity: .68;
+}
+
+.ec-ask-answer {
+  max-height: 160px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dce8f7;
+  border-radius: 11px;
+  background: #f8fbff;
+  color: #334b6d;
+  font: 11px/1.45 Inter, ui-sans-serif, sans-serif;
+  white-space: pre-wrap;
+}
+
+.ec-ask-answer[hidden] {
+  display: none;
+}
+
 .ec-capture-card .ec-confidence b {
   color: #10b981;
 }

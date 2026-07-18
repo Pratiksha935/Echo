@@ -156,6 +156,14 @@
           <section class="ec-explanation"><span>WHAT FOUND KNOWS</span><p class="ec-summary"></p></section>
           <section class="ec-explanation ec-recommendation"><span>RECOMMENDED NEXT STEP</span><p></p></section>
           <nav aria-label="Sources"><span>Open the receipt</span><div class="ec-links"></div></nav>
+          <section class="ec-ask">
+            <span>ASK HERMES</span>
+            <form>
+              <input id="found-ask-question" type="text" maxlength="700" minlength="4" placeholder="Ask what changed, who owns this, or what to do next…" required>
+              <button type="submit">ASK <b>↗</b></button>
+            </form>
+            <p class="ec-ask-answer" hidden></p>
+          </section>
         </div>
         <section class="ec-capture-view">
           <strong>Save this page to Found</strong>
@@ -207,6 +215,7 @@
     root.querySelector(".ec-send-slack").addEventListener("click", shareToSlack);
     for (const tab of root.querySelectorAll("[data-share-tab]")) tab.addEventListener("click", () => selectShareTab(tab.dataset.shareTab));
     root.querySelector(".ec-update form").addEventListener("submit", submitUpdate);
+    root.querySelector(".ec-ask form").addEventListener("submit", askHermes);
     avatar.classList.add("arrive");
     return root;
   }
@@ -438,6 +447,49 @@
     button.disabled = false;
   }
 
+  async function askHermes(event) {
+    event.preventDefault();
+    if (!latestMatch) return;
+    const form = event.currentTarget;
+    const input = form.querySelector("#found-ask-question");
+    const button = form.querySelector('button[type="submit"]');
+    const answer = ensureRoot().querySelector(".ec-ask-answer");
+    const question = input.value.trim();
+    if (question.length < 4) {
+      answer.hidden = false;
+      answer.textContent = "Ask a specific question about this memory.";
+      input.focus();
+      return;
+    }
+    button.disabled = true;
+    button.innerHTML = "ASKING…";
+    answer.hidden = false;
+    answer.textContent = "Hermes is checking indexed source receipts and memory updates…";
+    const result = await chrome.runtime.sendMessage({
+      type: "found:ask-hermes",
+      ask: { recordId: latestMatch.id, question },
+    }).catch(() => ({ ok: false, reason: "temporary_network_failure" }));
+    if (result?.ok) {
+      answer.textContent = result.answer;
+      button.disabled = false;
+      button.innerHTML = "ASK <b>↗</b>";
+      return;
+    }
+    const errors = {
+      invalid_question: "Ask a specific question about this memory.",
+      not_connected: "Connect this browser to Found and try again.",
+      session_expired: "Your Found browser session expired. Reconnect and try again.",
+      workspace_access_revoked: "Workspace access changed. Reconnect with an authorised account.",
+      record_not_found: "This memory is no longer available in your workspace.",
+      hermes_unavailable: "Hermes is temporarily unavailable. Try again shortly.",
+      service_unavailable: "Found is temporarily unavailable. Try again shortly.",
+      temporary_network_failure: "Found could not be reached. Try again shortly.",
+    };
+    answer.textContent = errors[result?.reason] || "Hermes could not answer from company memory right now.";
+    button.disabled = false;
+    button.innerHTML = "ASK <b>↗</b>";
+  }
+
   function openWithSuppression(url) {
     chrome.runtime.sendMessage({ type: "found:note-outbound", targetUrl: url }).finally(() => {
       const anchor = document.createElement("a");
@@ -499,6 +551,9 @@
     root.querySelector(".ec-summary").textContent = match.summary || "Related indexed evidence was found.";
     root.querySelector(".ec-recommendation p").textContent = match.recommendation || "Review the source evidence before proceeding.";
     root.querySelector(".ec-account").textContent = `${match.account?.organisationName || "Authorised workspace"} · ${match.account?.email || "paired user"}`;
+    root.querySelector("#found-ask-question").value = "";
+    root.querySelector(".ec-ask-answer").hidden = true;
+    root.querySelector(".ec-ask-answer").textContent = "";
     const links = root.querySelector(".ec-links");
     links.textContent = "";
     const seenUrls = new Set([canonicalUrl(location.href)]);
