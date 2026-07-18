@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.6"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.6"/);
+  assert.match(manifest, /"version": "0\.5\.7"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.7"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -296,6 +296,8 @@ test("in-page capture never submits the visited page and exposes the saved Found
   assert.match(content, /button\.hidden = true/);
   assert.match(content, /OPEN SAVED RECORD/);
   assert.match(content, /openWithSuppression\(savedDecisionUrl\)/);
+  assert.match(content, /Add a short note of at least 12 characters/);
+  assert.match(content, /input\.focus\(\)/);
 });
 
 test("saved capture state collapses the form and avoids duplicated Slack failure copy", async () => {

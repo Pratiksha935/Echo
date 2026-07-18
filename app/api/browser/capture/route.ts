@@ -14,7 +14,8 @@ export async function POST(request:NextRequest){
   const memberships=await serviceRest<Array<{id:string}>>(`/memberships?select=id&organisation_id=eq.${encodeURIComponent(token.organisationId)}&user_id=eq.${encodeURIComponent(token.userId)}&limit=1`);
   if(!memberships[0])return NextResponse.json({error:"workspace_access_revoked"},{status:403,headers});
   const body=await request.json().catch(()=>null) as {department?:unknown;note?:unknown;pageText?:unknown;pageTitle?:unknown;pageUrl?:unknown}|null;
-  const department=text(body?.department,40);const note=text(body?.note,1200);const pageTitle=text(body?.pageTitle,220);const pageText=text(body?.pageText,2500);const pageUrl=safeUrl(text(body?.pageUrl,2000));
+  const department=text(body?.department,40);const note=text(body?.note,1200);const rawPageTitle=text(body?.pageTitle,220);const pageText=text(body?.pageText,2500);const pageUrl=safeUrl(text(body?.pageUrl,2000));
+  const pageTitle=rawPageTitle||titleFromUrl(pageUrl);
   if(!DEPARTMENTS.has(department)||note.length<12||!pageTitle||!pageUrl)return NextResponse.json({error:"invalid_capture"},{status:400,headers});
   const capturedAt=new Date().toISOString();const externalId=`browser:${randomUUID()}`;
   await serviceRest("/knowledge_records",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({author_name:token.email,body:`${note}\n\nCaptured page context: ${pageText}`.slice(0,5000),department,external_id:externalId,indexed_at:capturedAt,metadata:{captured_at:capturedAt,status:"Team submission",submitted_by:token.userId},organisation_id:token.organisationId,source:"Browser",source_updated_at:capturedAt,source_url:pageUrl,title:pageTitle,visibility:"workspace"})});
@@ -24,3 +25,4 @@ function allowedOrigin(request:NextRequest){const origin=request.headers.get("or
 function corsHeaders(origin:string):HeadersInit{return{"access-control-allow-headers":"authorization, content-type","access-control-allow-methods":"POST, OPTIONS","access-control-allow-origin":origin,"cache-control":"no-store",vary:"origin"}}
 function text(value:unknown,max:number){return typeof value==="string"?value.trim().slice(0,max):""}
 function safeUrl(value:string){try{const url=new URL(value);return url.protocol==="https:"?url.toString():null}catch{return null}}
+function titleFromUrl(value:string|null){try{const url=new URL(value??"");return url.hostname.replace(/^www\./,"")}catch{return""}}
