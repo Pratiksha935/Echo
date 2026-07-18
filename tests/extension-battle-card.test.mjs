@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.1"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.1"/);
+  assert.match(manifest, /"version": "0\.5\.2"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.2"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -272,6 +272,35 @@ test("teams can deliberately capture a browser page into a classified workspace 
   assert.match(route,/organisation_id:token\.organisationId/);
   assert.match(route,/submitted_by:token\.userId/);
   assert.match(route,/source:"Browser"/);
+});
+
+test("in-page capture never submits the visited page and exposes the saved Found decision", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /<section class="ec-capture-view">/);
+  assert.match(content, /class="ec-save-memory"/);
+  assert.match(content, /addEventListener\("click", saveCapture\)/);
+  assert.doesNotMatch(content, /ec-capture-view"\)\.addEventListener\("submit"/);
+  assert.match(content, /safeSourceUrl\(result\.decisionUrl\)/);
+  assert.match(content, /VIEW IN FOUND/);
+  assert.match(content, /openWithSuppression\(savedDecisionUrl\)/);
+});
+
+test("capture panel automatically lists Slack teammates and channels and shares selected destinations", async () => {
+  const [content, background] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/background.js"),
+  ]);
+  assert.match(content, />Teammates<\/button>/);
+  assert.match(content, />Channels<\/button>/);
+  assert.match(content, /loadSlackDestinations\(\)/);
+  assert.match(content, /found:list-slack-destinations/);
+  assert.match(content, /found:share-to-slack/);
+  assert.match(content, /recipients/);
+  assert.match(content, /type: input\.dataset\.destinationType/);
+  assert.match(background, /\/api\/browser\/slack-targets/);
+  assert.match(background, /\/api\/browser\/slack-share/);
+  assert.match(background, /recipients/);
+  assert.match(background, /item\?\.type === "user" \|\| item\?\.type === "channel"/);
 });
 
 test("the extension worker owns the authenticated cross-origin match request", async () => {

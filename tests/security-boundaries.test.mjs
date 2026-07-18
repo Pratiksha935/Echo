@@ -5,18 +5,20 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 const source = path => readFile(new URL(path, root), "utf8");
 
-test("Slack OAuth remains ingestion-only", async () => {
+test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing", async () => {
   const [route, catalog] = await Promise.all([
     source("app/auth/slack/route.ts"),
     source("lib/integrations/catalog.ts"),
   ]);
   for (const text of [route, catalog]) {
-    assert.doesNotMatch(text, /chat:write/);
     assert.doesNotMatch(text, /groups:(?:history|read)/);
   }
   assert.match(route, /"channels:history"/);
   assert.match(route, /"channels:read"/);
   assert.match(route, /"users:read"/);
+  assert.match(route, /"users:read.email"/);
+  assert.match(route, /"im:write"/);
+  assert.match(route, /"chat:write"/);
 });
 
 test("continuous ingestion is durable, silent, and authenticated", async () => {
@@ -113,7 +115,31 @@ test("Slack desktop users get a private native battlecard surface, not public bo
   assert.match(slack, /views\.open/);
   assert.match(slack, /type: "modal"/);
   assert.match(slack, /Private to you/);
-  assert.doesNotMatch(route + slack, /chat\.postMessage/);
+  assert.doesNotMatch(route, /chat\.postMessage/);
+  assert.match(slack, /shareBrowserPageToSlack/);
+  assert.match(slack, /conversations\.open/);
+  assert.match(slack, /chat\.postMessage/);
+  assert.match(slack, /There are deliberately no call sites from Slack event ingestion/);
+});
+
+test("browser Slack sharing is tenant-authenticated and recipient constrained", async () => {
+  const [targets, share, slack] = await Promise.all([
+    source("app/api/browser/slack-targets/route.ts"),
+    source("app/api/browser/slack-share/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  for (const route of [targets, share]) {
+    assert.match(route, /verifyBrowserToken/);
+    assert.match(route, /organisation_id=eq/);
+    assert.match(route, /chrome-extension/);
+    assert.match(route, /workspace_access_revoked/);
+    assert.doesNotMatch(route, /integration_secrets/);
+  }
+  assert.match(targets, /listSlackBrowserShareTargets/);
+  assert.match(share, /normaliseRecipients/);
+  assert.match(share, /shareBrowserPageToSlack/);
+  assert.match(slack, /validUsers/);
+  assert.match(slack, /validChannels/);
 });
 
 test("provider credentials are encrypted server-side before service-role persistence", async () => {
@@ -199,7 +225,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
   assert.match(onboarding, /this page never pretends to detect it/);
   assert.match(onboarding, /Chrome Web Store publishing is still pending/);
-  assert.match(onboarding, /\/found-extension-v0\.5\.1\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.5\.2\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 

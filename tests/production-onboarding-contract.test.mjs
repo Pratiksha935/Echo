@@ -91,7 +91,7 @@ test("Google and Slack remain two separate explicit connector consents", async (
   ]);
 
   assert.match(setup, /Google sign-in alone does not approve indexing/);
-  assert.match(setup, /does not request permission to post messages/);
+  assert.match(setup, /only when someone explicitly shares a browser link/);
   assert.match(setup, /href="\/auth\/integrations\/google"/);
   assert.match(setup, /href="\/auth\/slack"/);
   assert.match(google, /buildAuthorizationUrl\(provider, state\)/);
