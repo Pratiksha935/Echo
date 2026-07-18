@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { loadConnectionCredential } from "./credentials";
 import { serviceRest } from "./service-rest";
 
-type SlackConnection = { id: string; organisation_id: string };
+type SlackConnection = { granted_scopes?: string[] | null; id: string; organisation_id: string };
 type SlackBackfillConnection = SlackConnection & { external_workspace_id: string };
 type QueuedEvent = { id: string; attempts: number; external_workspace_id: string; payload: SlackEnvelope };
 type SlackMessage = { bot_id?: string; channel?: string; channel_type?: string; reply_count?: number; subtype?: string; text?: string; thread_ts?: string; ts?: string; type?: string; user?: string };
@@ -105,7 +105,7 @@ export async function listSlackBrowserShareTargets(organisationId: string): Prom
   const credential = await loadConnectionCredential(connection.id);
   const [userResult, channelResult] = await Promise.allSettled([
     slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
-    listShareableChannels(credential.accessToken),
+    listShareableChannels(credential.accessToken, hasSlackScope(connection, "chat:write.public")),
   ]);
   if (userResult.status === "rejected" && channelResult.status === "rejected") {
     throw userResult.reason instanceof Error ? userResult.reason : new Error("slack_targets_unavailable");
@@ -137,7 +137,7 @@ export async function shareBrowserPageToSlack(input: SlackBrowserShare): Promise
   const credential = await loadConnectionCredential(connection.id);
   const [userPayload, channels] = await Promise.all([
     slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
-    listShareableChannels(credential.accessToken),
+    listShareableChannels(credential.accessToken, hasSlackScope(connection, "chat:write.public")),
   ]);
   const validUsers = new Set((userPayload.members ?? []).filter(user => user.id && !user.deleted && !user.is_bot && user.id !== "USLACKBOT").map(user => user.id!));
   const validChannels = new Set(channels.map(channel => channel.id));
@@ -281,11 +281,11 @@ async function listPublicChannels(accessToken: string): Promise<SlackChannel[]> 
   return (payload.channels ?? []).filter(channel => channel.id && channel.is_member && !channel.is_archived).slice(0, 20);
 }
 
-async function listShareableChannels(accessToken: string): Promise<SlackShareTarget[]> {
+async function listShareableChannels(accessToken: string, allowPublicPost = false): Promise<SlackShareTarget[]> {
   const query = new URLSearchParams({ exclude_archived: "true", limit: "200", types: "public_channel" });
   const payload = await slackApi<{ channels?: SlackChannel[] }>(`conversations.list?${query}`, accessToken);
   return (payload.channels ?? [])
-    .filter(channel => channel.id && channel.name && channel.is_member && !channel.is_archived)
+    .filter(channel => channel.id && channel.name && !channel.is_archived && (allowPublicPost || channel.is_member))
     .map(channel => ({ displayName: `#${channel.name!}`, id: channel.id!, name: channel.name!, type: "channel" as const }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -423,11 +423,15 @@ function inferSlackTitle(text: string): string {
 }
 
 async function findConnection(teamId: string): Promise<SlackConnection[]> {
-  return serviceRest(`/integration_connections?select=id,organisation_id&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&limit=1`);
+  return serviceRest(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&limit=1`);
 }
 
 async function findOrganisationConnection(organisationId: string): Promise<SlackConnection[]> {
-  return serviceRest(`/integration_connections?select=id,organisation_id&provider=eq.slack&organisation_id=eq.${encodeURIComponent(organisationId)}&status=in.(connected,pending)&order=updated_at.desc&limit=1`);
+  return serviceRest(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&organisation_id=eq.${encodeURIComponent(organisationId)}&status=in.(connected,pending)&order=updated_at.desc&limit=1`);
+}
+
+function hasSlackScope(connection: SlackConnection, scope: string): boolean {
+  return Array.isArray(connection.granted_scopes) && connection.granted_scopes.includes(scope);
 }
 
 function dedupeRecipients(recipients: SlackShareRecipient[]): SlackShareRecipient[] {

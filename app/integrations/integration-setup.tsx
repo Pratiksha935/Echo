@@ -74,7 +74,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       </Step>
 
       <Step id="slack" number="05" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
-        <p>Slack opens its own consent screen after Google. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or joined channels.</p>
+        <p>Slack opens its own consent screen after Google. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or public channels.</p>
         <ScopeList values={["Public channels · read", "Public messages · read", "Users · read", "Selected links · user-initiated send"]}/>
         {slackApproved ? <Connection connection={slack!}/> : !googleApproved ? <DisabledAction>APPROVE GOOGLE FIRST</DisabledAction> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
