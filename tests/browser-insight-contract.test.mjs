@@ -125,3 +125,13 @@ test("saved browser research alone never becomes a high-confidence prior-work ba
   });
   assert.equal(match, null);
 });
+
+test("generic public AI pages do not inherit stale product battlecards", () => {
+  const match = matchBrowserKnowledge({
+    pageText: "Anthropic is built on hard questions. Researchers work on AI safety, governance, commitments and societal impact.",
+    pageTitle: "Anthropic",
+    pageUrl: "https://www.anthropic.com/",
+    records,
+  });
+  assert.equal(match, null);
+});

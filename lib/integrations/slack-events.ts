@@ -93,10 +93,15 @@ export async function listSlackBrowserShareTargets(organisationId: string): Prom
   const connection = (await findOrganisationConnection(organisationId))[0];
   if (!connection) throw new Error("slack_not_connected");
   const credential = await loadConnectionCredential(connection.id);
-  const [userPayload, channels] = await Promise.all([
+  const [userResult, channelResult] = await Promise.allSettled([
     slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
     listShareableChannels(credential.accessToken),
   ]);
+  if (userResult.status === "rejected" && channelResult.status === "rejected") {
+    throw userResult.reason instanceof Error ? userResult.reason : new Error("slack_targets_unavailable");
+  }
+  const userPayload = userResult.status === "fulfilled" ? userResult.value : { members: [] };
+  const channels = channelResult.status === "fulfilled" ? channelResult.value : [];
   const users = (userPayload.members ?? [])
     .filter(user => user.id && !user.deleted && !user.is_bot && user.id !== "USLACKBOT")
     .map(user => ({

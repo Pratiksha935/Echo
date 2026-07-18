@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.5"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.5"/);
+  assert.match(manifest, /"version": "0\.5\.6"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.6"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -264,6 +264,14 @@ test("Slack web matching reads only the newest visible human message", async () 
   assert.match(content, /Most recent Slack message:/);
   assert.doesNotMatch(content, /messages\.slice\(-40\)/);
   assert.match(content, /context\.pageText\.slice\(-1200\)/);
+});
+
+test("page capture excludes Found's own injected battlecard text", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /function withoutFoundOverlay\(read\)/);
+  assert.match(content, /getElementById\("found-extension-root"\)/);
+  assert.match(content, /root\.style\.display = "none"/);
+  assert.match(content, /root\.style\.visibility = "hidden"/);
 });
 
 test("teams can deliberately capture a browser page into a classified workspace department", async () => {
