@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireFoundUser } from "../../../auth";
 import { getFoundWorkspace, listMemoryUpdates, listWorkspaceKnowledgeRecords } from "../../../../lib/auth/workspace";
 import { buildDecisionMemory, canonicalUrl, formatMoment, normaliseTitle } from "../../../../lib/workspace/intelligence";
@@ -14,7 +14,7 @@ export default async function DecisionTimelinePage({params}:{params:Promise<{rec
   const [records,updates]=await Promise.all([listWorkspaceKnowledgeRecords(workspace.organisationId,200),listMemoryUpdates(workspace.organisationId)]);
   const decisions=buildDecisionMemory(records,updates);
   const decision=decisions.find(item=>item.id===recordId||item.sources.some(source=>source.externalId===recordId));
-  if(!decision) notFound();
+  if(!decision) redirect("/workspace");
   const titleKey=normaliseTitle(decision.title);
   const sourceEvents=records.filter(record=>normaliseTitle(record.title)===titleKey).map(record=>({actor:record.authorName??"Source owner not indexed",at:record.sourceUpdatedAt,body:record.body,kind:record.source,label:record.status,url:record.sourceUrl}));
   const updateEvents=decision.updates.map(update=>({actor:update.actorUserId===user.id?user.email:"Team member",at:update.createdAt,body:update.updateText,kind:update.origin==="slack"?"Slack update":"Team update",label:"Append-only memory",url:update.sourceUrl}));
