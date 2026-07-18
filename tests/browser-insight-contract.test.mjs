@@ -26,6 +26,17 @@ const records = [
   },
 ];
 
+const engineeringRecord = {
+  authorName: "Vikram Rao",
+  body: "Pilot running for one developer portal with a canonical service catalog, service owners, runbooks, dependency metadata, maturity scorecards, golden paths and Harness IDP evaluation.",
+  department: "Engineering",
+  externalId: "ENG-214",
+  source: "Slack",
+  sourceUrl: "https://app.slack.com/client/T08LC40MYVB/C0BGU0STURX",
+  status: "Pilot running",
+  title: "Developer portal and service maturity scorecards",
+};
+
 test("the production document contract returns a cross-source actionable insight", () => {
   const match = matchBrowserKnowledge({
     pageText: "",
@@ -63,4 +74,26 @@ test("an exact indexed Google Doc URL matches without editor title or text", () 
   assert.equal(match.id, documentId);
   assert.equal(match.title, "Dynamic security deposits for trusted renters");
   assert.match(match.summary, /exact indexed company source/);
+});
+
+test("Harness Engineering web pages match engineering portal memory, not product deposit memory", () => {
+  const match = matchBrowserKnowledge({
+    pageText: "Harness Engineering discusses internal developer portals, service catalog ownership metadata, scorecards, golden paths and platform engineering workflows.",
+    pageTitle: "Harness Engineering - Martin Fowler",
+    pageUrl: "https://martinfowler.com/articles/harness-engineering.html",
+    records: [...records, engineeringRecord],
+  });
+  assert.ok(match);
+  assert.equal(match.id, "ENG-214");
+  assert.equal(match.title, "Developer portal and service maturity scorecards");
+});
+
+test("engineering articles do not cross-domain match product security-deposit records", () => {
+  const match = matchBrowserKnowledge({
+    pageText: "Harness Engineering covers developer experience, service ownership, platform scorecards and internal developer portals.",
+    pageTitle: "Harness Engineering",
+    pageUrl: "https://martinfowler.com/articles/harness-engineering.html",
+    records,
+  });
+  assert.equal(match, null);
 });

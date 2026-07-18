@@ -15,6 +15,13 @@ export type SlackEnvelope = {
 };
 
 export type SlackMemoryMatch = { department: string; sourceRecordId: string; title: string };
+export type SlackBattlecardRequest = {
+  messageText?: string;
+  responseUrl?: string;
+  teamId?: string;
+  triggerId?: string;
+  userId?: string;
+};
 
 const CLUSTERS: Array<SlackMemoryMatch & { terms: string[] }> = [
   { department:"Engineering",sourceRecordId:"ENG-PLAT-014",title:"Developer portal and service maturity scorecards",terms:["developer portal","service catalog","scorecard","backstage","golden path"] },
@@ -38,6 +45,24 @@ export function matchSlackMemory(text: string): SlackMemoryMatch | null {
   const normalised = text.toLowerCase();
   const ranked = CLUSTERS.map(cluster => ({ cluster, score: cluster.terms.filter(term => normalised.includes(term)).length })).sort((a,b)=>b.score-a.score);
   return ranked[0]?.score >= 2 ? ranked[0].cluster : null;
+}
+
+export async function openSlackBattlecard(input: SlackBattlecardRequest): Promise<{ opened: boolean; reason?: string }> {
+  if (!input.teamId || !input.triggerId) return { opened: false, reason: "invalid_request" };
+  const text = input.messageText?.trim() ?? "";
+  const match = matchSlackMemory(text);
+  if (!match) {
+    await postEphemeralShortcutNotice(input.responseUrl, "Found did not find a strong company-memory match for that Slack message.");
+    return { opened: false, reason: "no_match" };
+  }
+  const connection = (await findConnection(input.teamId))[0];
+  if (!connection) return { opened: false, reason: "workspace_not_connected" };
+  const credential = await loadConnectionCredential(connection.id);
+  await slackApi("views.open", credential.accessToken, {
+    trigger_id: input.triggerId,
+    view: buildBattlecardModal(match, text),
+  });
+  return { opened: true };
 }
 
 export async function enqueueSlackEvent(payload: SlackEnvelope): Promise<void> {
@@ -175,15 +200,42 @@ async function listChannelHistory(accessToken: string, channelId: string): Promi
   return messages.concat(...replies.flatMap(result => result.status === "fulfilled" ? result.value : []));
 }
 
-async function slackApi<T>(method: string, accessToken: string): Promise<T> {
+async function slackApi<T>(method: string, accessToken: string, body?: unknown): Promise<T> {
   const response = await fetch(`https://slack.com/api/${method}`, {
+    method: body ? "POST" : "GET",
     cache: "no-store",
-    headers: { authorization: `Bearer ${accessToken}` },
+    headers: { authorization: `Bearer ${accessToken}`, ...(body ? { "content-type": "application/json; charset=utf-8" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(SLACK_REQUEST_TIMEOUT_MS),
   });
   const payload = await response.json().catch(() => null) as (T & { error?: string; ok?: boolean }) | null;
   if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Slack API request failed.");
   return payload;
+}
+
+async function postEphemeralShortcutNotice(responseUrl: string | undefined, text: string): Promise<void> {
+  if (!responseUrl) return;
+  await fetch(responseUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ response_type: "ephemeral", text }),
+    signal: AbortSignal.timeout(SLACK_REQUEST_TIMEOUT_MS),
+  }).catch(() => undefined);
+}
+
+function buildBattlecardModal(match: SlackMemoryMatch, sourceText: string) {
+  return {
+    type: "modal",
+    title: { type: "plain_text", text: "Found" },
+    close: { type: "plain_text", text: "Close" },
+    blocks: [
+      { type: "header", text: { type: "plain_text", text: "Prior work found" } },
+      { type: "section", text: { type: "mrkdwn", text: `*${match.title}*\nDepartment: ${match.department}\nSource: Slack + workspace memory` } },
+      { type: "section", text: { type: "mrkdwn", text: `*Why it matched*\nThis Slack message overlaps with an existing indexed initiative. Review the source receipt before starting duplicate work.` } },
+      { type: "section", text: { type: "mrkdwn", text: `*Selected message*\n>${sourceText.slice(0, 900).replace(/\n/g, "\n>")}` } },
+      { type: "context", elements: [{ type: "mrkdwn", text: "Private to you · no public channel reply was posted." }] },
+    ],
+  };
 }
 
 async function markSlackConnectionAttention(connectionId: string): Promise<void> {

@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { matchBrowserKnowledge } from "../lib/browser/matcher.js";
 
 const root = new URL("../", import.meta.url);
 const source = path => readFile(new URL(path, root), "utf8");
 
 test("browser battle card presents the complete prior-work receipt", async () => {
   const content = await source("extension/content.js");
-  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHAT FOUND KNOWS", "RECOMMENDED NEXT STEP", "CONTINUE IN FOUND"]) {
+  for (const label of ["HIGH-CONFIDENCE MATCH", "OWNER", "STATUS", "WHAT FOUND KNOWS", "RECOMMENDED NEXT STEP", "Open the receipt"]) {
     assert.match(content, new RegExp(label));
   }
   assert.match(content, /safeSourceUrl/);
   assert.match(content, /Array\.isArray\(match\.links\)/);
-  assert.match(content, /Open decision timeline/);
+  assert.match(content, /Decision timeline/);
   assert.match(content, /seenUrls/);
   assert.match(content, /seenKinds/);
   assert.doesNotMatch(content, /Open page ↗|class="ec-original"/);
@@ -43,24 +44,23 @@ test("corrections use the authenticated extension worker and append-only central
 test("battle card preserves original sources and exposes no internal traces", async () => {
   const [content, popup] = await Promise.all([source("extension/content.js"), source("extension/popup.html")]);
   assert.match(content, /Original Slack and Google sources stay untouched/);
-  assert.match(popup, /Ambient matching/);
+  assert.match(popup, /Ambient avatar/);
   assert.doesNotMatch(content, /Analysed locally|searching|processing|trace/i);
   assert.doesNotMatch(content, /findDemoMatch|Offline demo memory|const knowledge/);
 });
 
-test("toolbar check explicitly reruns the matcher and reports the outcome", async () => {
+test("toolbar defers matching to the always-on in-page avatar", async () => {
   const [content, popup] = await Promise.all([
     source("extension/content.js"),
     source("extension/popup.js"),
   ]);
   assert.match(content, /message\?\.type !== "found:run"/);
   assert.match(content, /reason: result\.reason/);
-  assert.match(popup, /sendMessage\(tab\.id, \{ type: "found:run" \}\)/);
-  assert.match(popup, /Insight found\. The battlecard is open/);
-  assert.match(popup, /No sufficiently strong insight was found/);
-  assert.match(popup, /workspace_access_revoked/);
-  assert.match(popup, /server_rejected/);
-  assert.match(popup, /temporary_network_failure/);
+  assert.doesNotMatch(popup, /type: "found:run"/);
+  assert.match(popup, /Strong matches open automatically/);
+  assert.match(popup, /click the avatar to add this URL/);
+  assert.match(popup, /type: "found:page-context"/);
+  assert.match(popup, /type: "found:capture-page"/);
 });
 
 test("browser sessions are workspace-bound and revalidated", async () => {
@@ -103,11 +103,11 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(page, /data-found-pair-status/);
   assert.match(page, /data-found-pair-detail/);
   assert.match(page, /requireFoundUser\("\/browser\/connect"\)/);
-  assert.match(popupScript, /Found will rerun the check on the open page automatically\./);
+  assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.0"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.0"/);
+  assert.match(manifest, /"version": "0\.5\.1"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.1"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -152,21 +152,22 @@ test("one installed copy owns one content runtime", async () => {
   assert.match(content, /window\.__foundExtensionRuntime = \{ version: EXTENSION_VERSION \}/);
 });
 
-test("popup detects stale page runtimes before requesting a check", async () => {
+test("popup detects stale page runtimes before reporting the avatar ready", async () => {
   const popup = await source("extension/popup.js");
   const statusIndex = popup.indexOf('type: "found:runtime-status"');
-  const runIndex = popup.indexOf('type: "found:run"');
-  assert.ok(statusIndex >= 0 && runIndex > statusIndex);
+  assert.ok(statusIndex >= 0);
+  assert.doesNotMatch(popup, /type: "found:run"/);
   assert.match(popup, /runtime\?\.version !== EXTENSION_VERSION/);
-  assert.match(popup, /Reload this page to finish updating Found\./);
+  assert.match(popup, /Reload this tab to finish updating the on-page Found avatar\./);
 });
 
-test("a successful match makes both the companion and battlecard visible immediately", async () => {
+test("a successful match makes both the companion and battlecard visible immediately unless it is an intentional receipt hop", async () => {
   const content = await source("extension/content.js");
   assert.match(content, /document\.documentElement\.appendChild\(root\)/);
-  assert.match(content, /avatar\.classList\.add\("arrive"\);\s*setOpen\(true\)/);
-  assert.match(content, /existing\?\.querySelector\("\.ec-card"\)\?\.classList\.add\("open"\)/);
+  assert.match(content, /avatar\.classList\.add\("arrive"\)/);
+  assert.match(content, /card\.classList\.add\("open"\)/);
   assert.match(content, /setAttribute\("aria-hidden", "false"\)/);
+  assert.match(content, /found:redirect-suppression-status/);
 });
 
 test("popup explains automatic in-page battlecards instead of requiring toolbar polling", async () => {
@@ -174,10 +175,57 @@ test("popup explains automatic in-page battlecards instead of requiring toolbar 
     source("extension/popup.html"),
     source("extension/popup.js"),
   ]);
-  assert.match(popup, /Found is comparing the open page against approved company memory/);
-  assert.match(popupScript, /Strong matches auto-open as a clean battlecard/);
-  assert.match(popupScript, /showConnection\(\)\.then\(connected/);
-  assert.match(popupScript, /if \(connected\) checkCurrentPage\(\)/);
+  assert.match(popup, /Found checks the open page automatically/);
+  assert.match(popupScript, /Strong matches open automatically/);
+  assert.match(popupScript, /showConnection\(\)/);
+  assert.match(popupScript, /showCurrentPageStatus\(\)/);
+});
+
+test("no-match pages keep the avatar available for URL capture instead of forcing a toolbar check", async () => {
+  const [content, popup] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/popup.html"),
+  ]);
+  assert.match(content, /showCaptureOnly\(\)/);
+  assert.match(content, /No strong prior-work match is open/);
+  assert.match(content, /type: "found:capture-page"/);
+  assert.doesNotMatch(popup, /Check page <b>/);
+  assert.match(popup, /Use the on-page avatar to save URLs/);
+});
+
+test("public Browser captures do not auto-open as exact prior work on unrelated articles", () => {
+  const records = [
+    {
+      authorName: "Vikram Rao",
+      body: "Competitor research linked to the existing developer portal pilot.",
+      department: "Research",
+      externalId: "BROWSER-HARNESS",
+      source: "Browser",
+      sourceUrl: "https://martinfowler.com/articles/harness-engineering.html",
+      status: "Research linked",
+      title: "Harness developer portal patterns",
+    },
+  ];
+  const match = matchBrowserKnowledge({
+    records,
+    pageTitle: "Harness Engineering",
+    pageText: "Harness Engineering is an article about improving engineering outcomes.",
+    pageUrl: "https://martinfowler.com/articles/harness-engineering.html",
+  });
+  assert.equal(match, null);
+});
+
+test("source receipt navigation suppresses a second automatic battlecard on the destination", async () => {
+  const [content, background] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/background.js"),
+  ]);
+  assert.match(content, /openWithSuppression/);
+  assert.match(content, /type: "found:note-outbound"/);
+  assert.match(content, /intentional_redirect/);
+  assert.match(background, /REDIRECT_SUPPRESSION_MS/);
+  assert.match(background, /found:redirect-suppression-status/);
+  assert.match(background, /active\.some\(item => item\.origin === target\.origin \|\| item\.host === target\.host\)/);
 });
 
 test("battlecard source links dedupe the Found decision timeline", async () => {

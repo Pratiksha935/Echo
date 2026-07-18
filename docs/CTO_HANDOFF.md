@@ -35,11 +35,11 @@ The current build also proves an append-only learning loop: a user can verify th
 4. Register the provider callback URLs documented in `README.md` and add their credentials to Netlify.
 5. Configure a hosted Hermes/OpenAI-compatible endpoint with the closed-world Found policy.
 6. Trigger a Netlify redeploy and complete one real connection per launch provider.
-7. Add `SLACK_SIGNING_SECRET` to Netlify, set the Slack Events request URL to `https://sage-profiterole-3b1c22.netlify.app/api/slack/events`, and subscribe the bot to `message.channels`. Private-channel ingestion stays disabled until member ACL synchronization exists.
+7. Add `SLACK_SIGNING_SECRET` to Netlify, set the Slack Events request URL to `https://sage-profiterole-3b1c22.netlify.app/api/slack/events`, set the Slack Interactivity request URL to `https://sage-profiterole-3b1c22.netlify.app/api/slack/interactions`, and subscribe the bot to `message.channels`. Private-channel ingestion stays disabled until member ACL synchronization exists.
 
 ## Honest launch boundary
 
-The authorization, tenancy, append-only memory and Slack signature-verification paths are implemented. Full Slack backfill, authenticated extension-to-server background sync, token refresh jobs, disconnect/revocation, audit-log administration and retention/deletion automation still require production implementation and live-provider verification before Found can be called generally available. Read AI is shown as planned until its API/export contract is selected.
+The authorization, tenancy, append-only memory, browser matching, Slack signature-verification and private Slack shortcut/modal paths are implemented. Full Slack App Home administration, private-channel ACL synchronization, token refresh jobs, disconnect/revocation, audit-log administration and retention/deletion automation still require production implementation and live-provider verification before Found can be called generally available. Read AI is shown as planned until its API/export contract is selected.
 
 ## Verified locally
 
