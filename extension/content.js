@@ -23,12 +23,28 @@
     return String(value || "").replace(/\s+/g, " ").trim();
   }
 
+  function slackScroller() {
+    return document.querySelector(".c-virtual_list__scroll_container")
+      || document.querySelector('[data-qa="slack_kit_list"]')
+      || document.querySelector('[data-qa="message_pane"] .c-scrollbar__hider')
+      || document.querySelector(".p-workspace__primary_view_body");
+  }
+
+  function slackAtLatest() {
+    const scroller = slackScroller();
+    if (!scroller) return true;
+    return scroller.scrollHeight - (scroller.scrollTop + scroller.clientHeight) < 160;
+  }
+
   function slackPageText(maxLength) {
+    if (!slackAtLatest()) return "";
     const selectors = [
       '[data-qa="message_content"]',
       '[data-qa="message-text"]',
       ".c-message_kit__text",
+      ".c-message_kit__blocks",
       '[data-qa="virtual-list-item"] .p-rich_text_section',
+      ".p-rich_text_section",
     ];
     const messages = [];
     const seen = new Set();
@@ -49,16 +65,15 @@
 
   function isSlackMessageCandidate(text) {
     if (text.length < 8) return false;
-    if (/^(today|yesterday|messages|view thread|\\d+ repl(?:y|ies)|enable notifications)$/i.test(text)) return false;
-    if (/^(?:.+ joined #[\\w-]+\\.?|.+ was added to #[\\w-]+ by .+\\.?)/i.test(text)) return false;
-    if (/^message #[\\w-]+$/i.test(text)) return false;
+    if (/^(today|yesterday|new messages|view thread|\d+ repl(?:y|ies)|enable notifications)$/i.test(text)) return false;
+    if (/(?:joined #[\w-]+|was added to #[\w-]+ by )/i.test(text)) return false;
+    if (/^message #[\w-]+$/i.test(text)) return false;
     return true;
   }
 
   function readPageText(maxLength) {
     if (location.hostname === "app.slack.com") {
-      const slackText = slackPageText(maxLength);
-      if (slackText) return slackText;
+      return slackPageText(maxLength);
     }
     return withoutFoundOverlay(() => (document.querySelector("main")?.innerText || document.body?.innerText || "").slice(0, maxLength));
   }
@@ -433,6 +448,14 @@
     });
   }
 
+  function collapseCard() {
+    const root = document.getElementById("found-extension-root");
+    if (!root) return;
+    const card = root.querySelector(".ec-card");
+    card.classList.remove("open");
+    card.setAttribute("aria-hidden", "true");
+  }
+
   function showCaptureOnly({ open = false } = {}) {
     const root = ensureRoot();
     const card = root.querySelector(".ec-card");
@@ -512,7 +535,11 @@
           render(result.match);
         } else {
           lastNoMatchReason = result.reason || "no_match";
+          const hadAutoMatch = Boolean(currentMatchId);
+          currentMatchId = "";
+          latestMatch = null;
           showCaptureOnly();
+          if (hadAutoMatch) collapseCard();
         }
         return result;
       }).finally(() => { checkPromise = null; });

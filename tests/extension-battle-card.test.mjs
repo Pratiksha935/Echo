@@ -254,6 +254,8 @@ test("automatic checks retry after editor load and follow single-page navigation
 
 test("Slack web matching reads only the newest visible human message", async () => {
   const content = await source("extension/content.js");
+  assert.match(content, /function slackAtLatest/);
+  assert.match(content, /if \(!slackAtLatest\(\)\) return ""/);
   assert.match(content, /function slackPageText/);
   assert.match(content, /message_content/);
   assert.match(content, /c-message_kit__text/);
@@ -263,7 +265,18 @@ test("Slack web matching reads only the newest visible human message", async () 
   assert.match(content, /const latestMessage = messages\.at\(-1\)\?\.text/);
   assert.match(content, /Most recent Slack message:/);
   assert.doesNotMatch(content, /messages\.slice\(-40\)/);
+  assert.doesNotMatch(content, /if \(slackText\) return slackText/);
   assert.match(content, /context\.pageText\.slice\(-1200\)/);
+});
+
+test("Slack web no-match state clears stale battlecards instead of matching the whole app shell", async () => {
+  const content = await source("extension/content.js");
+  assert.match(content, /return slackPageText\(maxLength\)/);
+  assert.match(content, /function collapseCard/);
+  assert.match(content, /const hadAutoMatch = Boolean\(currentMatchId\)/);
+  assert.match(content, /currentMatchId = ""/);
+  assert.match(content, /latestMatch = null/);
+  assert.match(content, /if \(hadAutoMatch\) collapseCard\(\)/);
 });
 
 test("page capture excludes Found's own injected battlecard text", async () => {
