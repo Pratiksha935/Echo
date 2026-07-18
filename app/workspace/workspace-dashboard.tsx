@@ -64,6 +64,13 @@ export default function WorkspaceDashboard({ connectedCount, connectedProviders,
             <Metric label="Evidence coverage" value={`${sourceKinds.length} types`} detail={sourceKinds.slice(0,3).join(", ")||"Connect sources"}/>
           </section>
 
+          <section className="kbHermesGrid" aria-label="Hermes intelligence layer">
+            <article className="kbHermesAgent"><span>HERMES · CONTINUAL LEARNING</span><h2>The agent watching decision drift.</h2><p>Hermes reviews Slack messages, Google Workspace records, browser captures and team corrections as append-only memory layers. It decides when to surface a battlecard, when silence is safer, and what changed since the original source.</p><Link href="/integrations">Tune sources and surfaces →</Link></article>
+            <article><span>THIS WEEK</span><b>{decisions.filter(item=>item.latestInput).length}</b><p>team corrections appended without editing source systems</p></article>
+            <article><span>WATCHLIST</span><b>{decisions.filter(item=>/approved|confirmed|updated|input/i.test(item.status)).length}</b><p>decisions with active status or changed context</p></article>
+            <article><span>SURFACES</span><b>3</b><p>workspace dashboard, browser companion, Slack-native cards</p></article>
+          </section>
+
           <section className="kbOverviewGrid">
             <div className="kbPanel kbTrending"><PanelHeader eyebrow="TRENDING" title="Decisions shaping this week" action="Evidence-weighted"/>
               <div>{decisions.slice(0,5).map((decision,index)=><DecisionRow decision={decision} rank={index+1} key={decision.id}/>)}</div>
@@ -74,14 +81,14 @@ export default function WorkspaceDashboard({ connectedCount, connectedProviders,
           </section>
 
           <section className="kbPanel kbGraph">
-            <PanelHeader eyebrow="KNOWLEDGE GRAPH" title="How decisions connect to evidence" action="Live workspace data"/>
+            <PanelHeader eyebrow="HERMES KNOWLEDGE GRAPH" title="How decisions connect to evidence" action="Source-linked memory"/>
             {selectedGraph ? <div className="kbGraphLayout">
               <div className="kbGraphCanvas">
                 <div className="graphColumn graphTeams"><span>DEPARTMENTS</span>{[...new Set(decisions.slice(0,6).map(item=>item.department))].map(item=><button key={item} onClick={()=>selectView(item)}>{item}</button>)}</div>
                 <div className="graphColumn graphMemory"><span>DECISIONS</span>{decisions.slice(0,6).map(item=><button className={selectedGraph.id===item.id?"active":""} onClick={()=>setGraphId(item.id)} key={item.id}><b>{item.title}</b><small>{item.sources.length} receipt{item.sources.length===1?"":"s"}</small></button>)}</div>
                 <div className="graphColumn graphSources"><span>EVIDENCE</span>{sourceKinds.slice(0,6).map(item=><b key={item}>{item}</b>)}</div>
               </div>
-              <aside><span>SELECTED MEMORY</span><h3>{selectedGraph.title}</h3><p>{truncate(selectedGraph.verifiedText,180)}</p>{selectedGraph.latestInput&&<div className="kbLatestInput"><small>LATEST TEAM INPUT</small><p>{truncate(selectedGraph.latestInput,120)}</p></div>}<dl><div><dt>Owner</dt><dd>{selectedGraph.owner}</dd></div><div><dt>Updated</dt><dd>{formatRelative(selectedGraph.latestAt)}</dd></div><div><dt>Sources</dt><dd>{selectedGraph.sources.map(source=>source.kind).join(" · ")}</dd></div></dl><Link href={decisionPath(selectedGraph.id)}>Open decision timeline →</Link></aside>
+              <aside><span>SELECTED MEMORY</span><h3>{selectedGraph.title}</h3><p>{truncate(selectedGraph.verifiedText,180)}</p>{selectedGraph.latestInput&&<div className="kbLatestInput"><small>HERMES LATEST LAYER</small><p>{truncate(selectedGraph.latestInput,120)}</p></div>}<dl><div><dt>Owner</dt><dd>{selectedGraph.owner}</dd></div><div><dt>Updated</dt><dd>{formatRelative(selectedGraph.latestAt)}</dd></div><div><dt>Sources</dt><dd>{selectedGraph.sources.map(source=>source.kind).join(" · ")}</dd></div></dl><Link href={decisionPath(selectedGraph.id)}>Open decision timeline →</Link></aside>
             </div>:<EmptyState/>}
           </section>
 

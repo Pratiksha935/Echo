@@ -139,6 +139,7 @@ test("browser Slack sharing is tenant-authenticated and recipient constrained", 
   assert.match(targets, /listSlackBrowserShareTargets/);
   assert.match(share, /normaliseRecipients/);
   assert.match(share, /shareBrowserPageToSlack/);
+  assert.match(slack, /Promise\.allSettled/);
   assert.match(slack, /validUsers/);
   assert.match(slack, /validChannels/);
   assert.match(background, /slack_reconnect_required/);
@@ -235,7 +236,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
   assert.match(onboarding, /this page never pretends to detect it/);
   assert.match(onboarding, /Chrome Web Store publishing is still pending/);
-  assert.match(onboarding, /\/found-extension-v0\.5\.5\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.5\.6\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 
