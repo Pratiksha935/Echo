@@ -10,7 +10,7 @@ type LoginPageProps = { searchParams: Promise<Record<string, string | string[] |
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const returnTo = safeReturnPath(single(params.return_to), "/integrations");
+  const returnTo = safeReturnPath(single(params.return_to), "/workspace");
   const user = await getFoundUser();
   if (user) redirect(returnTo);
 
@@ -27,7 +27,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   return <main className="loginPage">
     <nav><Link href="/">Found<span>.</span></Link><small>SECURE WORKSPACE ACCESS</small></nav>
     <section className="loginPanel">
-      <div className="loginStory"><span>WORKSPACE ONBOARDING</span><h1>Connect your company’s<br/>shared intelligence.</h1><p>Sign in to your private Found workspace. Google Workspace and Slack each require a separate, explicit OAuth approval before indexing begins.</p><dl><div><dt>01</dt><dd>Sign in securely</dd></div><div><dt>02</dt><dd>Approve Google Workspace</dd></div><div><dt>03</dt><dd>Approve Slack, then enter workspace</dd></div></dl></div>
+      <div className="loginStory"><span>COMPANY KNOWLEDGE</span><h1>See what your company<br/>already knows.</h1><p>Sign in to your private Found workspace. Start with the company overview, then install the browser companion and approve each source explicitly.</p><dl><div><dt>01</dt><dd>Enter your company overview</dd></div><div><dt>02</dt><dd>Install and pair the browser companion</dd></div><div><dt>03</dt><dd>Approve Google Workspace and Slack</dd></div></dl></div>
       <div className="loginCard">
         <span>{sent ? "CHECK YOUR EMAIL" : "SECURE FOUND LOGIN"}</span>
         <h2>{sent ? "Open your recovery link." : "Welcome back."}</h2>

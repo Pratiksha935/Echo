@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 import type { MemoryUpdate, WorkspaceKnowledgeRecord } from "../../lib/auth/workspace";
-import { buildDecisionMemory, decisionPath, departments, formatMoment, type DecisionMemory, type Department } from "../../lib/workspace/intelligence";
+import { buildDecisionMemory, decisionPath, departments, type DecisionMemory, type Department } from "../../lib/workspace/intelligence";
 
 const views = ["Overview", ...departments] as const;
 type View = typeof views[number];
 
 const demoRecords: WorkspaceKnowledgeRecord[] = [
   record("RLP-101","Product","Dynamic security deposits for trusted renters","Rohan Desai","Experiment approved","Notion","https://app.notion.com/p/39b630edf61f811fb5c2fb52bd1b2507","Customers with five clean returns receive a 50% reduction in the standard security deposit.","2026-07-17T10:30:00.000Z"),
-  record("slack:RLP-101","Product","Dynamic security deposits for trusted renters","Rohan Desai","Latest Slack update","Slack","https://newworkspace-2bk3073.slack.com/archives/C0BGVQAPU0L","The team rejected a blanket zero-deposit policy and retained the risk-adjusted hold.","2026-07-17T11:10:00.000Z"),
+  record("slack:RLP-101","Product","Dynamic security deposits for trusted renters","Rohan Desai","Decision confirmed","Slack","https://newworkspace-2bk3073.slack.com/archives/C0BGVQAPU0L","The team rejected a blanket zero-deposit policy and retained the risk-adjusted hold.","2026-07-17T11:10:00.000Z"),
   record("RLP-102","Product","Fit confidence and backup-size reservation","Ananya Sharma","Discovery complete","Notion","https://app.notion.com/p/39b630edf61f81428907d392653ae37f","Reserve an adjacent size when fit confidence is low.","2026-07-16T15:20:00.000Z"),
   record("SALES-MEASUREMENT-001","Sales","Customer measurement and proof-of-value problem","Rhea Bose","Evidence confirmed","Slack","https://newworkspace-2bk3073.slack.com/archives/C0BGVQC999S/p1783839807897629","Paid 30-day proof of value with one written success metric replaces default free pilots.","2026-07-17T09:45:00.000Z"),
   record("GTM-WEDDING-01","GTM","Wedding Wardrobe Week","Aarav Shah","13.9× ROAS","Google Sheets","https://docs.google.com/spreadsheets/","Wedding-event bundles produced the strongest qualified-renter conversion among seasonal campaigns.","2026-07-15T13:00:00.000Z"),
@@ -18,9 +18,9 @@ const demoRecords: WorkspaceKnowledgeRecord[] = [
   record("BROWSER-HARNESS","Research","Harness developer portal patterns","Vikram Rao","Research linked","Browser","https://www.harness.io/products/internal-developer-portal","Competitor research linked to the existing developer portal pilot.","2026-07-14T10:00:00.000Z"),
 ];
 
-type Props = { connectedCount:number; demoMode:boolean; displayName:string; memoryUpdates:MemoryUpdate[]; records:WorkspaceKnowledgeRecord[]; workspaceName:string };
+type Props = { connectedCount:number; connectedProviders:string[]; demoMode:boolean; displayName:string; memoryUpdates:MemoryUpdate[]; records:WorkspaceKnowledgeRecord[]; workspaceName:string };
 
-export default function WorkspaceDashboard({ connectedCount, demoMode, displayName, memoryUpdates, records, workspaceName }: Props) {
+export default function WorkspaceDashboard({ connectedCount, connectedProviders, demoMode, displayName, memoryUpdates, records, workspaceName }: Props) {
   const [view,setView] = useState<View>("Overview");
   const [query,setQuery] = useState("");
   const [submitted,setSubmitted] = useState("");
@@ -28,82 +28,87 @@ export default function WorkspaceDashboard({ connectedCount, demoMode, displayNa
   const effectiveRecords = demoMode ? demoRecords : records;
   const decisions = useMemo(() => buildDecisionMemory(effectiveRecords,memoryUpdates),[effectiveRecords,memoryUpdates]);
   const selectedDepartment = view === "Overview" ? null : view as Department;
-  const departmentDecisions = useMemo(() => selectedDepartment ? decisions.filter(item=>item.department===selectedDepartment) : [],[decisions,selectedDepartment]);
+  const departmentDecisions = selectedDepartment ? decisions.filter(item=>item.department===selectedDepartment) : [];
   const searchResults = useMemo(() => searchDecisions(decisions,submitted),[decisions,submitted]);
-  const graphDecisions = decisions.slice(0,5);
-  const selectedGraph = graphDecisions.find(item=>item.id===graphId) ?? graphDecisions[0];
-  const sourceKinds = new Set(decisions.flatMap(item=>item.sources.map(source=>source.kind)));
+  const selectedGraph = decisions.find(item=>item.id===graphId) ?? decisions[0];
+  const sourceKinds = [...new Set(decisions.flatMap(item=>item.sources.map(source=>source.kind)))];
   const activeDepartments = departments.filter(department=>decisions.some(item=>item.department===department));
-  const latestUpdates = decisions.slice(0,6);
+  const isReady = demoMode || ["google","slack"].every(provider=>connectedProviders.includes(provider));
 
   function search(event:FormEvent) { event.preventDefault(); setSubmitted(query.trim()); }
   function selectView(next:View) { setView(next); setSubmitted(""); window.scrollTo({top:0,behavior:"smooth"}); }
 
-  return <main className="foundWorkspace workspaceV2">
-    <aside className="wsRail">
-      <Link href="/" className="wsLogo">Found<span>.</span></Link>
-      <nav>{views.map(item=><button type="button" key={item} className={view===item?"active":""} onClick={()=>selectView(item)}><i/>{item}</button>)}</nav>
-      <div><Link href="/integrations">Manage sources ↗</Link><small>{connectedCount} authorised source{connectedCount===1?"":"s"}</small></div>
+  return <main className="foundWorkspace workspaceV3">
+    <aside className="kbSidebar">
+      <Link href="/workspace" className="kbBrand"><i>F</i><span>Found</span></Link>
+      <div className="kbWorkspace"><small>WORKSPACE</small><b>{workspaceName}</b><span><i/> Live company memory</span></div>
+      <nav aria-label="Knowledge views">{views.map(item=><button type="button" key={item} className={view===item?"active":""} onClick={()=>selectView(item)}><i>{icon(item)}</i><span>{item}</span>{item!=="Overview"&&<em>{decisions.filter(decision=>decision.department===item).length}</em>}</button>)}</nav>
+      <div className="kbSidebarFooter"><Link href="/integrations"><i>＋</i><span>Sources & setup</span></Link><small>{connectedCount} authorised source{connectedCount===1?"":"s"}</small></div>
     </aside>
-    <section className="wsMain">
-      <header className="wsTop"><div><span>{workspaceName.toUpperCase()} / LIVE COMPANY MEMORY</span><b>{view}</b></div><div><i/> {demoMode?"DEMO WORKSPACE":"TENANT-ISOLATED"} <strong>{displayName}</strong></div></header>
-      <section className="pulseHero">
-        <div><span>{view==="Overview"?"COMPANY PULSE":"DEPARTMENT MEMORY"} · {formatDay(new Date())}</span>
-          <h1>{view==="Overview"?<>What changed across<br/>{workspaceName}.</>:<>Everything {view}<br/>needs to know.</>}</h1>
-          <p>{view==="Overview"?"A current, evidence-weighted view of decisions, changed assumptions and emerging work. Raw source records stay inside their department and decision timelines.":`${departmentDecisions.length} classified decisions, ordered by the latest verified layer.`}</p>
-        </div>
-        <form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Ask about a decision, campaign, client, competitor, or implementation…"/><button>Search memory ↗</button></form>
-      </section>
 
-      {submitted&&<SearchResults query={submitted} results={searchResults}/>}
+    <section className="kbMain">
+      <header className="kbTopbar"><div><button type="button">{view}</button><span>/</span><b>{workspaceName}</b></div><div><span className="kbSecurity">● Tenant isolated</span><span className="kbUser">{initials(displayName)}</span></div></header>
+      <div className="kbContent">
+        <section className="kbWelcome">
+          <div><span>{view==="Overview"?"COMPANY INTELLIGENCE":"DEPARTMENT MEMORY"}</span><h1>{view==="Overview"?`Good ${greeting()}, ${firstName(displayName)}.`:`${view} knowledge`}</h1><p>{view==="Overview"?"A concise view of what changed, what is gaining momentum, and which decisions need attention.":departmentDescription(view as Department)}</p></div>
+          <form onSubmit={search}><input aria-label="Search company knowledge" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search decisions, customers, campaigns, or code…"/><button aria-label="Search">⌕</button></form>
+        </section>
 
-      {view==="Overview" ? <>
-        <section className="pulseMetrics" aria-label="Company memory health">
-          <Metric label="ACTIVE DECISIONS" value={String(decisions.length).padStart(2,"0")} detail="Consolidated across duplicate sources"/>
-          <Metric label="CHANGED THIS WEEK" value={String(decisions.filter(item=>withinDays(item.latestAt,7)).length).padStart(2,"0")} detail="New evidence or memory layers"/>
-          <Metric label="DEPARTMENTS MOVING" value={String(activeDepartments.length).padStart(2,"0")} detail={activeDepartments.join(" · ")||"No classified activity"}/>
-          <Metric label="SOURCE COVERAGE" value={String(sourceKinds.size).padStart(2,"0")} detail={[...sourceKinds].join(" · ")||"Connect company sources"}/>
-        </section>
-        <section className="companyPulse">
-          <header><div><span>TRENDING NOW</span><h2>The decisions<br/>shaping this week.</h2></div><p>Momentum is based on recency, source diversity and explicit memory updates—not message volume.</p></header>
-          <div className="trendLedger">{decisions.slice(0,4).map((decision,index)=><DecisionCard decision={decision} rank={index+1} key={decision.id}/>)}</div>
-        </section>
-        <section className="pulseSplit">
-          <div className="changeStream"><header><span>LATEST VERIFIED CHANGES</span><b>Newest first</b></header>{latestUpdates.map(item=><Link href={decisionPath(item.id)} key={item.id}><time>{formatMoment(item.latestAt)}</time><div><b>{item.department}</b><h3>{item.title}</h3><p>{truncate(item.latestText,150)}</p></div><span>{item.status} ↗</span></Link>)}</div>
-          <div className="departmentPulse"><header><span>DEPARTMENT PULSE</span><b>Classified automatically</b></header>{departments.map(department=>{const items=decisions.filter(item=>item.department===department);return <button type="button" key={department} onClick={()=>selectView(department)}><span>{department}</span><b>{String(items.length).padStart(2,"0")}</b><small>{items[0]?`Latest · ${formatRelative(items[0].latestAt)}`:"No activity yet"}</small></button>})}</div>
-        </section>
-        <section className="knowledgeGraphV2">
-          <header><div><span>LIVE KNOWLEDGE GRAPH</span><h2>Decisions connected<br/>to their evidence.</h2></div><p>Select a decision to see its department, source diversity, latest memory layer and timeline. Nodes are generated from live records—never duplicated decoration.</p></header>
-          {graphDecisions.length ? <div className="graphGrid">
-            <div className="graphDepartments"><span>DEPARTMENTS</span>{[...new Set(graphDecisions.map(item=>item.department))].map(item=><b key={item}>{item}</b>)}</div>
-            <div className="graphDecisions"><span>DECISIONS</span>{graphDecisions.map(item=><button type="button" className={selectedGraph?.id===item.id?"active":""} onClick={()=>setGraphId(item.id)} key={item.id}><small>{item.department}</small><b>{item.title}</b><em>{item.sources.length} source{item.sources.length===1?"":"s"}</em></button>)}</div>
-            <aside><span>SELECTED MEMORY</span><h3>{selectedGraph?.title}</h3><p>{truncate(selectedGraph?.latestText??"",240)}</p><dl><div><dt>OWNER</dt><dd>{selectedGraph?.owner}</dd></div><div><dt>LATEST LAYER</dt><dd>{selectedGraph?formatMoment(selectedGraph.latestAt):"—"}</dd></div><div><dt>EVIDENCE</dt><dd>{selectedGraph?.sources.map(source=>source.kind).join(" · ")}</dd></div></dl>{selectedGraph&&<Link href={decisionPath(selectedGraph.id)}>OPEN DECISION TIMELINE ↗</Link>}</aside>
-          </div>:<EmptyState/>}
-        </section>
-      </> : <DepartmentView department={selectedDepartment!} decisions={departmentDecisions}/>}
+        {submitted&&<SearchResults query={submitted} results={searchResults}/>}
+        {view==="Overview" ? <>
+          {!isReady&&<SetupPanel connectedProviders={connectedProviders}/>}
+          <section className="kbStats" aria-label="Knowledge health">
+            <Metric label="Decisions" value={String(decisions.length)} detail="Consolidated records"/>
+            <Metric label="Changed this week" value={String(decisions.filter(item=>withinDays(item.latestAt,7)).length)} detail="New evidence or input"/>
+            <Metric label="Active departments" value={String(activeDepartments.length)} detail={activeDepartments.slice(0,3).join(", ")||"Awaiting data"}/>
+            <Metric label="Evidence coverage" value={`${sourceKinds.length} types`} detail={sourceKinds.slice(0,3).join(", ")||"Connect sources"}/>
+          </section>
+
+          <section className="kbOverviewGrid">
+            <div className="kbPanel kbTrending"><PanelHeader eyebrow="TRENDING" title="Decisions shaping this week" action="Evidence-weighted"/>
+              <div>{decisions.slice(0,5).map((decision,index)=><DecisionRow decision={decision} rank={index+1} key={decision.id}/>)}</div>
+            </div>
+            <div className="kbPanel kbActivity"><PanelHeader eyebrow="LATEST ACTIVITY" title="Verified change stream" action="Newest first"/>
+              <div>{decisions.slice(0,6).map(item=><Link href={decisionPath(item.id)} key={item.id}><i className={`sourceDot source${safeClass(item.sources[0]?.kind)}`}/><div><b>{item.title}</b><p>{item.latestInput?"Team input appended":"Source evidence indexed"}</p></div><time>{formatRelative(item.latestAt)}</time></Link>)}</div>
+            </div>
+          </section>
+
+          <section className="kbPanel kbGraph">
+            <PanelHeader eyebrow="KNOWLEDGE GRAPH" title="How decisions connect to evidence" action="Live workspace data"/>
+            {selectedGraph ? <div className="kbGraphLayout">
+              <div className="kbGraphCanvas">
+                <div className="graphColumn graphTeams"><span>DEPARTMENTS</span>{[...new Set(decisions.slice(0,6).map(item=>item.department))].map(item=><button key={item} onClick={()=>selectView(item)}>{item}</button>)}</div>
+                <div className="graphColumn graphMemory"><span>DECISIONS</span>{decisions.slice(0,6).map(item=><button className={selectedGraph.id===item.id?"active":""} onClick={()=>setGraphId(item.id)} key={item.id}><b>{item.title}</b><small>{item.sources.length} receipt{item.sources.length===1?"":"s"}</small></button>)}</div>
+                <div className="graphColumn graphSources"><span>EVIDENCE</span>{sourceKinds.slice(0,6).map(item=><b key={item}>{item}</b>)}</div>
+              </div>
+              <aside><span>SELECTED MEMORY</span><h3>{selectedGraph.title}</h3><p>{truncate(selectedGraph.verifiedText,180)}</p>{selectedGraph.latestInput&&<div className="kbLatestInput"><small>LATEST TEAM INPUT</small><p>{truncate(selectedGraph.latestInput,120)}</p></div>}<dl><div><dt>Owner</dt><dd>{selectedGraph.owner}</dd></div><div><dt>Updated</dt><dd>{formatRelative(selectedGraph.latestAt)}</dd></div><div><dt>Sources</dt><dd>{selectedGraph.sources.map(source=>source.kind).join(" · ")}</dd></div></dl><Link href={decisionPath(selectedGraph.id)}>Open decision timeline →</Link></aside>
+            </div>:<EmptyState/>}
+          </section>
+
+          <section className="kbDepartmentGrid"><PanelHeader eyebrow="DEPARTMENTS" title="Knowledge by team" action={`${activeDepartments.length} active`}/><div>{departments.map(department=>{const items=decisions.filter(item=>item.department===department);return <button key={department} onClick={()=>selectView(department)}><i>{icon(department)}</i><div><b>{department}</b><span>{items[0]?.title??"No indexed activity"}</span></div><em>{items.length}</em></button>})}</div></section>
+        </> : <DepartmentView department={selectedDepartment!} decisions={departmentDecisions}/>}
+      </div>
     </section>
   </main>;
 }
 
-function DepartmentView({department,decisions}:{department:Department;decisions:DecisionMemory[]}) {
-  const sources=new Set(decisions.flatMap(item=>item.sources.map(source=>source.kind)));
-  return <>
-    <section className="departmentSummary"><div><span>{department.toUpperCase()} / CURRENT MEMORY</span><h2>{departmentHeading(department)}</h2><p>{departmentDescription(department)}</p></div><dl><div><dt>DECISIONS</dt><dd>{String(decisions.length).padStart(2,"0")}</dd></div><div><dt>UPDATED THIS WEEK</dt><dd>{String(decisions.filter(item=>withinDays(item.latestAt,7)).length).padStart(2,"0")}</dd></div><div><dt>SOURCE TYPES</dt><dd>{String(sources.size).padStart(2,"0")}</dd></div></dl></section>
-    <section className="decisionRegistry"><header><span>LATEST FIRST</span><h2>Decision memory</h2><p>One row per decision. Duplicate Slack, Docs and browser captures are consolidated into its evidence timeline.</p></header>{decisions.length?<div>{decisions.map(decision=><Link href={decisionPath(decision.id)} key={decision.id}><div><span>{formatMoment(decision.latestAt)}</span><em>{decision.status}</em></div><h3>{decision.title}</h3><p>{truncate(decision.latestText,220)}</p><footer><span>{decision.owner}</span><b>{decision.sources.map(source=>source.kind).join(" · ")}</b><strong>Open timeline ↗</strong></footer></Link>)}</div>:<EmptyState/>}</section>
-    {department==="Browser"&&<section className="browserOperatingModel"><span>BROWSER MEMORY</span><h2>Capture deliberately.<br/>Discover automatically.</h2><div><article><b>01</b><h3>Ambient insight</h3><p>Found checks supported pages in the background and opens a battlecard only for strong workspace matches.</p></article><article><b>02</b><h3>Team capture</h3><p>Research, GTM, Product and Sales can save the current page with a department and explicit note from the extension.</p></article><article><b>03</b><h3>Decision routing</h3><p>Every surfaced insight opens its internal timeline; source systems remain receipts, not the primary interface.</p></article></div></section>}
-  </>;
-}
-
-function DecisionCard({decision,rank}:{decision:DecisionMemory;rank:number}) { return <Link href={decisionPath(decision.id)}><div><span>0{rank}</span><em>{decision.department}</em></div><h3>{decision.title}</h3><p>{truncate(decision.latestText,170)}</p><footer><span>{formatRelative(decision.latestAt)}</span><b>{decision.sources.length} evidence source{decision.sources.length===1?"":"s"} ↗</b></footer></Link>; }
-function SearchResults({query,results}:{query:string;results:DecisionMemory[]}) { return <section className="searchOverlay"><header><span>RESULTS FOR “{query}”</span><b>{results.length} decision{results.length===1?"":"s"}</b></header>{results.length?results.map(item=><Link href={decisionPath(item.id)} key={item.id}><span>{item.department}</span><div><h3>{item.title}</h3><p>{truncate(item.latestText,140)}</p></div><b>{formatRelative(item.latestAt)} ↗</b></Link>):<p>No strong company-memory match. Found does not manufacture an answer.</p>}</section>; }
+function SetupPanel({connectedProviders}:{connectedProviders:string[]}) { const google=connectedProviders.includes("google"),slack=connectedProviders.includes("slack"); return <section className="kbSetup"><div><span>GET STARTED</span><h2>Bring your company memory online</h2><p>Install Found, pair this browser, then approve each company source explicitly.</p><Link href="/integrations">Continue setup →</Link></div><ol><li className="done"><b>1</b><span>Found account<small>Signed in</small></span></li><li><b>2</b><span>Browser extension<small>Install and pair</small></span></li><li className={google?"done":""}><b>3</b><span>Google Workspace<small>{google?"Authorised":"Read-only consent"}</small></span></li><li className={slack?"done":""}><b>4</b><span>Slack<small>{slack?"Authorised":"Public channels"}</small></span></li></ol></section>; }
+function DepartmentView({department,decisions}:{department:Department;decisions:DecisionMemory[]}) { return <section className="kbDepartment"><div className="kbDepartmentHeader"><div><span>{department.toUpperCase()} / CURRENT MEMORY</span><h2>{departmentHeading(department)}</h2></div><dl><div><dt>Decisions</dt><dd>{decisions.length}</dd></div><div><dt>Updated this week</dt><dd>{decisions.filter(item=>withinDays(item.latestAt,7)).length}</dd></div><div><dt>Source types</dt><dd>{new Set(decisions.flatMap(item=>item.sources.map(source=>source.kind))).size}</dd></div></dl></div><div className="kbRegistry"><PanelHeader eyebrow="DECISION REGISTRY" title="Latest verified knowledge" action="Newest first"/>{decisions.length?decisions.map(item=><DecisionRow decision={item} key={item.id}/>):<EmptyState/>}</div></section>; }
+function DecisionRow({decision,rank}:{decision:DecisionMemory;rank?:number}) { return <Link className="kbDecisionRow" href={decisionPath(decision.id)}><span>{rank?String(rank).padStart(2,"0"):icon(decision.department)}</span><div><div><em>{decision.department}</em><small>{decision.status}</small></div><h3>{decision.title}</h3><p>{truncate(decision.verifiedText,130)}</p></div><aside><b>{decision.sources.length}</b><small>receipts</small><time>{formatRelative(decision.latestAt)}</time></aside></Link>; }
+function SearchResults({query,results}:{query:string;results:DecisionMemory[]}) { return <section className="kbSearchResults"><PanelHeader eyebrow={`RESULTS FOR “${query}”`} title={`${results.length} matching decisions`} action="Company knowledge only"/>{results.length?results.map(item=><DecisionRow decision={item} key={item.id}/>):<p>I couldn’t find enough evidence in company knowledge to answer this.</p>}</section>; }
+function PanelHeader({eyebrow,title,action}:{eyebrow:string;title:string;action:string}) { return <header className="kbPanelHeader"><div><span>{eyebrow}</span><h2>{title}</h2></div><small>{action}</small></header>; }
 function Metric({label,value,detail}:{label:string;value:string;detail:string}) { return <article><span>{label}</span><b>{value}</b><p>{detail}</p></article>; }
-function EmptyState() { return <div className="workspaceEmpty"><h3>No classified memory yet.</h3><p>Connect an approved source or capture a page from the Found extension.</p><Link href="/integrations">Manage integrations ↗</Link></div>; }
+function EmptyState() { return <div className="workspaceEmpty"><h3>No classified memory yet.</h3><p>Connect an approved source or capture a page from the Found extension.</p><Link href="/integrations">Manage sources →</Link></div>; }
 
-function searchDecisions(items:DecisionMemory[],query:string):DecisionMemory[] { const terms=query.toLowerCase().split(/\W+/).filter(term=>term.length>2); if(!terms.length)return[]; return items.map(item=>({item,score:terms.reduce((score,term)=>score+(item.title.toLowerCase().includes(term)?4:`${item.latestText} ${item.department} ${item.owner}`.toLowerCase().includes(term)?1:0),0)})).filter(result=>result.score>=2).sort((a,b)=>b.score-a.score).slice(0,8).map(result=>result.item); }
+function searchDecisions(items:DecisionMemory[],query:string):DecisionMemory[] { const terms=query.toLowerCase().split(/\W+/).filter(term=>term.length>2); if(!terms.length)return[]; return items.map(item=>({item,score:terms.reduce((score,term)=>score+(item.title.toLowerCase().includes(term)?4:`${item.latestText} ${item.verifiedText} ${item.department} ${item.owner}`.toLowerCase().includes(term)?1:0),0)})).filter(result=>result.score>=2).sort((a,b)=>b.score-a.score).slice(0,8).map(result=>result.item); }
 function departmentHeading(department:Department):string { return ({Product:"What customers need—and what we decided.",GTM:"Campaign intelligence that compounds.",Sales:"Client evidence before the next call.",Engineering:"Implementation memory before the next PR.",Research:"Signals worth carrying into the roadmap.",Browser:"The web, connected to company context."})[department]; }
-function departmentDescription(department:Department):string { return ({Product:"Approved product choices, rejected alternatives, experiments and the newest context attached by the team.",GTM:"Campaign results, positioning decisions and reusable patterns grouped by the work they influence.",Sales:"Customer signals, proof-of-value criteria and account intelligence retained with the original receipt.",Engineering:"Architecture choices, existing implementations and operational learning consolidated across code and conversation.",Research:"Competitor moves, articles and market evidence deliberately captured by the team.",Browser:"Items explicitly saved from the web plus strong organisational matches surfaced while the team browses."})[department]; }
+function departmentDescription(department:Department):string { return ({Product:"Approved choices, rejected alternatives, experiments, and the newest context attached by the team.",GTM:"Campaign results, positioning decisions, and reusable patterns grouped by the work they influence.",Sales:"Customer signals, proof-of-value criteria, and account intelligence retained with their receipts.",Engineering:"Architecture choices, existing implementations, and operational learning across code and conversation.",Research:"Competitor moves, articles, and market evidence deliberately captured by the team.",Browser:"Items saved from the web and strong organisational matches surfaced while the team browses."})[department]; }
+function icon(view:View):string { return ({Overview:"⌂",Product:"P",GTM:"G",Sales:"S",Engineering:"E",Research:"R",Browser:"B"})[view]; }
+function safeClass(value:string|undefined):string { return String(value??"source").toLowerCase().replace(/[^a-z0-9]+/g,""); }
 function record(externalId:string,department:string,title:string,authorName:string,status:string,source:string,sourceUrl:string,body:string,sourceUpdatedAt:string):WorkspaceKnowledgeRecord { return {externalId,department,title,authorName,status,source,sourceUrl,body,sourceUpdatedAt}; }
 function truncate(value:string,max:number):string { const clean=value.replace(/\s+/g," ").trim(); return clean.length>max?`${clean.slice(0,max-1).trim()}…`:clean; }
 function withinDays(value:string,days:number):boolean { const time=Date.parse(value); return !Number.isNaN(time)&&Date.now()-time<=days*86400000; }
-function formatRelative(value:string):string { const time=Date.parse(value); if(Number.isNaN(time))return"Time not indexed"; const days=Math.max(0,Math.floor((Date.now()-time)/86400000)); return days===0?"Today":days===1?"Yesterday":`${days} days ago`; }
-function formatDay(date:Date):string { return new Intl.DateTimeFormat("en",{day:"2-digit",month:"short",year:"numeric"}).format(date); }
+function formatRelative(value:string):string { const time=Date.parse(value); if(Number.isNaN(time))return"Time not indexed"; const days=Math.max(0,Math.floor((Date.now()-time)/86400000)); return days===0?"Today":days===1?"Yesterday":`${days}d ago`; }
+function initials(value:string):string { return value.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"U"; }
+function firstName(value:string):string { return value.trim().split(/\s+/)[0]||"there"; }
+function greeting():string { const hour=new Date().getHours(); return hour<12?"morning":hour<18?"afternoon":"evening"; }

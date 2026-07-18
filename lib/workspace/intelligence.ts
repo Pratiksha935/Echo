@@ -16,11 +16,13 @@ export type DecisionMemory = {
   id: string;
   latestAt: string;
   latestText: string;
+  latestInput: string | null;
   owner: string;
   sources: DecisionSource[];
   status: string;
   title: string;
   updates: MemoryUpdate[];
+  verifiedText: string;
 };
 
 export function buildDecisionMemory(records: WorkspaceKnowledgeRecord[], updates: MemoryUpdate[]): DecisionMemory[] {
@@ -41,11 +43,13 @@ export function buildDecisionMemory(records: WorkspaceKnowledgeRecord[], updates
       id: latest.externalId,
       latestAt: latestUpdate?.createdAt ?? latest.sourceUpdatedAt,
       latestText: latestUpdate?.updateText ?? latest.body,
+      latestInput: latestUpdate?.updateText ?? null,
       owner: latest.authorName ?? "Owner not indexed",
       sources,
-      status: latestUpdate ? "Updated memory" : latest.status,
+      status: latestUpdate ? "Team input added" : latest.status,
       title: latest.title,
       updates: relatedUpdates,
+      verifiedText: latest.body,
     };
   }).sort((a,b) => time(b.latestAt) - time(a.latestAt));
 }

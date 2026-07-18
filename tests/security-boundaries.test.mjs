@@ -129,7 +129,7 @@ test("password login uses the server-side Supabase grant and HttpOnly session co
   assert.match(session, /\/auth\/v1\/token\?grant_type=password/);
   assert.match(route, /signInWithPassword\(email, password\)/);
   assert.match(route, /hasSamePublicOrigin\(request\)/);
-  assert.match(route, /safeReturnPath[\s\S]*"\/integrations"/);
+  assert.match(route, /safeReturnPath[\s\S]*"\/workspace"/);
   assert.doesNotMatch(route, /access_token|refresh_token/);
   assert.match(session, /ACCESS_COOKIE[\s\S]*httpOnly: true/);
   assert.match(session, /REFRESH_COOKIE[\s\S]*httpOnly: true/);
@@ -181,9 +181,9 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   const onboarding = await source("app/integrations/integration-setup.tsx");
   assert.match(onboarding, /REVIEW GOOGLE WORKSPACE CONSENT/);
   assert.match(onboarding, /REVIEW SLACK CONSENT/);
-  assert.match(onboarding, /does not replace or silently approve Google Workspace or Slack consent/);
-  assert.match(onboarding, /this page does not pretend to detect it/);
-  assert.match(onboarding, /Production store distribution pending/);
+  assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
+  assert.match(onboarding, /this page never pretends to detect it/);
+  assert.match(onboarding, /Chrome Web Store publishing is still pending/);
   assert.match(onboarding, /\/found-extension-v0\.4\.9\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
@@ -201,6 +201,18 @@ test("tenant-facing queries require a user token and organisation filter", async
   assert.match(workspace, /authorization: `Bearer \$\{accessToken\}`/);
   assert.match(workspace, /organisation_id: `eq\.\$\{organisationId\}`/);
   assert.match(workspace, /getFoundWorkspace\(requestedOrganisationId/);
+});
+
+test("team input remains separate from verified company knowledge", async () => {
+  const [intelligence, decisionPage] = await Promise.all([
+    source("lib/workspace/intelligence.ts"),
+    source("app/workspace/decision/[recordId]/page.tsx"),
+  ]);
+  assert.match(intelligence, /verifiedText: latest\.body/);
+  assert.match(intelligence, /latestInput: latestUpdate\?\.updateText \?\? null/);
+  assert.match(decisionPage, /VERIFIED DECISION/);
+  assert.match(decisionPage, /LATEST TEAM INPUT/);
+  assert.match(decisionPage, /pending verification|until it is verified/i);
 });
 
 test("connector readiness requires the complete auth and webhook boundary", async () => {
