@@ -140,6 +140,27 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
   }));
 }
 
+export async function getWorkspaceKnowledgeRecord(organisationId: string, externalId: string): Promise<WorkspaceKnowledgeRecord | null> {
+  const context = await getSupabaseAuthContext();
+  if (!context) return null;
+  const rows = await userRest<KnowledgeRow[]>(
+    `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,source_updated_at,metadata&organisation_id=eq.${encodeURIComponent(organisationId)}&external_id=eq.${encodeURIComponent(externalId)}&limit=1`,
+    context.accessToken,
+  );
+  const row = rows[0];
+  return row ? {
+    authorName: row.author_name,
+    body: row.body,
+    department: row.department,
+    externalId: row.external_id,
+    source: row.source,
+    sourceUrl: row.source_url,
+    sourceUpdatedAt: row.source_updated_at,
+    status: row.metadata?.status ?? "Indexed",
+    title: row.title,
+  } : null;
+}
+
 export async function listMemoryUpdates(organisationId: string): Promise<MemoryUpdate[]> {
   const context = await getSupabaseAuthContext();
   if (!context) return [];
