@@ -267,6 +267,14 @@ test("team input remains separate from verified company knowledge", async () => 
   assert.match(decisionPage, /pending verification|until it is verified/i);
 });
 
+test("decision detail pages render exact browser and Slack records instead of falling back to overview", async () => {
+  const decisionPage = await source("app/workspace/decision/[recordId]/page.tsx");
+  assert.match(decisionPage, /decodeRecordId/);
+  assert.match(decisionPage, /getWorkspaceKnowledgeRecord\(workspace\.organisationId,recordId\)/);
+  assert.match(decisionPage, /exactRecordDecision\(exactRecord,updates\)/);
+  assert.match(decisionPage, /sourceRecordId===record\.externalId/);
+});
+
 test("connector readiness requires the complete auth and webhook boundary", async () => {
   const readiness = await source("lib/integrations/readiness.ts");
   for (const name of [

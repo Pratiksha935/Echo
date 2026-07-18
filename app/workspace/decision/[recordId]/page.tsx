@@ -1,20 +1,23 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireFoundUser } from "../../../auth";
+import type { MemoryUpdate, WorkspaceKnowledgeRecord } from "../../../../lib/auth/workspace";
 import { getFoundWorkspace, getWorkspaceKnowledgeRecord, listMemoryUpdates, listWorkspaceKnowledgeRecords } from "../../../../lib/auth/workspace";
-import { buildDecisionMemory, canonicalUrl, formatMoment, normaliseTitle } from "../../../../lib/workspace/intelligence";
+import type { DecisionMemory } from "../../../../lib/workspace/intelligence";
+import { buildDecisionMemory, canonicalUrl, classifyDepartment, formatMoment, normaliseTitle } from "../../../../lib/workspace/intelligence";
 
 export const dynamic = "force-dynamic";
 
 export default async function DecisionTimelinePage({params}:{params:Promise<{recordId:string}>}) {
-  const {recordId}=await params;
+  const {recordId:rawRecordId}=await params;
+  const recordId=decodeRecordId(rawRecordId);
   const user=await requireFoundUser(`/workspace/decision/${encodeURIComponent(recordId)}`);
   const workspace=await getFoundWorkspace();
   if(!workspace) notFound();
   const [recentRecords,exactRecord,updates]=await Promise.all([listWorkspaceKnowledgeRecords(workspace.organisationId,200),getWorkspaceKnowledgeRecord(workspace.organisationId,recordId),listMemoryUpdates(workspace.organisationId)]);
   const records=exactRecord&&recentRecords.every(record=>record.externalId!==exactRecord.externalId)?[exactRecord,...recentRecords]:recentRecords;
   const decisions=buildDecisionMemory(records,updates);
-  const decision=decisions.find(item=>item.id===recordId||item.sources.some(source=>source.externalId===recordId));
+  const decision=decisions.find(item=>item.id===recordId||item.sources.some(source=>source.externalId===recordId))??(exactRecord?exactRecordDecision(exactRecord,updates):null);
   if(!decision) redirect("/workspace");
   const titleKey=normaliseTitle(decision.title);
   const sourceEvents=records.filter(record=>normaliseTitle(record.title)===titleKey).map(record=>({actor:record.authorName??"Source owner not indexed",at:record.sourceUpdatedAt,body:record.body,kind:record.source,label:record.status,url:record.sourceUrl}));
@@ -30,4 +33,38 @@ export default async function DecisionTimelinePage({params}:{params:Promise<{rec
       <aside className="decisionAside"><span>VERIFIED DECISION</span><h2>{decision.verifiedText}</h2><p>Source-backed company knowledge remains separate from user input until it is verified.</p>{decision.latestInput&&<div className="kbLatestInput"><small>LATEST TEAM INPUT</small><p>{decision.latestInput}</p><small>{formatMoment(decision.latestAt)} · retained in timeline</small></div>}<div><span>UNIQUE RECEIPTS</span>{uniqueReceipts.map(source=><a href={source.url} target="_blank" rel="noreferrer" key={`${source.kind}-${source.externalId}`}><b>{source.kind}</b><small>{formatMoment(source.recordedAt)}</small><em>↗</em></a>)}</div><Link href={`/memory/correct?${new URLSearchParams({record_id:decision.id,title:decision.title,source_url:uniqueReceipts[0]?.url??"https://sage-profiterole-3b1c22.netlify.app/workspace"})}`}>APPEND TEAM CONTEXT ↗</Link></aside>
     </section>
   </main>;
+}
+
+function decodeRecordId(value:string):string {
+  let current=value;
+  for(let index=0;index<2;index+=1) {
+    try {
+      const decoded=decodeURIComponent(current);
+      if(decoded===current) break;
+      current=decoded;
+    } catch {
+      break;
+    }
+  }
+  return current;
+}
+
+function exactRecordDecision(record:WorkspaceKnowledgeRecord,updates:MemoryUpdate[]):DecisionMemory {
+  const titleKey=normaliseTitle(record.title);
+  const relatedUpdates=updates.filter(update=>update.sourceRecordId===record.externalId||normaliseTitle(update.currentTitle)===titleKey)
+    .sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt));
+  const latestUpdate=relatedUpdates[0];
+  return {
+    department: classifyDepartment(record.department, `${record.title} ${record.body} ${record.source}`),
+    id: record.externalId,
+    latestAt: latestUpdate?.createdAt??record.sourceUpdatedAt,
+    latestInput: latestUpdate?.updateText??null,
+    latestText: latestUpdate?.updateText??record.body,
+    owner: record.authorName??"Owner not indexed",
+    sources: [{externalId:record.externalId,kind:record.source,recordedAt:record.sourceUpdatedAt,summary:record.body,url:record.sourceUrl}],
+    status: latestUpdate?"Team input added":record.status,
+    title: record.title,
+    updates: relatedUpdates,
+    verifiedText: record.body,
+  };
 }
