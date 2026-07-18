@@ -101,6 +101,8 @@ test("renders integration onboarding for an authenticated user", async () => {
   assert.match(html, /Set up Found/);
   assert.match(html, /Install the browser companion/);
   assert.match(html, /Pair this browser/);
+  assert.match(html, /Hermes decision layer/);
+  assert.match(html, /HERMES_API_URL/);
   assert.match(html, /PRIVATE RELEASE/);
   assert.match(html, /Chrome Web Store publishing is still pending/);
   assert.match(html, /AFTER ONBOARDING/);

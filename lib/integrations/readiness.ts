@@ -1,5 +1,9 @@
 import type { IntegrationProvider } from "./catalog";
 
+export type RuntimeReadiness = {
+  hermes: boolean;
+};
+
 export function configuredIntegrationProviders(): IntegrationProvider[] {
   const core = has(
     "NEXT_PUBLIC_APP_URL",
@@ -17,6 +21,12 @@ export function configuredIntegrationProviders(): IntegrationProvider[] {
   if (has("GITHUB_APP_INSTALL_URL", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET")) ready.push("github");
   if (has("READ_AI_API_URL", "READ_AI_API_TOKEN")) ready.push("read_ai");
   return ready;
+}
+
+export function configuredRuntimeReadiness(): RuntimeReadiness {
+  return {
+    hermes: has("HERMES_API_URL", "HERMES_API_TOKEN"),
+  };
 }
 
 function has(...names: string[]): boolean {

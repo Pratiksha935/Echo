@@ -364,5 +364,8 @@ test("connector readiness requires the complete auth and webhook boundary", asyn
     "SUPABASE_SERVICE_ROLE_KEY",
     "INTEGRATION_ENCRYPTION_KEY",
     "SLACK_SIGNING_SECRET",
+    "HERMES_API_URL",
+    "HERMES_API_TOKEN",
   ]) assert.match(readiness, new RegExp(`"${name}"`));
+  assert.match(readiness, /configuredRuntimeReadiness/);
 });
