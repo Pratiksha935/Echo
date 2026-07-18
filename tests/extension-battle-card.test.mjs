@@ -356,3 +356,26 @@ test("the extension worker owns the authenticated cross-origin match request", a
     assert.match(background, new RegExp(reason));
   }
 });
+
+test("battlecards can ask Hermes through the authenticated extension worker", async () => {
+  const [content, background, route, styles] = await Promise.all([
+    source("extension/content.js"),
+    source("extension/background.js"),
+    source("app/api/browser/ask/route.ts"),
+    source("extension/content.css"),
+  ]);
+  assert.match(content, /ASK HERMES/);
+  assert.match(content, /function askHermes/);
+  assert.match(content, /type: "found:ask-hermes"/);
+  assert.match(content, /recordId: latestMatch\.id/);
+  assert.doesNotMatch(content, /\/api\/browser\/ask|Bearer \$\{token\}/);
+  assert.match(background, /message\?\.type === "found:ask-hermes"/);
+  assert.match(background, /fetch\(`\$\{FOUND_ORIGIN\}\/api\/browser\/ask`/);
+  assert.match(background, /authorization: `Bearer \$\{token\}`/);
+  assert.match(background, /hermes_unavailable/);
+  assert.match(route, /queryHermes/);
+  assert.match(route, /verifyBrowserToken/);
+  assert.match(route, /source receipts and memory updates/);
+  assert.match(styles, /\.ec-ask/);
+  assert.match(styles, /\.ec-ask-answer/);
+});

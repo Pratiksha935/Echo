@@ -17,6 +17,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     appendMemory(message.update).then(sendResponse).catch(() => sendResponse({ ok: false, reason: "temporary_network_failure" }));
     return true;
   }
+  if (message?.type === "found:ask-hermes") {
+    askHermes(message.ask).then(sendResponse).catch(() => sendResponse({ ok: false, reason: "temporary_network_failure" }));
+    return true;
+  }
   if (message?.type === "found:capture-page") {
     capturePage(message.capture).then(sendResponse).catch(() => sendResponse({ ok: false, reason: "temporary_network_failure" }));
     return true;
@@ -69,6 +73,44 @@ async function matchPage(page) {
     return payload.match ? { match: payload.match, reason: "matched" } : { match: null, reason: "no_match" };
   } catch {
     return { match: null, reason: "temporary_network_failure" };
+  }
+}
+
+async function askHermes(ask) {
+  const stored = await chrome.storage.local.get([TOKEN_KEY]);
+  const token = stored[TOKEN_KEY];
+  if (!token) return { ok: false, reason: "not_connected" };
+  const body = {
+    recordId: typeof ask?.recordId === "string" ? ask.recordId.slice(0, 220) : "",
+    question: typeof ask?.question === "string" ? ask.question.trim().slice(0, 700) : "",
+  };
+  if (!body.recordId || body.question.length < 4) return { ok: false, reason: "invalid_question" };
+  try {
+    const response = await fetch(`${FOUND_ORIGIN}/api/browser/ask`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.status === 401) {
+      await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
+      return { ok: false, reason: "session_expired" };
+    }
+    if (response.status === 403 && payload?.error === "workspace_access_revoked") {
+      await chrome.storage.local.remove([TOKEN_KEY, PROFILE_KEY]);
+      return { ok: false, reason: "workspace_access_revoked" };
+    }
+    if (response.status === 404) return { ok: false, reason: "record_not_found" };
+    if (response.status === 503 || payload?.error === "hermes_unavailable") return { ok: false, reason: "hermes_unavailable" };
+    if (response.status === 429 || response.status >= 500) return { ok: false, reason: "service_unavailable" };
+    if (!response.ok || !payload?.answer) return { ok: false, reason: payload?.error || "server_rejected" };
+    return {
+      ok: true,
+      answer: String(payload.answer).slice(0, 1800),
+      sources: Array.isArray(payload.sources) ? payload.sources : [],
+    };
+  } catch {
+    return { ok: false, reason: "temporary_network_failure" };
   }
 }
 
