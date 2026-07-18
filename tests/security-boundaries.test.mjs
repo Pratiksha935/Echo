@@ -19,6 +19,7 @@ test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing"
   assert.match(route, /"users:read.email"/);
   assert.match(route, /"im:write"/);
   assert.match(route, /"chat:write"/);
+  assert.match(route, /"chat:write.public"/);
 });
 
 test("continuous ingestion is durable, silent, and authenticated", async () => {
@@ -178,6 +179,8 @@ test("browser Slack sharing is tenant-authenticated and recipient constrained", 
   assert.match(targets, /listSlackBrowserShareTargets/);
   assert.match(share, /normaliseRecipients/);
   assert.match(share, /shareBrowserPageToSlack/);
+  assert.match(slack, /hasSlackScope\(connection, "chat:write.public"\)/);
+  assert.match(slack, /allowPublicPost \|\| channel\.is_member/);
   assert.match(slack, /Promise\.allSettled/);
   assert.match(slack, /validUsers/);
   assert.match(slack, /validChannels/);

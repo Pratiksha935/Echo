@@ -11,6 +11,7 @@ const SLACK_SCOPES = [
   "channels:history",
   "channels:read",
   "chat:write",
+  "chat:write.public",
   "im:write",
   "users:read",
   "users:read.email",
