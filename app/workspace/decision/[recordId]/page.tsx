@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireFoundUser } from "../../../auth";
-import { getFoundWorkspace, listMemoryUpdates, listWorkspaceKnowledgeRecords } from "../../../../lib/auth/workspace";
+import { getFoundWorkspace, getWorkspaceKnowledgeRecord, listMemoryUpdates, listWorkspaceKnowledgeRecords } from "../../../../lib/auth/workspace";
 import { buildDecisionMemory, canonicalUrl, formatMoment, normaliseTitle } from "../../../../lib/workspace/intelligence";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,8 @@ export default async function DecisionTimelinePage({params}:{params:Promise<{rec
   const user=await requireFoundUser(`/workspace/decision/${encodeURIComponent(recordId)}`);
   const workspace=await getFoundWorkspace();
   if(!workspace) notFound();
-  const [records,updates]=await Promise.all([listWorkspaceKnowledgeRecords(workspace.organisationId,200),listMemoryUpdates(workspace.organisationId)]);
+  const [recentRecords,exactRecord,updates]=await Promise.all([listWorkspaceKnowledgeRecords(workspace.organisationId,200),getWorkspaceKnowledgeRecord(workspace.organisationId,recordId),listMemoryUpdates(workspace.organisationId)]);
+  const records=exactRecord&&recentRecords.every(record=>record.externalId!==exactRecord.externalId)?[exactRecord,...recentRecords]:recentRecords;
   const decisions=buildDecisionMemory(records,updates);
   const decision=decisions.find(item=>item.id===recordId||item.sources.some(source=>source.externalId===recordId));
   if(!decision) redirect("/workspace");
