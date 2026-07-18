@@ -275,6 +275,15 @@ test("decision detail pages render exact browser and Slack records instead of fa
   assert.match(decisionPage, /sourceRecordId===record\.externalId/);
 });
 
+test("decision detail pages summarize captured articles instead of dumping full page text", async () => {
+  const decisionPage = await source("app/workspace/decision/[recordId]/page.tsx");
+  assert.match(decisionPage, /memorySummary\(decision\.verifiedText\)/);
+  assert.match(decisionPage, /memorySummary\(event\.body\)/);
+  assert.match(decisionPage, /Captured page context:/);
+  assert.match(decisionPage, /Captured page:/);
+  assert.match(decisionPage, /compactText\(context,220\)/);
+});
+
 test("connector readiness requires the complete auth and webhook boundary", async () => {
   const readiness = await source("lib/integrations/readiness.ts");
   for (const name of [
