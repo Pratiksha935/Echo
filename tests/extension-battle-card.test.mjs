@@ -63,13 +63,13 @@ test("toolbar check explicitly reruns the matcher and reports the outcome", asyn
   assert.match(popup, /temporary_network_failure/);
 });
 
-test("browser sessions are short-lived, workspace-bound, and revalidated", async () => {
+test("browser sessions are workspace-bound and revalidated", async () => {
   const [token, session, match] = await Promise.all([
     source("lib/auth/browser-token.ts"),
     source("app/api/browser/session/route.ts"),
     source("app/api/browser/match/route.ts"),
   ]);
-  assert.match(token, /now \+ 60 \* 60/);
+  assert.match(token, /now \+ 60 \* 60 \* 24 \* 30/);
   assert.match(token, /organisationName/);
   assert.match(session, /profile/);
   assert.match(match, /workspace_access_revoked/);
@@ -103,11 +103,11 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(page, /data-found-pair-status/);
   assert.match(page, /data-found-pair-detail/);
   assert.match(page, /requireFoundUser\("\/browser\/connect"\)/);
-  assert.match(popupScript, /Browser connected\. Return to the page you were reading\./);
+  assert.match(popupScript, /Found will rerun the check on the open page automatically\./);
   assert.match(popup, /id="connect"/);
-  assert.match(popup, /CONNECT OR SWITCH WORKSPACE/);
-  assert.match(manifest, /"version": "0\.4\.9"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.4\.9"/);
+  assert.match(popup, /Connect or switch workspace/);
+  assert.match(manifest, /"version": "0\.5\.0"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.0"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -169,6 +169,25 @@ test("a successful match makes both the companion and battlecard visible immedia
   assert.match(content, /setAttribute\("aria-hidden", "false"\)/);
 });
 
+test("popup explains automatic in-page battlecards instead of requiring toolbar polling", async () => {
+  const [popup, popupScript] = await Promise.all([
+    source("extension/popup.html"),
+    source("extension/popup.js"),
+  ]);
+  assert.match(popup, /Found is comparing the open page against approved company memory/);
+  assert.match(popupScript, /Strong matches auto-open as a clean battlecard/);
+  assert.match(popupScript, /showConnection\(\)\.then\(connected/);
+  assert.match(popupScript, /if \(connected\) checkCurrentPage\(\)/);
+});
+
+test("battlecard source links dedupe the Found decision timeline", async () => {
+  const content = await source("extension/content.js");
+  const seenIndex = content.indexOf("const seenUrls = new Set");
+  const dashboardIndex = content.indexOf("seenUrls.add(canonicalUrl(dashboardUrl))");
+  const sourceLoopIndex = content.indexOf("for (const source of Array.isArray(match.links)");
+  assert.ok(seenIndex >= 0 && dashboardIndex > seenIndex && sourceLoopIndex > dashboardIndex);
+});
+
 test("automatic checks retry after editor load and follow single-page navigation", async () => {
   const content = await source("extension/content.js");
   assert.match(content, /setTimeout\(checkCurrentPage, 700\)/);
@@ -176,7 +195,8 @@ test("automatic checks retry after editor load and follow single-page navigation
   assert.match(content, /setTimeout\(checkCurrentPage, 6000\)/);
   assert.match(content, /setInterval\(checkCurrentPage, 4000\)/);
   assert.match(content, /location\.href !== lastCheckedUrl/);
-  assert.match(content, /automaticAttempts < 3/);
+  assert.match(content, /const maxAttempts = dynamicPage \|\| recoverable \? 12 : 5/);
+  assert.match(content, /automaticAttempts < maxAttempts/);
   assert.match(content, /visibilitychange/);
   assert.match(content, /app\\\.slack\\\.com/);
   assert.match(content, /dynamicSignature/);

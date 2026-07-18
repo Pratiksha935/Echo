@@ -136,7 +136,7 @@ test("Chrome identity pairing requires a visible approval and an exact extension
   assert.match(complete, /"cache-control": "no-store"/);
 });
 
-test("browser sessions are signed, tenant-bound, and valid for exactly one hour", () => {
+test("browser sessions are signed, tenant-bound, and suitable for normal browser use", () => {
   const previousSecret = process.env.BROWSER_SESSION_SECRET;
   const originalNow = Date.now;
   process.env.BROWSER_SESSION_SECRET = "production-onboarding-qa-secret";
@@ -154,14 +154,14 @@ test("browser sessions are signed, tenant-bound, and valid for exactly one hour"
     assert.ok(parsed);
     assert.equal(parsed.organisationId, "org-a");
     assert.equal(parsed.userId, "user-1");
-    assert.equal(parsed.exp - parsed.iat, 60 * 60);
+    assert.equal(parsed.exp - parsed.iat, 60 * 60 * 24 * 30);
 
     const [payload, signature] = token.split(".");
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     const crossTenantPayload = Buffer.from(JSON.stringify({ ...claims, organisationId: "org-b" })).toString("base64url");
     assert.equal(verifyBrowserToken(`${crossTenantPayload}.${signature}`), null);
 
-    Date.now = () => issuedAtMs + 60 * 60 * 1000 + 1;
+    Date.now = () => issuedAtMs + 60 * 60 * 24 * 30 * 1000 + 1;
     assert.equal(verifyBrowserToken(token), null);
   } finally {
     Date.now = originalNow;

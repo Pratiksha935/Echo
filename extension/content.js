@@ -1,5 +1,5 @@
 (() => {
-  const EXTENSION_VERSION = "0.4.9";
+  const EXTENSION_VERSION = "0.5.0";
   const FOUND_PRODUCT_HOST = /^(?:[a-z0-9-]+--)?sage-profiterole-3b1c22\.netlify\.app$/i;
   if (FOUND_PRODUCT_HOST.test(location.hostname)) return;
   const runtime = window.__foundExtensionRuntime;
@@ -13,6 +13,7 @@
   let currentMatchId = "";
   let lastDynamicSignature = "";
   let lastAutomaticCheckAt = 0;
+  let lastNoMatchReason = "";
 
   function compactText(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
@@ -107,12 +108,13 @@
     root.querySelector(".ec-recommendation p").textContent = match.recommendation || "Review the source evidence before proceeding.";
     root.querySelector(".ec-account").textContent = `${match.account?.organisationName || "Authorised workspace"} · ${match.account?.email || "paired user"}`;
     const links = root.querySelector(".ec-links");
+    const seenUrls = new Set([canonicalUrl(location.href)]);
     const dashboardUrl = safeSourceUrl(match.dashboardUrl);
     if (dashboardUrl) {
       const dashboard = document.createElement("a");
       dashboard.href = dashboardUrl; dashboard.target = "_blank"; dashboard.rel = "noreferrer"; dashboard.textContent = "Open decision timeline ↗"; links.appendChild(dashboard);
+      seenUrls.add(canonicalUrl(dashboardUrl));
     }
-    const seenUrls = new Set([canonicalUrl(location.href)]);
     const seenKinds = new Set();
     for (const source of Array.isArray(match.links) ? match.links : []) {
       const href = safeSourceUrl(source?.url);
@@ -190,7 +192,12 @@
   async function runCheck() {
     if (!checkPromise) {
       checkPromise = findMatch().then(result => {
-        if (result.match) render(result.match);
+        if (result.match) {
+          lastNoMatchReason = "";
+          render(result.match);
+        } else {
+          lastNoMatchReason = result.reason || "no_match";
+        }
         return result;
       }).finally(() => { checkPromise = null; });
     }
@@ -208,7 +215,9 @@
       const signature = dynamicPage ? dynamicSignature() : "";
       const dynamicChanged = dynamicPage && signature !== lastDynamicSignature && Date.now() - lastAutomaticCheckAt > 3_000;
       if (dynamicChanged) { lastDynamicSignature = signature; automaticAttempts = 0; }
-      if ((urlChanged || !rendered || dynamicChanged) && automaticAttempts < 3) {
+      const recoverable = /not_connected|session_expired|temporary_network_failure|service_unavailable/.test(lastNoMatchReason);
+      const maxAttempts = dynamicPage || recoverable ? 12 : 5;
+      if ((urlChanged || !rendered || dynamicChanged || recoverable) && automaticAttempts < maxAttempts) {
         automaticAttempts += 1;
         lastAutomaticCheckAt = Date.now();
         runCheck();
@@ -217,6 +226,7 @@
     setTimeout(checkCurrentPage, 700);
     setTimeout(checkCurrentPage, 2500);
     setTimeout(checkCurrentPage, 6000);
+    setTimeout(checkCurrentPage, 12000);
     setInterval(checkCurrentPage, 4000);
     if (document.body && typeof MutationObserver === "function") {
       let mutationTimer;
@@ -224,7 +234,7 @@
         clearTimeout(mutationTimer);
         mutationTimer = setTimeout(checkCurrentPage, 900);
       });
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     }
     addEventListener("pageshow", checkCurrentPage);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) checkCurrentPage(); });
@@ -236,6 +246,12 @@
       return;
     }
     if (message?.type === "found:page-context") { sendResponse(pageContext()); return; }
+    if (message?.type === "found:workspace-connected") {
+      automaticAttempts = 0;
+      lastNoMatchReason = "";
+      runCheck().then(result => sendResponse({ matched: Boolean(result.match), reason: result.reason })).catch(() => sendResponse({ matched: false, reason: "temporary_network_failure" }));
+      return true;
+    }
     if (message?.type !== "found:run") return;
     runCheck().then(result => sendResponse({ matched: Boolean(result.match), reason: result.reason })).catch(() => sendResponse({ matched: false, reason: "temporary_network_failure" }));
     return true;
