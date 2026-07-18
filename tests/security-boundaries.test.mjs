@@ -89,6 +89,19 @@ test("browser Ask Hermes stays tenant-scoped and closed-world", async () => {
   assert.match(background, /hermes_unavailable/);
 });
 
+test("browser matching uses Hermes as the final non-exact battlecard decision layer", async () => {
+  const route = await source("app/api/browser/match/route.ts");
+  assert.match(route, /reviewBrowserMatchWithHermes/);
+  assert.match(route, /queryHermes/);
+  assert.match(route, /show=true only when the open page is the same concrete work/);
+  assert.match(route, /show=false for merely same industry, same vendor, broad AI\/research overlap/);
+  assert.match(route, /If unsure, show=false/);
+  assert.match(route, /parsed\.confidence/);
+  assert.match(route, /hermes_unavailable/);
+  assert.match(route, /exactOpenCompanySource/);
+  assert.match(route, /return NextResponse\.json\(\{ match: null, reason: hermesVerdict\.reason \}/);
+});
+
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
   const google = await source("lib/integrations/google-sync.ts");
   assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);
