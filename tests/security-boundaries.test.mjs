@@ -101,6 +101,21 @@ test("Slack event ingestion enforces signatures, a five-minute timestamp window,
   assert.match(ingestion, /\/p\$\{encodeURIComponent\(messageId\)\}/);
 });
 
+test("Slack desktop users get a private native battlecard surface, not public bot noise", async () => {
+  const [route, slack] = await Promise.all([
+    source("app/api/slack/interactions/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  assert.match(route, /x-slack-request-timestamp/);
+  assert.match(route, /x-slack-signature/);
+  assert.match(route, /message_action/);
+  assert.match(route, /openSlackBattlecard/);
+  assert.match(slack, /views\.open/);
+  assert.match(slack, /type: "modal"/);
+  assert.match(slack, /Private to you/);
+  assert.doesNotMatch(route + slack, /chat\.postMessage/);
+});
+
 test("provider credentials are encrypted server-side before service-role persistence", async () => {
   const [callback, slackCallback, secrets, store] = await Promise.all([
     source("app/auth/integrations/[provider]/callback/route.ts"),
@@ -184,7 +199,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
   assert.match(onboarding, /this page never pretends to detect it/);
   assert.match(onboarding, /Chrome Web Store publishing is still pending/);
-  assert.match(onboarding, /\/found-extension-v0\.5\.0\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.5\.1\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 
