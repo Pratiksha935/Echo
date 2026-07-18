@@ -19,7 +19,7 @@ export async function POST(request:NextRequest){
   if(!DEPARTMENTS.has(department)||note.length<12||!pageTitle||!pageUrl)return NextResponse.json({error:"invalid_capture"},{status:400,headers});
   const capturedAt=new Date().toISOString();const externalId=`browser:${randomUUID()}`;
   await serviceRest("/knowledge_records",{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({author_name:token.email,body:`${note}\n\nCaptured page context: ${pageText}`.slice(0,5000),department,external_id:externalId,indexed_at:capturedAt,metadata:{captured_at:capturedAt,status:"Team submission",submitted_by:token.userId},organisation_id:token.organisationId,source:"Browser",source_updated_at:capturedAt,source_url:pageUrl,title:pageTitle,visibility:"workspace"})});
-  return NextResponse.json({decisionUrl:new URL(`/workspace/decision/${encodeURIComponent(externalId)}`,request.url).toString(),ok:true},{headers});
+  return NextResponse.json({decisionUrl:new URL("/workspace",request.url).toString(),externalId,ok:true},{headers});
 }
 function allowedOrigin(request:NextRequest){const origin=request.headers.get("origin");return origin&&EXTENSION_ORIGIN.test(origin)?origin:null}
 function corsHeaders(origin:string):HeadersInit{return{"access-control-allow-headers":"authorization, content-type","access-control-allow-methods":"POST, OPTIONS","access-control-allow-origin":origin,"cache-control":"no-store",vary:"origin"}}

@@ -189,7 +189,8 @@ test("production browser capture writes explicit tenant-bound knowledge with a s
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.ok, true);
-  assert.match(payload.decisionUrl, /\/workspace\/decision\//);
+  assert.equal(new URL(payload.decisionUrl).pathname, "/workspace");
+  assert.match(payload.externalId, /^browser:/);
   assert.equal(capturedRecords.length, 1);
   assert.equal(capturedRecords[0].organisation_id, organisationId);
   assert.equal(capturedRecords[0].department, "Research");
