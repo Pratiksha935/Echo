@@ -123,10 +123,11 @@ test("Slack desktop users get a private native battlecard surface, not public bo
 });
 
 test("browser Slack sharing is tenant-authenticated and recipient constrained", async () => {
-  const [targets, share, slack] = await Promise.all([
+  const [targets, share, slack, background] = await Promise.all([
     source("app/api/browser/slack-targets/route.ts"),
     source("app/api/browser/slack-share/route.ts"),
     source("lib/integrations/slack-events.ts"),
+    source("extension/background.js"),
   ]);
   for (const route of [targets, share]) {
     assert.match(route, /verifyBrowserToken/);
@@ -140,6 +141,15 @@ test("browser Slack sharing is tenant-authenticated and recipient constrained", 
   assert.match(share, /shareBrowserPageToSlack/);
   assert.match(slack, /validUsers/);
   assert.match(slack, /validChannels/);
+  assert.match(background, /slack_reconnect_required/);
+});
+
+test("exact Google source lookups are not limited to the recent-memory window", async () => {
+  const route = await source("app/api/browser/match/route.ts");
+  assert.match(route, /loadExactSourceRows/);
+  assert.match(route, /external_id=eq/);
+  assert.match(route, /source_url=ilike/);
+  assert.match(route, /\[\.\.\.exactRows, \.\.\.rows\]/);
 });
 
 test("provider credentials are encrypted server-side before service-role persistence", async () => {
@@ -225,7 +235,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
   assert.match(onboarding, /this page never pretends to detect it/);
   assert.match(onboarding, /Chrome Web Store publishing is still pending/);
-  assert.match(onboarding, /\/found-extension-v0\.5\.2\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.5\.3\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 

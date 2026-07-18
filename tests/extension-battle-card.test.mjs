@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.2"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.2"/);
+  assert.match(manifest, /"version": "0\.5\.3"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.3"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {

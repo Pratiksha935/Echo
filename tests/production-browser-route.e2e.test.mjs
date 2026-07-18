@@ -168,6 +168,8 @@ test("production browser route tenant-filters the known Google Doc and returns c
   assert.match(payload.match.dashboardUrl, /\/workspace\/decision\//);
   assert.ok(requests.some(path => path.includes(`/memberships?`) && path.includes(`organisation_id=eq.${organisationId}`) && path.includes(`user_id=eq.${userId}`)));
   assert.ok(requests.some(path => path.includes(`/knowledge_records?`) && path.includes(`organisation_id=eq.${organisationId}`)));
+  assert.ok(requests.some(path => path.includes(`external_id=eq.${documentId}`)));
+  assert.ok(requests.some(path => path.includes(`source_url=ilike.*${documentId}*`)));
   assert.ok(requests.every(path => !path.includes("org-attacker-controlled-body")));
 });
 
@@ -206,9 +208,9 @@ test("production browser route returns an explicit no-match response", async () 
   assert.deepEqual(await response.json(), { match: null });
 });
 
-test("downloadable v0.5.2 ZIP is byte-aligned with every required production extension file", async () => {
+test("downloadable v0.5.3 ZIP is byte-aligned with every required production extension file", async () => {
   const required = ["manifest.json", "background.js", "content.js", "content.css", "update.css", "popup.html", "popup.js", "popup.css", "README.md"];
-  const archive = new URL("public/found-extension-v0.5.2.zip", root);
+  const archive = new URL("public/found-extension-v0.5.3.zip", root);
   const entries = (await command("unzip", ["-Z1", archive.pathname])).trim().split("\n").sort();
   assert.deepEqual(entries, [...required].sort());
   for (const name of required) {
@@ -220,7 +222,7 @@ test("downloadable v0.5.2 ZIP is byte-aligned with every required production ext
   }
   const manifest = JSON.parse(await command("unzip", ["-p", archive.pathname, "manifest.json"]));
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.5.2");
+  assert.equal(manifest.version, "0.5.3");
   assert.deepEqual(manifest.background, { service_worker: "background.js" });
   assert.deepEqual(manifest.content_scripts[0].js, ["content.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["content.css", "update.css"]);
