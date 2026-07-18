@@ -12,7 +12,7 @@ export type BrowserToken = {
 
 export function issueBrowserToken(input: Omit<BrowserToken, "exp" | "iat" | "version">): string {
   const now = Math.floor(Date.now() / 1000);
-  const payload = Buffer.from(JSON.stringify({ ...input, exp: now + 60 * 60, iat: now, version: 1 })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...input, exp: now + 60 * 60 * 24 * 30, iat: now, version: 1 })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 

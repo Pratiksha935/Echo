@@ -7,15 +7,47 @@
     <title>Found</title>
   </head>
   <body>
-    <main>
-      <span class="eyebrow">FOUND · BROWSER MEMORY</span>
-      <h1>Found is active</h1>
-      <p id="account">Checking workspace connection…</p>
-      <p id="status">Strong company insights surface automatically while you browse.</p>
-      <button id="run" type="button">CHECK AGAIN NOW <b>↗</b></button>
-      <form id="capture"><span>SAVE THIS PAGE TO COMPANY MEMORY</span><select id="department" required><option value="Research">Research</option><option value="Product">Product</option><option value="GTM">GTM</option><option value="Sales">Sales / client</option><option value="Engineering">Engineering</option><option value="Browser">General browser memory</option></select><textarea id="note" minlength="12" maxlength="1200" required placeholder="Why should the team remember this?"></textarea><button type="submit">ADD TO FOUND <b>↗</b></button></form>
-      <button id="connect" type="button" class="connectButton">CONNECT OR SWITCH WORKSPACE <b>↗</b></button>
-      <small>v0.4.9 · Ambient matching · No prompts inside Found.</small>
+    <main class="shell">
+      <header class="hero">
+        <div>
+          <span class="eyebrow">FOUND · BROWSER MEMORY</span>
+          <h1 id="headline">Checking this page</h1>
+        </div>
+        <span class="statePill" id="statePill">LIVE</span>
+      </header>
+
+      <section class="workspaceCard" aria-label="Workspace connection">
+        <span class="label">Workspace</span>
+        <p id="account">Checking workspace connection…</p>
+      </section>
+
+      <section class="statusCard" aria-label="Current page status">
+        <span class="label">Current page</span>
+        <p id="status">Found is comparing the open page against approved company memory.</p>
+        <button id="run" type="button" class="primaryAction">Check page <b>↗</b></button>
+      </section>
+
+      <form id="capture" class="captureCard">
+        <div class="captureHeader">
+          <span class="label">Save this page</span>
+          <small>Optional</small>
+        </div>
+        <select id="department" required aria-label="Department">
+          <option value="Research">Research</option>
+          <option value="Product">Product</option>
+          <option value="GTM">GTM</option>
+          <option value="Sales">Sales / client</option>
+          <option value="Engineering">Engineering</option>
+          <option value="Browser">General browser memory</option>
+        </select>
+        <textarea id="note" minlength="12" maxlength="1200" required placeholder="What should the team remember?"></textarea>
+        <button type="submit" class="secondaryAction">Add to memory <b>↗</b></button>
+      </form>
+
+      <footer>
+        <button id="connect" type="button" class="connectButton">Connect or switch workspace <b>↗</b></button>
+        <small>v0.5.0 · Ambient matching · Source-linked memory.</small>
+      </footer>
     </main>
     <script src="popup.js"></script>
   </body>

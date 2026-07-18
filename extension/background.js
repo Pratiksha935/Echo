@@ -116,5 +116,14 @@ async function connectWorkspace() {
   const profile = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(padded), character => character.charCodeAt(0))));
   if (!profile?.email || !profile?.organisationId || !profile?.organisationName) throw new Error("invalid_profile");
   await chrome.storage.local.set({ [TOKEN_KEY]: token, [PROFILE_KEY]: profile });
+  await notifyOpenTabs();
   return { ok: true, profile };
+}
+
+async function notifyOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] }).catch(() => []);
+  await Promise.all(tabs.map(tab => {
+    if (!tab.id) return Promise.resolve();
+    return chrome.tabs.sendMessage(tab.id, { type: "found:workspace-connected" }).catch(() => null);
+  }));
 }

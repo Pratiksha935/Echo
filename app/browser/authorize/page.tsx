@@ -18,7 +18,7 @@ export default async function BrowserAuthorizePage({ searchParams }: AuthorizePa
   return <main className="browserPairPage"><section className="browserPairCard">
     <span>FOUND · SECURE BROWSER CONNECTION</span><i aria-hidden="true">F</i>
     <h1>Connect this browser?</h1>
-    <p>Found will return a one-hour, workspace-bound session to the installed extension. It cannot read knowledge from another workspace.</p>
+    <p>Found will return a signed, workspace-bound browser session to the installed extension. It cannot read knowledge from another workspace, and membership is rechecked on every request.</p>
     <dl><div><dt>WORKSPACE</dt><dd>{workspace.organisationName}</dd></div><div><dt>ACCOUNT</dt><dd>{user.email}</dd></div><div><dt>ACCESS</dt><dd>{workspace.role}</dd></div></dl>
     <form action="/browser/authorize/complete" method="post" className="browserAuthorizeForm">
       <input type="hidden" name="redirect_uri" value={redirectUri}/>
