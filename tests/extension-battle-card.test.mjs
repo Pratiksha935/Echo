@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.7"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.7"/);
+  assert.match(manifest, /"version": "0\.5\.8"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.8"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -303,8 +303,10 @@ test("in-page capture never submits the visited page and exposes the saved Found
 test("saved capture state collapses the form and avoids duplicated Slack failure copy", async () => {
   const [content, styles] = await Promise.all([source("extension/content.js"), source("extension/content.css")]);
   assert.match(styles, /\.ec-capture-view\.saved > p,\s*\.ec-capture-view\.saved > label,\s*\.ec-capture-view\.saved > select,\s*\.ec-capture-view\.saved > textarea[\s\S]*display: none/);
-  assert.match(styles, /\.ec-capture-view\.saved \.ec-view-memory[\s\S]*background: #147a4b/);
-  assert.match(content, /note\.textContent = "Reconnect Slack from Found integrations, then reopen this panel\."/);
+  assert.match(styles, /\.ec-capture-view\.saved \.ec-view-memory[\s\S]*background: #edf4ff/);
+  assert.doesNotMatch(styles, /\.ec-capture-view\.saved[\s\S]{0,90}background: #f3fbf6/);
+  assert.match(content, /Connect this browser to Found, then reopen this panel\./);
+  assert.match(content, /Reconnect Slack from Found integrations, then reopen this panel\./);
   assert.doesNotMatch(content, /note\.textContent = message;/);
 });
 
@@ -322,6 +324,7 @@ test("capture panel automatically lists Slack teammates and channels and shares 
   assert.match(content, /type: input\.dataset\.destinationType/);
   assert.match(background, /\/api\/browser\/slack-targets/);
   assert.match(background, /\/api\/browser\/slack-share/);
+  assert.match(background, /slack_targets_unavailable/);
   assert.match(background, /recipients/);
   assert.match(background, /item\?\.type === "user" \|\| item\?\.type === "channel"/);
 });
