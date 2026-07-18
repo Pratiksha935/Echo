@@ -1,7 +1,7 @@
 import { requireFoundUser } from "../auth";
 import IntegrationSetup from "./integration-setup";
 import { getFoundWorkspace, listIntegrationConnections } from "../../lib/auth/workspace";
-import { configuredIntegrationProviders } from "../../lib/integrations/readiness";
+import { configuredIntegrationProviders, configuredRuntimeReadiness } from "../../lib/integrations/readiness";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,7 @@ export default async function IntegrationsPage({ searchParams }: IntegrationsPag
   return <IntegrationSetup
     connections={connections}
     configuredProviders={configuredIntegrationProviders()}
+    runtimeReadiness={configuredRuntimeReadiness()}
     displayName={user.displayName}
     email={user.email}
     extensionInstallUrl={chromeExtensionInstallUrl()}

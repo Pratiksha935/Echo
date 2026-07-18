@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import type { IntegrationConnection } from "../../lib/auth/workspace";
 import { integrationCatalog, type IntegrationProvider } from "../../lib/integrations/catalog";
+import type { RuntimeReadiness } from "../../lib/integrations/readiness";
 import styles from "./onboarding.module.css";
 
 type Props = {
@@ -14,17 +15,19 @@ type Props = {
   email: string;
   errorCode?: string;
   extensionInstallUrl?: string;
+  runtimeReadiness: RuntimeReadiness;
   workspaceName: string;
 };
 
-export default function IntegrationSetup({ connectedProvider, connections, configuredProviders, displayName, email, errorCode, extensionInstallUrl, workspaceName }: Props) {
+export default function IntegrationSetup({ connectedProvider, connections, configuredProviders, displayName, email, errorCode, extensionInstallUrl, runtimeReadiness, workspaceName }: Props) {
   const statusByProvider = useMemo(() => new Map(connections.map(item => [item.provider, item])), [connections]);
   const google = statusByProvider.get("google");
   const slack = statusByProvider.get("slack");
   const googleApproved = approved(google);
   const slackApproved = approved(slack);
-  const readyForWorkspace = googleApproved && slackApproved;
-  const completedRequired = 1 + Number(googleApproved) + Number(slackApproved);
+  const hermesReady = runtimeReadiness.hermes;
+  const readyForWorkspace = googleApproved && slackApproved && hermesReady;
+  const completedRequired = 1 + Number(hermesReady) + Number(googleApproved) + Number(slackApproved);
 
   return <main className={styles.page}>
     <header className={styles.topbar}>
@@ -38,17 +41,18 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
     </div>}
 
     <section className={styles.hero}>
-      <div><span>GUIDED SETUP · {completedRequired}/3 SOURCE STEPS COMPLETE</span><h1>Set up Found<br/>for daily work.</h1></div>
-      <p>Install the browser companion first, pair it with this workspace, then review Google Workspace and Slack separately.</p>
+      <div><span>GUIDED SETUP · {completedRequired}/4 REQUIRED STEPS COMPLETE</span><h1>Set up Found<br/>for daily work.</h1></div>
+      <p>Install the browser companion, pair it with this workspace, confirm Hermes is configured, then review Google Workspace and Slack separately.</p>
     </section>
 
     <nav className={styles.progress} aria-label="Onboarding progress">
       <a href="#account" className={styles.done}>01 <span>Account</span></a>
       <a href="#extension" className={styles.current}>02 <span>Extension</span></a>
       <a href="#pair">03 <span>Pair</span></a>
-      <a href="#google" className={googleApproved ? styles.done : ""}>04 <span>Google</span></a>
-      <a href="#slack" className={slackApproved ? styles.done : ""}>05 <span>Slack</span></a>
-      <a href="#dashboard" className={readyForWorkspace ? styles.current : ""}>06 <span>Enter Found</span></a>
+      <a href="#hermes" className={hermesReady ? styles.done : ""}>04 <span>Hermes</span></a>
+      <a href="#google" className={googleApproved ? styles.done : ""}>05 <span>Google</span></a>
+      <a href="#slack" className={slackApproved ? styles.done : ""}>06 <span>Slack</span></a>
+      <a href="#dashboard" className={readyForWorkspace ? styles.current : ""}>07 <span>Enter Found</span></a>
     </nav>
 
     <section className={styles.steps}>
@@ -67,20 +71,26 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
         <div className={styles.pending}>Pairing is confirmed inside the extension; this page never pretends to detect it.</div>
       </Step>
 
-      <Step id="google" number="04" title="Google Workspace" status={providerStatus(google, configuredProviders.includes("google"))} complete={googleApproved}>
+      <Step id="hermes" number="04" title="Hermes decision layer" status={hermesReady ? "CONFIGURED" : "ADMIN SETUP REQUIRED"} complete={hermesReady}>
+        <p>Hermes is the closed-world memory and decision layer. It decides when browser and Slack battlecards should appear, answers Ask Hermes from indexed company memory, and fails closed instead of guessing.</p>
+        <div className={styles.explainer}><b>Required runtime</b><span>HERMES_API_URL and HERMES_API_TOKEN must be set server-side.</span><b>Visible behavior</b><span>{hermesReady ? "Battlecard decisions and Ask Hermes can call the live Hermes service." : "Battlecard decisions and Ask Hermes stay safe but may return no result until configured."}</span></div>
+        {!hermesReady && <div className={styles.pending}>Set these in Netlify environment variables. Do not expose the token to browser code.</div>}
+      </Step>
+
+      <Step id="google" number="05" title="Google Workspace" status={providerStatus(google, configuredProviders.includes("google"))} complete={googleApproved}>
         <p>This is a separate Google Workspace consent for read-only Drive and Docs access. Your Google sign-in alone does not approve indexing.</p>
         <ScopeList values={["Drive files · read only", "Google Docs · read only", "Identity · email"]}/>
         {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <Link className={styles.action} href="/auth/integrations/google" prefetch={false}>REVIEW GOOGLE WORKSPACE CONSENT ↗</Link> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
-      <Step id="slack" number="05" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
+      <Step id="slack" number="06" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
         <p>Slack opens its own consent screen after Google. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or public channels.</p>
         <ScopeList values={["Public channels · read", "Public messages · read", "Users · read", "Selected links · user-initiated send"]}/>
         {slackApproved ? <Connection connection={slack!}/> : !googleApproved ? <DisabledAction>APPROVE GOOGLE FIRST</DisabledAction> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
-      <Step id="dashboard" number="06" title="Enter Found" status={readyForWorkspace ? "READY" : "LOCKED UNTIL SOURCE CONSENT"} complete={readyForWorkspace} locked={!readyForWorkspace}>
-        <p>Your overview remains available throughout setup. Once both sources are authorised, it begins filling with department knowledge and evidence-backed insights.</p>
+      <Step id="dashboard" number="07" title="Enter Found" status={readyForWorkspace ? "READY" : "LOCKED UNTIL RUNTIME AND SOURCE CONSENT"} complete={readyForWorkspace} locked={!readyForWorkspace}>
+        <p>Your overview remains available throughout setup. Once Hermes and both sources are authorised, it begins filling with department knowledge, battlecards, Ask answers and evidence-backed insights.</p>
         <Link className={styles.action} href="/workspace">RETURN TO COMPANY OVERVIEW ↗</Link>
       </Step>
     </section>
