@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.3"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.3"/);
+  assert.match(manifest, /"version": "0\.5\.4"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.4"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -281,8 +281,17 @@ test("in-page capture never submits the visited page and exposes the saved Found
   assert.match(content, /addEventListener\("click", saveCapture\)/);
   assert.doesNotMatch(content, /ec-capture-view"\)\.addEventListener\("submit"/);
   assert.match(content, /safeSourceUrl\(result\.decisionUrl\)/);
-  assert.match(content, /VIEW IN FOUND/);
+  assert.match(content, /button\.hidden = true/);
+  assert.match(content, /OPEN SAVED RECORD/);
   assert.match(content, /openWithSuppression\(savedDecisionUrl\)/);
+});
+
+test("saved capture state collapses the form and avoids duplicated Slack failure copy", async () => {
+  const [content, styles] = await Promise.all([source("extension/content.js"), source("extension/content.css")]);
+  assert.match(styles, /\.ec-capture-view\.saved > p,\s*\.ec-capture-view\.saved > label,\s*\.ec-capture-view\.saved > select,\s*\.ec-capture-view\.saved > textarea[\s\S]*display: none/);
+  assert.match(styles, /\.ec-capture-view\.saved \.ec-view-memory[\s\S]*background: #147a4b/);
+  assert.match(content, /note\.textContent = "Reconnect Slack from Found integrations, then reopen this panel\."/);
+  assert.doesNotMatch(content, /note\.textContent = message;/);
 });
 
 test("capture panel automatically lists Slack teammates and channels and shares selected destinations", async () => {
