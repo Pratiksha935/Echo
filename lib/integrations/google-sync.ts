@@ -38,7 +38,7 @@ type KnowledgeRecord = {
 
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
-const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", "research"]);
+const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", "research", "browser", "company"]);
 const GOOGLE_REQUEST_TIMEOUT_MS = 6_000;
 const GOOGLE_SYNC_TIMEOUT_MS = 20_000;
 
@@ -86,7 +86,7 @@ export async function syncGoogleWorkspace(
     const delta = cursor
       ? await listChanges(credential.accessToken, cursor, signal)
       : await listFilesFromStableCursor(credential.accessToken, signal);
-    const files = delta.files.filter(isApprovedFile);
+    const files = delta.files.filter(isReadableWorkspaceFile);
     const fileResults = await Promise.allSettled(
       files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken, signal)),
     );
@@ -195,10 +195,7 @@ async function listFiles(accessToken: string, signal?: AbortSignal): Promise<Dri
       fields: "nextPageToken,files(id,name,mimeType,modifiedTime,webViewLink)",
       orderBy: "modifiedTime desc",
       pageSize: "100",
-      // Found only indexes explicitly department-tagged files. Filtering for the
-      // opening tag in Drive avoids walking a user's entire Drive on every
-      // initial import, which can exceed a serverless execution window.
-      q: `trashed = false and name contains '[' and (mimeType = '${GOOGLE_DOC}' or mimeType = '${GOOGLE_SHEET}')`,
+      q: `trashed = false and (mimeType = '${GOOGLE_DOC}' or mimeType = '${GOOGLE_SHEET}')`,
     });
     if (pageToken) query.set("pageToken", pageToken);
     const response = await googleFetch(`https://www.googleapis.com/drive/v3/files?${query}`, accessToken, signal);
@@ -209,10 +206,8 @@ async function listFiles(accessToken: string, signal?: AbortSignal): Promise<Dri
   return files;
 }
 
-function isApprovedFile(file: DriveFile): boolean {
-  if (![GOOGLE_DOC, GOOGLE_SHEET].includes(file.mimeType)) return false;
-  const department = file.name.match(/^\[([^\]]+)\]/)?.[1]?.toLowerCase();
-  return Boolean(department && APPROVED_DEPARTMENTS.has(department));
+function isReadableWorkspaceFile(file: DriveFile): boolean {
+  return [GOOGLE_DOC, GOOGLE_SHEET].includes(file.mimeType);
 }
 
 async function getStartPageToken(accessToken: string, signal?: AbortSignal): Promise<string> {
@@ -295,12 +290,24 @@ function parseMetadata(text: string, fileName: string) {
   const firstLines = text.split("\n").slice(0, 12);
   const read = (label: string) => firstLines.find(line => line.toLowerCase().startsWith(`${label.toLowerCase()}:`))?.split(":").slice(1).join(":").trim();
   const taggedDepartment = fileName.match(/^\[([^\]]+)\]/)?.[1];
+  const inferredDepartment = inferDepartment(`${fileName}\n${firstLines.join("\n")}`);
+  const department = read("Department") ?? taggedDepartment ?? inferredDepartment;
   return {
-    department: read("Department") ?? taggedDepartment ?? "Company",
+    department: APPROVED_DEPARTMENTS.has(department.toLowerCase()) ? department : inferredDepartment,
     owner: read("Owner") ?? "Workspace owner",
     status: read("Status") ?? "Indexed",
     title: (read("Title") ?? fileName.replace(/^\[[^\]]+\]\s*/, "")).trim(),
   };
+}
+
+function inferDepartment(value: string): string {
+  const text = value.toLowerCase();
+  if (/\b(engineering|developer|code|deployment|incident|platform|api|service|harness)\b/.test(text)) return "Engineering";
+  if (/\b(gtm|campaign|launch|marketing|positioning|activation|growth)\b/.test(text)) return "GTM";
+  if (/\b(sales|customer|account|abm|pipeline|call center|contact center|proof of value|roi)\b/.test(text)) return "Sales";
+  if (/\b(research|article|market|competitor|analysis)\b/.test(text)) return "Research";
+  if (/\b(product|feature|renter|rental|deposit|checkout|inventory|workflow|voice agent|human in the loop)\b/.test(text)) return "Product";
+  return "Company";
 }
 
 async function googleFetch(url: string, accessToken: string, parentSignal?: AbortSignal): Promise<Response> {

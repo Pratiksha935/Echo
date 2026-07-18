@@ -22,7 +22,7 @@ export type SlackEnvelope = {
   type?: string;
 };
 
-export type SlackMemoryMatch = { department: string; sourceRecordId: string; title: string };
+export type SlackMemoryMatch = { department: string; sourceRecordId?: string; title: string };
 export type SlackBattlecardRequest = {
   messageText?: string;
   responseUrl?: string;
@@ -57,13 +57,23 @@ const SLACK_BACKFILL_BUDGET_MS = 18_000;
 export function isMeaningfulSlackWork(text: string): boolean {
   const clean = text.trim();
   if (clean.length < 20 || CASUAL.test(clean) || CATALOGUE.test(clean)) return false;
-  return Boolean(matchSlackMemory(clean)) || /\b(decid|propos|experiment|feature|campaign|customer|implement|launch|pilot|metric|build|rollback|deposit|portal)\w*\b/i.test(clean);
+  return Boolean(matchSlackMemory(clean)) || /\b(decid|propos|experiment|feature|campaign|customer|implement|launch|pilot|metric|build|rollback|deposit|portal|workflow|handoff|escalat|voice agent|call center|contact center|support|operations|process|automation|human in (?:the )?loop)\w*\b/i.test(clean);
 }
 
 export function matchSlackMemory(text: string): SlackMemoryMatch | null {
   const normalised = text.toLowerCase();
   const ranked = CLUSTERS.map(cluster => ({ cluster, score: cluster.terms.filter(term => normalised.includes(term)).length })).sort((a,b)=>b.score-a.score);
   return ranked[0]?.score >= 2 ? ranked[0].cluster : null;
+}
+
+export function inferSlackMemory(text: string): SlackMemoryMatch | null {
+  const known = matchSlackMemory(text);
+  if (known) return known;
+  if (!isMeaningfulSlackWork(text)) return null;
+  return {
+    department: inferSlackDepartment(text),
+    title: inferSlackTitle(text),
+  };
 }
 
 export async function openSlackBattlecard(input: SlackBattlecardRequest): Promise<{ opened: boolean; reason?: string }> {
@@ -212,7 +222,7 @@ async function syncSlackHistory(connection: SlackBackfillConnection, accessToken
       for (const message of messages) {
         if (Date.now() >= deadline) break;
         if (!message.text || !message.ts || !message.user || message.bot_id || !isMeaningfulSlackWork(message.text)) continue;
-        const match = matchSlackMemory(message.text);
+        const match = inferSlackMemory(message.text);
         if (!match) continue;
         await appendSlackMemory({
           channelId: channel.id,
@@ -348,7 +358,7 @@ async function processSlackEvent(payload: SlackEnvelope): Promise<boolean> {
   }
   const message = event.subtype === "message_changed" ? event.message : event;
   if (!message?.text || !message.ts || !message.user || message.bot_id || !isMeaningfulSlackWork(message.text)) return false;
-  const match = matchSlackMemory(message.text);
+  const match = inferSlackMemory(message.text);
   if (!match) return false;
   await appendSlackMemory({ channelId:event.channel,eventId:payload.event_id ?? randomUUID(),match,teamId:payload.team_id,text:message.text,timestamp:message.ts,userId:message.user });
   return true;
@@ -373,6 +383,7 @@ export async function appendSlackMemory(input: { channelId: string; eventId: str
   const messageId = input.timestamp.replace(".", "");
   const sourceUrl = `https://app.slack.com/client/${encodeURIComponent(input.teamId)}/${encodeURIComponent(input.channelId)}/p${encodeURIComponent(messageId)}`;
   const externalId = `slack:${input.channelId}:${input.timestamp}`;
+  const sourceRecordId = input.match.sourceRecordId ?? externalId;
   await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
     body: JSON.stringify({
       author_name: input.userId, body: input.text, connection_id: connection.id,
@@ -389,9 +400,26 @@ export async function appendSlackMemory(input: { channelId: string; eventId: str
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" }, method: "POST",
   });
   await serviceRest("/memory_updates?on_conflict=organisation_id,origin,external_event_id", {
-    body: JSON.stringify({ current_title:input.match.title,external_event_id:input.eventId,organisation_id:connection.organisation_id,origin:"slack",original_source_url:sourceUrl,source_record_id:input.match.sourceRecordId,update_source_url:sourceUrl,update_text:input.text }),
+    body: JSON.stringify({ current_title:input.match.title,external_event_id:input.eventId,organisation_id:connection.organisation_id,origin:"slack",original_source_url:sourceUrl,source_record_id:sourceRecordId,update_source_url:sourceUrl,update_text:input.text }),
     headers: { Prefer: "resolution=ignore-duplicates,return=minimal" }, method: "POST",
   });
+}
+
+function inferSlackDepartment(text: string): string {
+  const normalised = text.toLowerCase();
+  if (/\b(deploy|developer|code|incident|api|service|platform|harness)\b/.test(normalised)) return "Engineering";
+  if (/\b(campaign|gtm|marketing|launch|activation|growth)\b/.test(normalised)) return "GTM";
+  if (/\b(sales|account|abm|pipeline|call center|contact center|support|customer|proof of value|roi)\b/.test(normalised)) return "Sales";
+  if (/\b(research|competitor|market|article)\b/.test(normalised)) return "Research";
+  return "Product";
+}
+
+function inferSlackTitle(text: string): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  const labelled = cleaned.match(/\b(?:title|proposal|decision|idea|initiative)\s*:\s*([^.!?\n]{8,120})/i)?.[1];
+  const firstSentence = cleaned.match(/^.{20,120}?(?:[.!?]|$)/)?.[0];
+  const title = (labelled || firstSentence || cleaned).replace(/[.!?]+$/, "").trim();
+  return title.length > 90 ? `${title.slice(0, 89).trim()}…` : title;
 }
 
 async function findConnection(teamId: string): Promise<SlackConnection[]> {

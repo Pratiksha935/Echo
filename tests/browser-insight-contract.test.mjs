@@ -107,6 +107,27 @@ test("engineering articles do not cross-domain match product security-deposit re
   assert.equal(match, null);
 });
 
+test("business-equivalent support workflows match across different wording", () => {
+  const match = matchBrowserKnowledge({
+    pageText: "Getting humans in the loop for voice agents: route uncertain conversations to a live specialist, preserve context and record the escalation outcome.",
+    pageTitle: "Getting humans in the loop for voice agents",
+    pageUrl: "https://docs.google.com/document/d/voice-agent-human-loop/edit",
+    records: [{
+      authorName: "Workspace owner",
+      body: "Setting up a call center workflow for AI support: define escalation queues, handoff criteria, live agent ownership and follow-up notes after the customer conversation.",
+      department: "Sales",
+      externalId: "call-center-workflow",
+      source: "Google Docs",
+      sourceUrl: "https://docs.google.com/document/d/call-center-workflow/edit",
+      status: "Indexed",
+      title: "Setting up a call center",
+    }],
+  });
+  assert.ok(match);
+  assert.equal(match.title, "Setting up a call center");
+  assert.match(match.summary, /call center workflow/i);
+});
+
 test("saved browser research alone never becomes a high-confidence prior-work battlecard", () => {
   const match = matchBrowserKnowledge({
     pageText: "To let coding agents work with less supervision, teams need ways to increase confidence in their result. Software engineers have a natural trust barrier with AI-generated code.",

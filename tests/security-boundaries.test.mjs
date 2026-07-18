@@ -89,6 +89,15 @@ test("Google ingestion skips uncredentialed seeds and preserves incremental curs
   assert.match(google, /cursor: delta\.nextCursor/);
 });
 
+test("Google ingestion is not limited to bracket-prefixed demo document names", async () => {
+  const google = await source("lib/integrations/google-sync.ts");
+  assert.match(google, /function isReadableWorkspaceFile/);
+  assert.doesNotMatch(google, /name contains '\['/);
+  assert.match(google, /function inferDepartment/);
+  assert.match(google, /call center/);
+  assert.match(google, /human in the loop/);
+});
+
 test("Slack event ingestion enforces signatures, a five-minute timestamp window, and message permalinks", async () => {
   const [route, ingestion] = await Promise.all([
     source("app/api/slack/events/route.ts"),
@@ -101,6 +110,16 @@ test("Slack event ingestion enforces signatures, a five-minute timestamp window,
   assert.match(route, /timingSafeEqual/);
   assert.match(route, /invalid_request/);
   assert.match(ingestion, /\/p\$\{encodeURIComponent\(messageId\)\}/);
+});
+
+test("Slack event ingestion stores broader work intent beyond hardcoded demo clusters", async () => {
+  const slack = await source("lib/integrations/slack-events.ts");
+  assert.match(slack, /function inferSlackDepartment/);
+  assert.match(slack, /function inferSlackTitle/);
+  assert.match(slack, /inferSlackMemory\(message\.text\)/);
+  assert.match(slack, /voice agent/);
+  assert.match(slack, /call center/);
+  assert.match(slack, /const sourceRecordId = input\.match\.sourceRecordId \?\? externalId/);
 });
 
 test("Slack desktop users get a private native battlecard surface, not public bot noise", async () => {
