@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.4"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.4"/);
+  assert.match(manifest, /"version": "0\.5\.5"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.5"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -252,13 +252,17 @@ test("automatic checks retry after editor load and follow single-page navigation
   assert.match(content, /setTimeout\(checkCurrentPage, 900\)/);
 });
 
-test("Slack web matching reads recent rendered messages instead of the surrounding application chrome", async () => {
+test("Slack web matching reads only the newest visible human message", async () => {
   const content = await source("extension/content.js");
   assert.match(content, /function slackPageText/);
   assert.match(content, /message_content/);
   assert.match(content, /c-message_kit__text/);
-  assert.match(content, /messages\.slice\(-40\)/);
-  assert.match(content, /recentMessages/);
+  assert.match(content, /isSlackMessageCandidate/);
+  assert.match(content, /node\.closest\('\[contenteditable="true"\]/);
+  assert.match(content, /messages\.sort\(\(left, right\) => left\.bottom - right\.bottom\)/);
+  assert.match(content, /const latestMessage = messages\.at\(-1\)\?\.text/);
+  assert.match(content, /Most recent Slack message:/);
+  assert.doesNotMatch(content, /messages\.slice\(-40\)/);
   assert.match(content, /context\.pageText\.slice\(-1200\)/);
 });
 
