@@ -10,7 +10,10 @@ const SLACK_ORG_COOKIE = "found_slack_oauth_org";
 const SLACK_SCOPES = [
   "channels:history",
   "channels:read",
+  "chat:write",
+  "im:write",
   "users:read",
+  "users:read.email",
 ];
 
 export async function GET(request: NextRequest) {

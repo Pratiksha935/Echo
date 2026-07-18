@@ -179,14 +179,17 @@ test("accepts signed public Slack events silently and ignores weak matches", asy
   else process.env.SLACK_SIGNING_SECRET = previousSecret;
 });
 
-test("keeps Slack ingestion public-only, non-posting, source-preserving and deduplicated", async () => {
+test("keeps Slack ingestion public-only and silent while explicit browser shares can post", async () => {
   const [oauth, catalog, events, migration] = await Promise.all([
     readFile(new URL("../app/auth/slack/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/integrations/catalog.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/integrations/slack-events.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/0003_memory_updates.sql", import.meta.url), "utf8"),
   ]);
-  assert.doesNotMatch(oauth + catalog, /chat:write|groups:history|groups:read/);
+  assert.doesNotMatch(oauth + catalog, /groups:history|groups:read/);
+  assert.match(oauth, /chat:write/);
+  assert.match(catalog, /explicitly share a browser link/);
+  assert.match(events, /There are deliberately no call sites from Slack event ingestion/);
   assert.match(events, /workspace_id: input\.teamId/);
   assert.match(events, /channel_id: input\.channelId/);
   assert.match(events, /author_id: input\.userId/);

@@ -7,6 +7,14 @@ type SlackBackfillConnection = SlackConnection & { external_workspace_id: string
 type QueuedEvent = { id: string; attempts: number; external_workspace_id: string; payload: SlackEnvelope };
 type SlackMessage = { bot_id?: string; channel?: string; channel_type?: string; reply_count?: number; subtype?: string; text?: string; thread_ts?: string; ts?: string; type?: string; user?: string };
 type SlackChannel = { id?: string; is_archived?: boolean; is_member?: boolean; name?: string };
+type SlackUser = {
+  deleted?: boolean;
+  id?: string;
+  is_bot?: boolean;
+  name?: string;
+  profile?: { display_name?: string; email?: string; image_48?: string; real_name?: string };
+  real_name?: string;
+};
 export type SlackEnvelope = {
   event?: SlackMessage & { deleted_ts?: string; message?: SlackMessage; previous_message?: SlackMessage };
   event_id?: string;
@@ -21,6 +29,17 @@ export type SlackBattlecardRequest = {
   teamId?: string;
   triggerId?: string;
   userId?: string;
+};
+export type SlackShareTarget = { avatar?: string; displayName: string; email?: string; id: string; name?: string; type: "channel" | "user" };
+export type SlackShareRecipient = { id: string; type: "channel" | "user" };
+export type SlackBrowserShare = {
+  department: string;
+  note?: string;
+  organisationId: string;
+  pageTitle: string;
+  pageUrl: string;
+  recipients: SlackShareRecipient[];
+  senderEmail: string;
 };
 
 const CLUSTERS: Array<SlackMemoryMatch & { terms: string[] }> = [
@@ -63,6 +82,66 @@ export async function openSlackBattlecard(input: SlackBattlecardRequest): Promis
     view: buildBattlecardModal(match, text),
   });
   return { opened: true };
+}
+
+/**
+ * Returns only human users and public channels that the installed app can
+ * actually reach. This is called from an explicitly opened browser share
+ * surface; Slack ingestion never invokes it and never posts messages.
+ */
+export async function listSlackBrowserShareTargets(organisationId: string): Promise<{ channels: SlackShareTarget[]; users: SlackShareTarget[] }> {
+  const connection = (await findOrganisationConnection(organisationId))[0];
+  if (!connection) throw new Error("slack_not_connected");
+  const credential = await loadConnectionCredential(connection.id);
+  const [userPayload, channels] = await Promise.all([
+    slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
+    listShareableChannels(credential.accessToken),
+  ]);
+  const users = (userPayload.members ?? [])
+    .filter(user => user.id && !user.deleted && !user.is_bot && user.id !== "USLACKBOT")
+    .map(user => ({
+      id: user.id!,
+      displayName: user.profile?.display_name || user.profile?.real_name || user.real_name || user.name || "Slack teammate",
+      type: "user" as const,
+      ...(user.profile?.email ? { email: user.profile.email } : {}),
+      ...(user.profile?.image_48 ? { avatar: user.profile.image_48 } : {}),
+    }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return { channels, users };
+}
+
+/**
+ * Shares a browser page only after a user selects recipients in the extension.
+ * There are deliberately no call sites from Slack event ingestion.
+ */
+export async function shareBrowserPageToSlack(input: SlackBrowserShare): Promise<{ sent: number }> {
+  const recipients = dedupeRecipients(input.recipients).slice(0, 20);
+  if (!recipients.length) return { sent: 0 };
+  const connection = (await findOrganisationConnection(input.organisationId))[0];
+  if (!connection) throw new Error("slack_not_connected");
+  const credential = await loadConnectionCredential(connection.id);
+  const [userPayload, channels] = await Promise.all([
+    slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
+    listShareableChannels(credential.accessToken),
+  ]);
+  const validUsers = new Set((userPayload.members ?? []).filter(user => user.id && !user.deleted && !user.is_bot && user.id !== "USLACKBOT").map(user => user.id!));
+  const validChannels = new Set(channels.map(channel => channel.id));
+  const message = buildBrowserShareMessage(input);
+  let sent = 0;
+  for (const recipient of recipients) {
+    if (recipient.type === "user") {
+      if (!validUsers.has(recipient.id)) continue;
+      const opened = await slackApi<{ channel?: { id?: string } }>("conversations.open", credential.accessToken, { users: recipient.id });
+      if (!opened.channel?.id) continue;
+      await slackApi("chat.postMessage", credential.accessToken, { channel: opened.channel.id, text: message, unfurl_links: true, unfurl_media: true });
+      sent += 1;
+      continue;
+    }
+    if (!validChannels.has(recipient.id)) continue;
+    await slackApi("chat.postMessage", credential.accessToken, { channel: recipient.id, text: message, unfurl_links: true, unfurl_media: true });
+    sent += 1;
+  }
+  return { sent };
 }
 
 export async function enqueueSlackEvent(payload: SlackEnvelope): Promise<void> {
@@ -187,6 +266,15 @@ async function listPublicChannels(accessToken: string): Promise<SlackChannel[]> 
   return (payload.channels ?? []).filter(channel => channel.id && channel.is_member && !channel.is_archived).slice(0, 20);
 }
 
+async function listShareableChannels(accessToken: string): Promise<SlackShareTarget[]> {
+  const query = new URLSearchParams({ exclude_archived: "true", limit: "200", types: "public_channel" });
+  const payload = await slackApi<{ channels?: SlackChannel[] }>(`conversations.list?${query}`, accessToken);
+  return (payload.channels ?? [])
+    .filter(channel => channel.id && channel.name && channel.is_member && !channel.is_archived)
+    .map(channel => ({ displayName: `#${channel.name!}`, id: channel.id!, name: channel.name!, type: "channel" as const }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function listChannelHistory(accessToken: string, channelId: string): Promise<SlackMessage[]> {
   const query = new URLSearchParams({ channel: channelId, limit: "100" });
   const payload = await slackApi<{ messages?: SlackMessage[] }>(`conversations.history?${query}`, accessToken);
@@ -303,6 +391,33 @@ export async function appendSlackMemory(input: { channelId: string; eventId: str
 
 async function findConnection(teamId: string): Promise<SlackConnection[]> {
   return serviceRest(`/integration_connections?select=id,organisation_id&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&limit=1`);
+}
+
+async function findOrganisationConnection(organisationId: string): Promise<SlackConnection[]> {
+  return serviceRest(`/integration_connections?select=id,organisation_id&provider=eq.slack&organisation_id=eq.${encodeURIComponent(organisationId)}&status=in.(connected,pending)&order=updated_at.desc&limit=1`);
+}
+
+function dedupeRecipients(recipients: SlackShareRecipient[]): SlackShareRecipient[] {
+  const seen = new Set<string>();
+  return recipients.filter(recipient => {
+    if (!recipient?.id || !["channel", "user"].includes(recipient.type)) return false;
+    const key = `${recipient.type}:${recipient.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildBrowserShareMessage(input: SlackBrowserShare): string {
+  const title = escapeSlackText(input.pageTitle).slice(0, 220);
+  const note = input.note?.trim() ? `\n${escapeSlackText(input.note.trim()).slice(0, 1200)}` : "";
+  const department = escapeSlackText(input.department).slice(0, 40);
+  const sender = escapeSlackText(input.senderEmail).slice(0, 200);
+  return `*${title}*\n${input.pageUrl}${note}\n_Shared from Found by ${sender} · ${department}_`;
+}
+
+function escapeSlackText(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export async function recordSlackSyncFailure(teamId: string): Promise<void> {

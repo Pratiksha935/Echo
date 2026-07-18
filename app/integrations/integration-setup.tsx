@@ -58,7 +58,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       </Step>
 
       <Step id="extension" number="02" title="Install the browser companion" status={extensionInstallUrl ? "CHROME WEB STORE" : "PRIVATE RELEASE"}>
-        {extensionInstallUrl ? <><p>Add Found to Chrome. The extension asks you to sign in or pair with a workspace the first time you use it.</p><a className={styles.action} href={extensionInstallUrl} target="_blank" rel="noreferrer">ADD FOUND TO CHROME ↗</a></> : <><p>Chrome Web Store publishing is still pending. For this private release, download the approved package and load it once in Developer mode.</p><a className={styles.action} href="/found-extension-v0.5.1.zip" download>DOWNLOAD FOUND v0.5.1 ↗</a><ol><li>Extract the downloaded ZIP.</li><li>Open <code>chrome://extensions</code> and remove older Found versions.</li><li>Turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and select the extracted folder.</li><li>Pin <b>Found — Organisational Memory</b>.</li></ol><div className={styles.pending}>Automatic one-click installation and updates begin after Chrome Web Store approval.</div></>}
+        {extensionInstallUrl ? <><p>Add Found to Chrome. The extension asks you to sign in or pair with a workspace the first time you use it.</p><a className={styles.action} href={extensionInstallUrl} target="_blank" rel="noreferrer">ADD FOUND TO CHROME ↗</a></> : <><p>Chrome Web Store publishing is still pending. For this private release, download the approved package and load it once in Developer mode.</p><a className={styles.action} href="/found-extension-v0.5.2.zip" download>DOWNLOAD FOUND v0.5.2 ↗</a><ol><li>Extract the downloaded ZIP.</li><li>Open <code>chrome://extensions</code> and remove older Found versions.</li><li>Turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and select the extracted folder.</li><li>Pin <b>Found — Organisational Memory</b>.</li></ol><div className={styles.pending}>Automatic one-click installation and updates begin after Chrome Web Store approval.</div></>}
       </Step>
 
       <Step id="pair" number="03" title="Pair this browser" status="CONFIRM IN EXTENSION">
@@ -74,8 +74,8 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       </Step>
 
       <Step id="slack" number="05" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
-        <p>Slack opens its own consent screen after Google. Found requests public-channel ingestion access and does not request permission to post messages.</p>
-        <ScopeList values={["Public channels · read", "Public messages · read", "Users · read"]}/>
+        <p>Slack opens its own consent screen after Google. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or joined channels.</p>
+        <ScopeList values={["Public channels · read", "Public messages · read", "Users · read", "Selected links · user-initiated send"]}/>
         {slackApproved ? <Connection connection={slack!}/> : !googleApproved ? <DisabledAction>APPROVE GOOGLE FIRST</DisabledAction> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
