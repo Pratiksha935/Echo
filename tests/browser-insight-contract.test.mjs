@@ -81,7 +81,16 @@ test("Harness Engineering web pages match engineering portal memory, not product
     pageText: "Harness Engineering discusses internal developer portals, service catalog ownership metadata, scorecards, golden paths and platform engineering workflows.",
     pageTitle: "Harness Engineering - Martin Fowler",
     pageUrl: "https://martinfowler.com/articles/harness-engineering.html",
-    records: [...records, engineeringRecord],
+    records: [...records, {
+      authorName: "pratiksha0869@gmail.com",
+      body: "We are taking this up next month. Captured page context: Harness engineering for coding agent users.",
+      department: "Engineering",
+      externalId: "browser:harness-research",
+      source: "Browser",
+      sourceUrl: "https://martinfowler.com/articles/harness-engineering.html",
+      status: "Team submission",
+      title: "Harness engineering for coding agent users",
+    }, engineeringRecord],
   });
   assert.ok(match);
   assert.equal(match.id, "ENG-214");
@@ -94,6 +103,25 @@ test("engineering articles do not cross-domain match product security-deposit re
     pageTitle: "Harness Engineering",
     pageUrl: "https://martinfowler.com/articles/harness-engineering.html",
     records,
+  });
+  assert.equal(match, null);
+});
+
+test("saved browser research alone never becomes a high-confidence prior-work battlecard", () => {
+  const match = matchBrowserKnowledge({
+    pageText: "To let coding agents work with less supervision, teams need ways to increase confidence in their result. Software engineers have a natural trust barrier with AI-generated code.",
+    pageTitle: "Global Workspace",
+    pageUrl: "https://www.anthropic.com/research/global-workspace",
+    records: [{
+      authorName: "pratiksha0869@gmail.com",
+      body: "We are taking this up next month. Captured page context: Harness engineering for coding agent users. To let coding agents work with less supervision, we need ways to increase confidence in their result.",
+      department: "Engineering",
+      externalId: "browser:anthropic-global-workspace",
+      source: "Browser",
+      sourceUrl: "https://www.anthropic.com/research/global-workspace",
+      status: "Team submission",
+      title: "Harness engineering for coding agent users",
+    }],
   });
   assert.equal(match, null);
 });
