@@ -1,7 +1,16 @@
 -- Hermes normalization remains asynchronous so source ingestion never waits on the model.
-create type public.knowledge_normalization_job_status as enum ('queued', 'processing', 'succeeded', 'failed');
+-- Keep this migration rerunnable because the SQL editor may preserve statements
+-- that completed before a later statement failed.
 
-create table public.knowledge_normalization_jobs (
+do $$
+begin
+  create type public.knowledge_normalization_job_status as enum ('queued', 'processing', 'succeeded', 'failed');
+exception
+  when duplicate_object then null;
+end
+$$;
+
+create table if not exists public.knowledge_normalization_jobs (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null references public.organisations(id) on delete cascade,
   knowledge_record_id uuid not null references public.knowledge_records(id) on delete cascade,
@@ -18,7 +27,7 @@ create table public.knowledge_normalization_jobs (
   unique (knowledge_record_id)
 );
 
-create index knowledge_normalization_jobs_queue_idx
+create index if not exists knowledge_normalization_jobs_queue_idx
   on public.knowledge_normalization_jobs (status, available_at, created_at)
   where attempts < 8;
 
@@ -38,13 +47,12 @@ immutable
 strict
 set search_path = public
 as $$
-  select encode(
-    digest(
-      convert_to(
+  select pg_catalog.encode(
+    pg_catalog.sha256(
+      pg_catalog.convert_to(
         p_source || chr(31) || p_title || chr(31) || p_body || chr(31) || extract(epoch from p_source_updated_at)::text,
         'UTF8'
-      ),
-      'sha256'
+      )
     ),
     'hex'
   );
@@ -92,6 +100,7 @@ begin
 end;
 $$;
 
+drop trigger if exists clear_stale_knowledge_normalization_on_source_change on public.knowledge_records;
 create trigger clear_stale_knowledge_normalization_on_source_change
 before update of source, title, body, source_updated_at, metadata on public.knowledge_records
 for each row
@@ -104,10 +113,12 @@ when (
 )
 execute function public.clear_stale_knowledge_normalization();
 
+drop trigger if exists enqueue_knowledge_normalization_on_insert on public.knowledge_records;
 create trigger enqueue_knowledge_normalization_on_insert
 after insert on public.knowledge_records
 for each row execute function public.enqueue_knowledge_normalization();
 
+drop trigger if exists enqueue_knowledge_normalization_on_source_change on public.knowledge_records;
 create trigger enqueue_knowledge_normalization_on_source_change
 after update of source, title, body, source_updated_at, metadata on public.knowledge_records
 for each row

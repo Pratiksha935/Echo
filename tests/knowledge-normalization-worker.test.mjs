@@ -81,7 +81,13 @@ test("normalization uses a durable service-only queue and atomically patches onl
     source("app/api/internal/ingestion/run/route.ts"),
     source("lib/integrations/google-sync.ts"),
   ]);
-  assert.match(migration, /create table public\.knowledge_normalization_jobs/);
+  assert.match(migration, /pg_catalog\.sha256\(/);
+  assert.match(migration, /pg_catalog\.convert_to\(/);
+  assert.doesNotMatch(migration, /\n\s+digest\(/);
+  assert.match(migration, /when duplicate_object then null/);
+  assert.match(migration, /create table if not exists public\.knowledge_normalization_jobs/);
+  assert.match(migration, /create index if not exists knowledge_normalization_jobs_queue_idx/);
+  assert.match(migration, /drop trigger if exists enqueue_knowledge_normalization_on_insert/);
   assert.match(migration, /unique \(knowledge_record_id\)/);
   assert.match(migration, /after insert on public\.knowledge_records/);
   assert.match(migration, /after update of source, title, body, source_updated_at/);
