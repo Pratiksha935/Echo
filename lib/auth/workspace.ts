@@ -23,6 +23,7 @@ export type WorkspaceKnowledgeRecord = {
   body: string;
   department: string | null;
   externalId: string;
+  metadata: Record<string, unknown>;
   source: string;
   sourceUrl: string;
   sourceUpdatedAt: string;
@@ -59,7 +60,7 @@ type KnowledgeRow = {
   source_url: string;
   source_updated_at: string;
   title: string;
-  metadata: { status?: string } | null;
+  metadata: (Record<string, unknown> & { status?: string }) | null;
 };
 type MemoryUpdateRow = {
   actor_user_id: string | null;
@@ -135,6 +136,7 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
     body: row.body,
     department: row.department,
     externalId: row.external_id,
+    metadata: row.metadata ?? {},
     source: row.source,
     sourceUrl: row.source_url,
     sourceUpdatedAt: row.source_updated_at,
@@ -156,6 +158,7 @@ export async function getWorkspaceKnowledgeRecord(organisationId: string, extern
     body: row.body,
     department: row.department,
     externalId: row.external_id,
+    metadata: row.metadata ?? {},
     source: row.source,
     sourceUrl: row.source_url,
     sourceUpdatedAt: row.source_updated_at,

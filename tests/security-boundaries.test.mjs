@@ -195,8 +195,8 @@ test("workspace Ask Found uses indexed memory and stays closed-world", async () 
 test("decision timelines include a private Ask Found entry point", async () => {
   const decision = await source("app/workspace/decision/[recordId]/page.tsx");
   assert.match(decision, /const askFoundHref=`\/workspace\?ask=/);
-  assert.match(decision, /ASK FOUND ABOUT THIS DECISION/);
-  assert.match(decision, /Hermes powers the answer from indexed company memory/);
+  assert.match(decision, /ASK FOUND ABOUT THIS RECORD/);
+  assert.match(decision, /Hermes answers only from indexed company memory/);
   assert.doesNotMatch(decision, /Ask Hermes/);
 });
 
@@ -504,11 +504,12 @@ test("team input remains separate from verified company knowledge", async () => 
     source("lib/workspace/intelligence.ts"),
     source("app/workspace/decision/[recordId]/page.tsx"),
   ]);
-  assert.match(intelligence, /verifiedText: latest\.body/);
+  assert.match(intelligence, /verifiedText: presentation\.summary/);
+  assert.match(intelligence, /presentKnowledgeRecord\(latest\)/);
   assert.match(intelligence, /latestInput: latestUpdate\?\.updateText \?\? null/);
-  assert.match(decisionPage, /VERIFIED DECISION/);
+  assert.match(decisionPage, /decision\.presentation\.eyebrow/);
   assert.match(decisionPage, /LATEST TEAM INPUT/);
-  assert.match(decisionPage, /pending verification|until it is verified/i);
+  assert.match(decisionPage, /separate from user input/i);
 });
 
 test("decision detail pages render exact browser and Slack records instead of falling back to overview", async () => {
@@ -520,12 +521,17 @@ test("decision detail pages render exact browser and Slack records instead of fa
 });
 
 test("decision detail pages summarize captured articles instead of dumping full page text", async () => {
-  const decisionPage = await source("app/workspace/decision/[recordId]/page.tsx");
-  assert.match(decisionPage, /memorySummary\(decision\.verifiedText\)/);
-  assert.match(decisionPage, /memorySummary\(event\.body\)/);
-  assert.match(decisionPage, /Captured page context:/);
-  assert.match(decisionPage, /Captured page:/);
-  assert.match(decisionPage, /compactText\(context,220\)/);
+  const [decisionPage, presentation] = await Promise.all([
+    source("app/workspace/decision/[recordId]/page.tsx"),
+    source("lib/workspace/presentation.ts"),
+  ]);
+  assert.match(decisionPage, /decision\.presentation\.summary/);
+  assert.match(decisionPage, /summarizeKnowledgeText\(event\.body\)/);
+  assert.match(presentation, /Captured page context:/);
+  assert.match(presentation, /Captured page:/);
+  assert.match(presentation, /compactNarrative\(capturedContext/);
+  assert.match(decisionPage, /StructuredEvidence/);
+  assert.match(decisionPage, /SPREADSHEET|presentation\.kind!=="spreadsheet"/);
 });
 
 test("connector readiness requires the complete auth and webhook boundary", async () => {
