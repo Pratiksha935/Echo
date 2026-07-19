@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { after, NextRequest, NextResponse } from "next/server";
-import { enqueueSlackEvent, publishSlackHome, respondToSlackMention, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
+import { enqueueSlackEvent, notifySlackAuthorAboutPriorWork, publishSlackHome, respondToSlackDirectMessage, respondToSlackMention, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
 
 type ChallengeEnvelope = SlackEnvelope & {
   challenge?: string;
@@ -28,10 +28,22 @@ export async function POST(request: NextRequest) {
     after(() => respondToSlackMention({ channelId: event.channel!, teamId: payload.team_id!, text: event.text!, threadTs: event.ts, userId: event.user! }).catch(() => undefined));
     return NextResponse.json({ ok:true });
   }
+  if (event.type === "message" && event.channel_type === "im" && event.channel && event.user && event.text) {
+    after(() => respondToSlackDirectMessage({ channelId: event.channel!, teamId: payload.team_id!, text: event.text!, userId: event.user! }).catch(() => undefined));
+    return NextResponse.json({ ok:true });
+  }
   if (event.type !== "message" || (event.channel_type && event.channel_type !== "channel") || !event.channel || !payload.event_id) {
     return NextResponse.json({ ok:true });
   }
   after(() => enqueueSlackEvent(payload).catch(() => undefined));
+  after(() => notifySlackAuthorAboutPriorWork({
+    channelId: event.channel!,
+    eventId: payload.event_id!,
+    teamId: payload.team_id!,
+    text: event.text,
+    timestamp: event.ts,
+    userId: event.user,
+  }).catch(() => undefined));
   return NextResponse.json({ ok:true });
 }
 
