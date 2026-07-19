@@ -42,14 +42,14 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
 
     <section className={styles.hero}>
       <div><span>GUIDED SETUP · {completedRequired}/4 REQUIRED STEPS COMPLETE</span><h1>Set up Found<br/>for daily work.</h1></div>
-      <p>Install the browser companion, pair it with this workspace, confirm Hermes is configured, then review Google Workspace and Slack separately.</p>
+      <p>Install the browser companion, pair it with this workspace, confirm the Ask Found engine is configured, then review Google Workspace and Slack separately.</p>
     </section>
 
     <nav className={styles.progress} aria-label="Onboarding progress">
       <a href="#account" className={styles.done}>01 <span>Account</span></a>
       <a href="#extension" className={styles.current}>02 <span>Extension</span></a>
       <a href="#pair">03 <span>Pair</span></a>
-      <a href="#hermes" className={hermesReady ? styles.done : ""}>04 <span>Hermes</span></a>
+      <a href="#hermes" className={hermesReady ? styles.done : ""}>04 <span>Ask Found</span></a>
       <a href="#google" className={googleApproved ? styles.done : ""}>05 <span>Google</span></a>
       <a href="#slack" className={slackApproved ? styles.done : ""}>06 <span>Slack</span></a>
       <a href="#dashboard" className={readyForWorkspace ? styles.current : ""}>07 <span>Enter Found</span></a>
@@ -62,7 +62,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       </Step>
 
       <Step id="extension" number="02" title="Install the browser companion" status={extensionInstallUrl ? "CHROME WEB STORE" : "PRIVATE RELEASE"}>
-        {extensionInstallUrl ? <><p>Add Found to Chrome. The extension asks you to sign in or pair with a workspace the first time you use it.</p><a className={styles.action} href={extensionInstallUrl} target="_blank" rel="noreferrer">ADD FOUND TO CHROME ↗</a></> : <><p>Chrome Web Store publishing is still pending. For this private release, download the approved package and load it once in Developer mode.</p><a className={styles.action} href="/found-extension-v0.5.8.zip" download>DOWNLOAD FOUND v0.5.8 ↗</a><ol><li>Extract the downloaded ZIP.</li><li>Open <code>chrome://extensions</code> and remove older Found versions.</li><li>Turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and select the extracted folder.</li><li>Pin <b>Found — Organisational Memory</b>.</li></ol><div className={styles.pending}>Automatic one-click installation and updates begin after Chrome Web Store approval.</div></>}
+        {extensionInstallUrl ? <><p>Add Found to Chrome. The extension asks you to sign in or pair with a workspace the first time you use it.</p><a className={styles.action} href={extensionInstallUrl} target="_blank" rel="noreferrer">ADD FOUND TO CHROME ↗</a></> : <><p>Chrome Web Store publishing is still pending. For this private release, download the approved package and load it once in Developer mode.</p><a className={styles.action} href="/found-extension-v0.5.9.zip" download>DOWNLOAD FOUND v0.5.9 ↗</a><ol><li>Extract the downloaded ZIP.</li><li>Open <code>chrome://extensions</code> and remove older Found versions.</li><li>Turn on <b>Developer mode</b>, choose <b>Load unpacked</b>, and select the extracted folder.</li><li>Pin <b>Found — Organisational Memory</b>.</li></ol><div className={styles.pending}>Automatic one-click installation and updates begin after Chrome Web Store approval.</div></>}
       </Step>
 
       <Step id="pair" number="03" title="Pair this browser" status="CONFIRM IN EXTENSION">
@@ -71,9 +71,9 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
         <div className={styles.pending}>Pairing is confirmed inside the extension; this page never pretends to detect it.</div>
       </Step>
 
-      <Step id="hermes" number="04" title="Hermes decision layer" status={hermesReady ? "CONFIGURED" : "ADMIN SETUP REQUIRED"} complete={hermesReady}>
-        <p>Hermes is the closed-world memory and decision layer. It decides when browser and Slack battlecards should appear, answers Ask Hermes from indexed company memory, and fails closed instead of guessing.</p>
-        <div className={styles.explainer}><b>Required runtime</b><span>HERMES_API_URL and HERMES_API_TOKEN must be set server-side.</span><b>Visible behavior</b><span>{hermesReady ? "Battlecard decisions and Ask Hermes can call the live Hermes service." : "Battlecard decisions and Ask Hermes stay safe but may return no result until configured."}</span></div>
+      <Step id="hermes" number="04" title="Ask Found decision layer" status={hermesReady ? "CONFIGURED" : "ADMIN SETUP REQUIRED"} complete={hermesReady}>
+        <p>Ask Found is the user-facing, closed-world company-memory Q&A surface. Hermes is the underlying engine that decides when browser and Slack battlecards should appear, answers from indexed company memory, and fails closed instead of guessing.</p>
+        <div className={styles.explainer}><b>Required runtime</b><span>HERMES_API_URL and HERMES_API_TOKEN must be set server-side.</span><b>Visible behavior</b><span>{hermesReady ? "Battlecard decisions and Ask Found can call the live Hermes service." : "Battlecard decisions and Ask Found stay safe but may return no result until configured."}</span></div>
         {!hermesReady && <div className={styles.pending}>Set these in Netlify environment variables. Do not expose the token to browser code.</div>}
       </Step>
 

@@ -15,9 +15,9 @@ export type IntegrationDefinition = {
 export const integrationCatalog: IntegrationDefinition[] = [
   {
     provider: "slack", name: "Slack", shortName: "SL", accent: "#d7ff3f", availability: "ready",
-    description: "Public-channel decisions are ingested silently. People can explicitly share a browser link to selected teammates or public channels.",
-    ingests: ["Public messages", "Public threads", "Channels", "Users"], syncMode: "Signed Events API",
-    scopes: ["channels:history", "channels:read", "users:read", "users:read.email", "im:write", "chat:write", "chat:write.public"],
+    description: "Public-channel decisions are ingested silently. Slack web and desktop users get private Ask Found modals, slash-command answers, message-shortcut battlecards, and can explicitly share a browser link to selected teammates or public channels.",
+    ingests: ["Public messages", "Public threads", "App Home", "Message shortcuts", "Users"], syncMode: "Signed Events API + private Interactivity",
+    scopes: ["app_mentions:read", "channels:history", "channels:read", "commands", "users:read", "users:read.email", "im:write", "chat:write", "chat:write.public"],
   },
   {
     provider: "notion", name: "Notion", shortName: "NO", accent: "#f5f2e9", availability: "ready",

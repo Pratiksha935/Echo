@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.8"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.8"/);
+  assert.match(manifest, /"version": "0\.5\.9"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.9"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -357,14 +357,16 @@ test("the extension worker owns the authenticated cross-origin match request", a
   }
 });
 
-test("battlecards can ask Hermes through the authenticated extension worker", async () => {
+test("battlecards can Ask Found through the authenticated extension worker", async () => {
   const [content, background, route, styles] = await Promise.all([
     source("extension/content.js"),
     source("extension/background.js"),
     source("app/api/browser/ask/route.ts"),
     source("extension/content.css"),
   ]);
-  assert.match(content, /ASK HERMES/);
+  assert.match(content, /ASK FOUND/);
+  assert.match(content, /Ask Found is checking indexed source receipts and memory updates/);
+  assert.match(content, /Ask Found could not answer from company memory right now/);
   assert.match(content, /function askHermes/);
   assert.match(content, /type: "found:ask-hermes"/);
   assert.match(content, /recordId: latestMatch\.id/);

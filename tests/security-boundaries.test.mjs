@@ -22,6 +22,18 @@ test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing"
   assert.match(route, /"chat:write.public"/);
 });
 
+test("the production Slack manifest wires web and desktop native surfaces", async () => {
+  const manifest = await source("public/found-slack-app-manifest.yaml");
+  for (const scope of ["app_mentions:read", "channels:history", "channels:read", "chat:write", "commands", "im:write", "users:read", "users:read.email"]) {
+    assert.match(manifest, new RegExp(`- ${scope.replace(".", "\\.")}`));
+  }
+  assert.match(manifest, /callback_id: found_ask/);
+  assert.match(manifest, /callback_id: found_check_prior_work/);
+  assert.match(manifest, /command: \/found/);
+  assert.match(manifest, /bot_events:[\s\S]*- app_home_opened[\s\S]*- app_mention[\s\S]*- message\.channels/);
+  assert.match(manifest, /request_url: https:\/\/sage-profiterole-3b1c22\.netlify\.app\/api\/slack\/interactions/);
+});
+
 test("continuous ingestion is durable, silent, and authenticated", async () => {
   const route = await source("app/api/slack/events/route.ts");
   const worker = await source("app/api/internal/ingestion/run/route.ts");
@@ -70,7 +82,7 @@ test("browser battle cards use authenticated tenant memory", async () => {
   assert.doesNotMatch(extension, /credentials:\s*"include"/);
 });
 
-test("browser Ask Hermes stays tenant-scoped and closed-world", async () => {
+test("browser Ask Found stays tenant-scoped and closed-world", async () => {
   const [askRoute, content, background] = await Promise.all([
     source("app/api/browser/ask/route.ts"),
     source("extension/content.js"),
@@ -85,6 +97,9 @@ test("browser Ask Hermes stays tenant-scoped and closed-world", async () => {
   assert.match(askRoute, /I couldn’t find enough evidence in company knowledge to answer this/);
   assert.doesNotMatch(askRoute, /getFoundUser|integration_secrets|PATCH|PUT|DELETE/);
   assert.match(content, /type: "found:ask-hermes"/);
+  assert.match(content, /Ask Found is checking indexed source receipts and memory updates/);
+  assert.match(content, /Ask Found is temporarily unavailable/);
+  assert.doesNotMatch(content, /Hermes is checking indexed source receipts|Hermes could not answer/);
   assert.doesNotMatch(content, /\/api\/browser\/ask|authorization: `Bearer/);
   assert.match(background, /\/api\/browser\/ask/);
   assert.match(background, /hermes_unavailable/);
@@ -103,7 +118,7 @@ test("browser matching uses Hermes as the final non-exact battlecard decision la
   assert.match(route, /return NextResponse\.json\(\{ match: null, reason: hermesVerdict\.reason \}/);
 });
 
-test("workspace Ask Hermes uses indexed memory and stays closed-world", async () => {
+test("workspace Ask Found uses indexed memory and stays closed-world", async () => {
   const [route, dashboard] = await Promise.all([
     source("app/api/knowledge/query/route.ts"),
     source("app/workspace/workspace-dashboard.tsx"),
@@ -117,8 +132,17 @@ test("workspace Ask Hermes uses indexed memory and stays closed-world", async ()
   assert.match(route, /Do not add external knowledge, generic frameworks, assumptions, or advice/);
   assert.doesNotMatch(route, /internet|web search|fetch\(["']https?:\/\//i);
   assert.match(dashboard, /\/api\/knowledge\/query/);
-  assert.match(dashboard, /ASK HERMES/);
+  assert.match(dashboard, /ASK FOUND/);
   assert.match(dashboard, /Closed-world/);
+  assert.match(dashboard, /Powered by Hermes|POWERED BY HERMES|underlying engine/);
+});
+
+test("decision timelines include a private Ask Found entry point", async () => {
+  const decision = await source("app/workspace/decision/[recordId]/page.tsx");
+  assert.match(decision, /const askFoundHref=`\/workspace\?ask=/);
+  assert.match(decision, /ASK FOUND ABOUT THIS DECISION/);
+  assert.match(decision, /Hermes powers the answer from indexed company memory/);
+  assert.doesNotMatch(decision, /Ask Hermes/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
@@ -191,6 +215,37 @@ test("Slack desktop users get a private native battlecard surface, not public bo
   assert.match(slack, /conversations\.open/);
   assert.match(slack, /chat\.postMessage/);
   assert.match(slack, /There are deliberately no call sites from Slack event ingestion/);
+});
+
+test("Slack native Ask Found is signed, private, and source-grounded", async () => {
+  const [commands, interactions, slack] = await Promise.all([
+    source("app/api/slack/commands/route.ts"),
+    source("app/api/slack/interactions/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  assert.match(commands, /x-slack-request-timestamp/);
+  assert.match(commands, /x-slack-signature/);
+  assert.match(commands, /response_type: "ephemeral"/);
+  assert.match(commands, /after\(\(\) => postSlackAskResponse/);
+  assert.match(commands, /\/found ask/);
+  assert.doesNotMatch(commands, /chat\.postMessage/);
+  assert.match(interactions, /view_submission/);
+  assert.match(interactions, /after\(\(\) => updateSlackAskModalWithAnswer\(\{ question, teamId:/);
+  assert.match(interactions, /response_action: "update"/);
+  assert.doesNotMatch(slack, /hash: input\.hash|\.\.\.\(input\.hash/);
+  assert.match(slack, /answerSlackQuestion/);
+  assert.match(slack, /postSlackAskResponse/);
+  assert.match(slack, /reviewSlackPriorWorkWithHermes/);
+  assert.match(slack, /confidence < 85/);
+  assert.match(slack, /False positives are more damaging than missed weak matches/);
+  assert.match(slack, /queryHermes\(prompt, input\.organisationId\)/);
+  assert.match(slack, /buildSlackAskPrompt/);
+  assert.match(slack, /queryHermes/);
+  assert.match(slack, /I couldn’t find enough evidence in company knowledge to answer this/);
+  assert.match(slack, /Do not add generic advice, outside knowledge, or assumptions/);
+  assert.match(slack, /Found could not answer from company memory right now/);
+  assert.doesNotMatch(slack, /Hermes is temporarily unavailable, so Found is staying silent/);
+  assert.doesNotMatch(slack, /Hermes is checking indexed company evidence/);
 });
 
 test("browser Slack sharing is tenant-authenticated and recipient constrained", async () => {
@@ -309,7 +364,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
   assert.match(onboarding, /this page never pretends to detect it/);
   assert.match(onboarding, /Chrome Web Store publishing is still pending/);
-  assert.match(onboarding, /\/found-extension-v0\.5\.8\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.5\.9\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 

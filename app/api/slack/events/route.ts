@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
-import { enqueueSlackEvent, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
+import { after, NextRequest, NextResponse } from "next/server";
+import { enqueueSlackEvent, publishSlackHome, respondToSlackMention, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
 
 type ChallengeEnvelope = SlackEnvelope & {
   challenge?: string;
@@ -17,14 +17,21 @@ export async function POST(request: NextRequest) {
   if (!payload) return NextResponse.json({ error:"invalid_request" }, { status:400 });
   if (payload.type === "url_verification" && payload.challenge) return NextResponse.json({ challenge:payload.challenge });
   const event = payload.event;
-  if (!event || event.type !== "message" || (event.channel_type && event.channel_type !== "channel") || event.bot_id || !event.channel || !payload.team_id || !payload.event_id) {
+  if (!event || !payload.team_id || event.bot_id) {
     return NextResponse.json({ ok:true });
   }
-  try {
-    await enqueueSlackEvent(payload);
-  } catch {
-    // Slack is a silent ingestion transport. Queue failures stay internal.
+  if (event.type === "app_home_opened" && event.user) {
+    after(() => publishSlackHome({ teamId: payload.team_id!, userId: event.user! }).catch(() => undefined));
+    return NextResponse.json({ ok:true });
   }
+  if (event.type === "app_mention" && event.channel && event.user && event.text) {
+    after(() => respondToSlackMention({ channelId: event.channel!, teamId: payload.team_id!, text: event.text!, threadTs: event.ts, userId: event.user! }).catch(() => undefined));
+    return NextResponse.json({ ok:true });
+  }
+  if (event.type !== "message" || (event.channel_type && event.channel_type !== "channel") || !event.channel || !payload.event_id) {
+    return NextResponse.json({ ok:true });
+  }
+  after(() => enqueueSlackEvent(payload).catch(() => undefined));
   return NextResponse.json({ ok:true });
 }
 

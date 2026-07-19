@@ -1,14 +1,23 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
-import { openSlackBattlecard } from "../../../../lib/integrations/slack-events";
+import { after, NextRequest, NextResponse } from "next/server";
+import { buildSlackAskLoadingModal, openSlackAskModal, openSlackBattlecard, updateSlackAskModalWithAnswer } from "../../../../lib/integrations/slack-events";
 
 type SlackInteractionPayload = {
+  actions?: Array<{ action_id?: string }>;
+  callback_id?: string;
   message?: { text?: string };
   response_url?: string;
   team?: { id?: string };
   trigger_id?: string;
   type?: string;
   user?: { id?: string };
+  view?: {
+    callback_id?: string;
+    hash?: string;
+    id?: string;
+    private_metadata?: string;
+    state?: { values?: Record<string, Record<string, { value?: string }>> };
+  };
 };
 
 export async function POST(request: NextRequest) {
@@ -17,21 +26,44 @@ export async function POST(request: NextRequest) {
   const payload = parseInteraction(raw);
   if (!payload) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
 
+  const submittedView = payload.type === "view_submission" && ["found_slack_battlecard", "found_ask_modal"].includes(payload.view?.callback_id ?? "")
+    ? payload.view
+    : null;
+  if (submittedView) {
+    const question = submittedView.state?.values?.found_ask?.question?.value?.trim() ?? "";
+    if (question.length < 4) {
+      return NextResponse.json({ response_action: "errors", errors: { found_ask: "Ask a question with at least four characters." } });
+    }
+    if (payload.team?.id && submittedView.id) {
+      after(() => updateSlackAskModalWithAnswer({ question, teamId: payload.team!.id!, viewId: submittedView.id! }).catch(() => undefined));
+    }
+    return NextResponse.json({
+      response_action: "update",
+      view: buildSlackAskLoadingModal(question),
+    });
+  }
+
+  if (payload.type === "block_actions" && payload.actions?.some(action => action.action_id === "found_open_ask")) {
+    after(() => openSlackAskModal({ teamId: payload.team?.id, triggerId: payload.trigger_id }).catch(() => undefined));
+    return NextResponse.json({ ok: true });
+  }
+
+  if (payload.type === "shortcut" && payload.callback_id === "found_ask") {
+    after(() => openSlackAskModal({ teamId: payload.team?.id, triggerId: payload.trigger_id }).catch(() => undefined));
+    return NextResponse.json({ ok: true });
+  }
+
   if (!["message_action", "shortcut"].includes(payload.type ?? "")) {
     return NextResponse.json({ ok: true });
   }
 
-  try {
-    await openSlackBattlecard({
+  after(() => openSlackBattlecard({
       messageText: payload.message?.text,
       responseUrl: payload.response_url,
       teamId: payload.team?.id,
       triggerId: payload.trigger_id,
       userId: payload.user?.id,
-    });
-  } catch {
-    // Slack is a product surface. Fail closed and do not expose internals.
-  }
+    }).catch(() => undefined));
 
   return NextResponse.json({ ok: true });
 }

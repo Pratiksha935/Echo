@@ -101,7 +101,8 @@ test("renders integration onboarding for an authenticated user", async () => {
   assert.match(html, /Set up Found/);
   assert.match(html, /Install the browser companion/);
   assert.match(html, /Pair this browser/);
-  assert.match(html, /Hermes decision layer/);
+  assert.match(html, /Ask Found decision layer/);
+  assert.match(html, /Hermes is the underlying engine/);
   assert.match(html, /HERMES_API_URL/);
   assert.match(html, /PRIVATE RELEASE/);
   assert.match(html, /Chrome Web Store publishing is still pending/);
@@ -124,9 +125,19 @@ test("renders the centralized workspace for an authenticated user", async () => 
   assert.match(html, /LATEST ACTIVITY/);
   assert.match(html, /DEPARTMENTS/);
   assert.match(html, /KNOWLEDGE GRAPH/);
-  assert.match(html, /Ask Hermes/);
-  assert.match(html, /Hermes intelligence layer/);
+  assert.match(html, /Ask Found/);
+  assert.match(html, /Ask Found intelligence layer/);
+  assert.match(html, /ASK FOUND · POWERED BY HERMES/);
   assert.doesNotMatch(html, /PRIMARY INTELLIGENCE · BATTLE CARD|OPEN ORIGINAL SOURCE|DEMO MEMORY/);
+});
+
+test("workspace accepts prefilled Ask Found prompts from decision and browser surfaces", async () => {
+  const response = await render("/workspace?ask=What%20did%20we%20decide%20about%20security%20deposits%3F", { "oai-authenticated-user-email": "founder@example.com" });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /What did we decide about security deposits\?/);
+  assert.match(html, /Ask Found about decisions, customers, campaigns, or code/);
+  assert.doesNotMatch(html, /Ask Hermes/);
 });
 
 test("renders the source-preserving memory update review", async () => {
@@ -192,7 +203,9 @@ test("keeps Slack ingestion public-only and silent while explicit browser shares
   ]);
   assert.doesNotMatch(oauth + catalog, /groups:history|groups:read/);
   assert.match(oauth, /chat:write/);
-  assert.match(catalog, /explicitly share a browser link/);
+  assert.match(oauth, /app_mentions:read/);
+  assert.match(oauth, /commands/);
+  assert.match(catalog, /Slack web and desktop users get private Ask Found modals/);
   assert.match(events, /There are deliberately no call sites from Slack event ingestion/);
   assert.match(events, /workspace_id: input\.teamId/);
   assert.match(events, /channel_id: input\.channelId/);
@@ -202,6 +215,45 @@ test("keeps Slack ingestion public-only and silent while explicit browser shares
   assert.match(events, /error_code: "slack_event_ingestion_failed"/);
   assert.match(events, /status: "attention"/);
   assert.match(migration, /unique index memory_updates_external_event_idx/);
+});
+
+test("Slack native endpoints acknowledge before slow DB, Hermes, or Slack API work", async () => {
+  const [eventsRoute, interactionsRoute, commandsRoute, slackNative] = await Promise.all([
+    readFile(new URL("../app/api/slack/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/slack/interactions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/slack/commands/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/integrations/slack-events.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(eventsRoute, /import \{ after, NextRequest, NextResponse \} from "next\/server"/);
+  assert.match(eventsRoute, /after\(\(\) => enqueueSlackEvent\(payload\)\.catch/);
+  assert.match(eventsRoute, /after\(\(\) => publishSlackHome/);
+  assert.match(eventsRoute, /after\(\(\) => respondToSlackMention/);
+  assert.doesNotMatch(eventsRoute, /await enqueueSlackEvent|await publishSlackHome|await respondToSlackMention/);
+
+  assert.match(interactionsRoute, /import \{ after, NextRequest, NextResponse \} from "next\/server"/);
+  assert.match(interactionsRoute, /buildSlackAskLoadingModal/);
+  assert.match(interactionsRoute, /after\(\(\) => updateSlackAskModalWithAnswer\(\{ question, teamId:/);
+  assert.match(interactionsRoute, /after\(\(\) => openSlackAskModal/);
+  assert.match(interactionsRoute, /after\(\(\) => openSlackBattlecard/);
+  assert.doesNotMatch(interactionsRoute, /await (?:answerSlackQuestion|openSlackAskModal|openSlackBattlecard|updateSlackAskModalWithAnswer)/);
+
+  assert.match(commandsRoute, /import \{ after, NextRequest, NextResponse \} from "next\/server"/);
+  assert.match(commandsRoute, /responseUrl/);
+  assert.match(commandsRoute, /after\(\(\) => postSlackAskResponse/);
+  assert.match(commandsRoute, /checking company memory privately/);
+  assert.doesNotMatch(commandsRoute, /await (?:answerSlackQuestion|postSlackAskResponse)/);
+
+  assert.match(slackNative, /action_id: "found_open_ask"/);
+  assert.match(slackNative, /callback_id: "found_ask_modal"/);
+  assert.match(slackNative, /function isExplicitSlackAskFoundQuestion/);
+  assert.match(slackNative, /CASUAL\.test\(clean\) \|\| CATALOGUE\.test\(clean\)/);
+  assert.doesNotMatch(slackNative, /question\.includes\("\\\?"\)/);
+  assert.match(slackNative, /views\.update/);
+  assert.doesNotMatch(slackNative, /hash: input\.hash|\.\.\.\(input\.hash/);
+  assert.match(slackNative, /chat\.postEphemeral/);
+  assert.match(slackNative, /buildSlackBattlecardLoadingModal/);
+  assert.match(slackNative, /buildSlackNoMatchModal/);
+  assert.match(slackNative, /view_id: viewId/);
 });
 
 test("keeps Google Workspace APIs read-only and records visible sync failures", async () => {
