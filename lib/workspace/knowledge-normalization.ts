@@ -17,6 +17,16 @@ export type HermesKnowledgeNormalization = {
   version: string | null;
 };
 
+export type ValidatedHermesKnowledgeNormalization = HermesKnowledgeNormalization & {
+  summary: string;
+  title: string;
+  type: string;
+  version: typeof HERMES_KNOWLEDGE_NORMALIZATION_VERSION;
+};
+
+const NORMALIZATION_KEYS = new Set(["version", "type", "title", "summary", "facts", "entities", "owner", "status", "nextAction"]);
+const NORMALIZATION_TYPES = new Set(["decision", "document", "article", "conversation", "sheet_row", "spreadsheet", "order_record", "source_record"]);
+
 /**
  * Reads the bounded, source-derived presentation contract produced by Hermes at
  * ingestion time. Rendering never calls Hermes and safely falls back when the
@@ -45,6 +55,39 @@ export function readHermesKnowledgeNormalization(metadata?: Record<string, unkno
   return Object.values(result).some(item => Array.isArray(item) ? item.length : item) ? result : null;
 }
 
+export function parseHermesKnowledgeNormalizationResponse(response: string): ValidatedHermesKnowledgeNormalization {
+  if (response.length > 20_000) throw new HermesNormalizationMalformedError();
+  let value: unknown;
+  try {
+    value = JSON.parse(response);
+  } catch {
+    throw new HermesNormalizationMalformedError();
+  }
+  if (!isObject(value) || Object.keys(value).some(key => !NORMALIZATION_KEYS.has(key))) throw new HermesNormalizationMalformedError();
+  if (value.version !== HERMES_KNOWLEDGE_NORMALIZATION_VERSION) throw new HermesNormalizationMalformedError();
+  if (!requiredString(value.type) || !NORMALIZATION_TYPES.has(value.type)) throw new HermesNormalizationMalformedError();
+  if (!requiredString(value.title) || !requiredString(value.summary)) throw new HermesNormalizationMalformedError();
+  if (!Array.isArray(value.facts) || value.facts.length > 12 || !value.facts.every(isStrictFact)) throw new HermesNormalizationMalformedError();
+  if (!Array.isArray(value.entities) || value.entities.length > 12 || !value.entities.every(item => requiredString(item))) throw new HermesNormalizationMalformedError();
+  for (const key of ["owner", "status", "nextAction"] as const) {
+    if (value[key] !== undefined && value[key] !== null && !requiredString(value[key])) throw new HermesNormalizationMalformedError();
+  }
+
+  const normalized = readHermesKnowledgeNormalization({ normalized: value });
+  if (!normalized?.type || !normalized.title || !normalized.summary) throw new HermesNormalizationMalformedError();
+  return {
+    ...normalized,
+    version: HERMES_KNOWLEDGE_NORMALIZATION_VERSION,
+    type: normalized.type,
+    title: normalized.title,
+    summary: normalized.summary,
+  };
+}
+
+export class HermesNormalizationMalformedError extends Error {
+  constructor() { super("Hermes normalization was malformed."); }
+}
+
 function readFacts(value: unknown): HermesKnowledgeFact[] {
   if (isObject(value)) return Object.entries(value).map(([label, fact]) => ({ label: readValue(label), value: readValue(fact) })).filter(validFact);
   if (!Array.isArray(value)) return [];
@@ -58,6 +101,18 @@ function readFacts(value: unknown): HermesKnowledgeFact[] {
 
 function validFact(fact: HermesKnowledgeFact): boolean {
   return Boolean(fact.label && fact.value);
+}
+
+function isStrictFact(value: unknown): boolean {
+  return isObject(value)
+    && Object.keys(value).length === 2
+    && Object.keys(value).every(key => key === "label" || key === "value")
+    && requiredString(value.label)
+    && requiredString(value.value);
+}
+
+function requiredString(value: unknown): value is string {
+  return typeof value === "string" && Boolean(value.replace(/\s+/g, " ").trim());
 }
 
 function readOptional(value: unknown, max: number): string | null {
