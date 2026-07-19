@@ -210,6 +210,48 @@ export async function respondToSlackMention(input: { channelId: string; teamId: 
   });
 }
 
+export async function respondToSlackDirectMessage(input: { channelId: string; teamId: string; text: string; userId: string }): Promise<void> {
+  const question = input.text.replace(/^ask\b[:\s-]*/i, "").trim();
+  if (!isExplicitSlackAskFoundQuestion(question)) return;
+  const connection = (await findConnection(input.teamId))[0];
+  if (!connection) return;
+  const [credential, result] = await Promise.all([
+    loadSlackConnectionCredential(connection.id),
+    answerSlackQuestion({ question, teamId: input.teamId }).catch(() => ({ answer: "Found could not answer from company memory right now.", sources: [] })),
+  ]);
+  await slackApi("chat.postMessage", credential.accessToken, {
+    channel: input.channelId,
+    text: formatSlackAnswerText(result.answer, result.sources),
+    unfurl_links: false,
+    unfurl_media: false,
+  });
+}
+
+export async function notifySlackAuthorAboutPriorWork(input: { channelId?: string; eventId?: string; teamId: string; text?: string; timestamp?: string; userId?: string }): Promise<void> {
+  const text = input.text?.trim() ?? "";
+  if (!input.userId || !isMeaningfulSlackWork(text)) return;
+  const connection = (await findConnection(input.teamId))[0];
+  if (!connection) return;
+  const records = await serviceRest<SlackAskRecord[]>(
+    `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&order=source_updated_at.desc&limit=120`,
+  );
+  const match = await reviewSlackPriorWorkWithHermes({
+    candidates: rankSlackAskRecords(records, text).slice(0, 24),
+    messageText: text,
+    organisationId: connection.organisation_id,
+  });
+  if (!match) return;
+  const credential = await loadSlackConnectionCredential(connection.id);
+  const opened = await slackApi<{ channel?: { id?: string } }>("conversations.open", credential.accessToken, { users: input.userId });
+  if (!opened.channel?.id) return;
+  await slackApi("chat.postMessage", credential.accessToken, {
+    channel: opened.channel.id,
+    text: formatPriorWorkDmText(match, text, input),
+    unfurl_links: false,
+    unfurl_media: false,
+  });
+}
+
 function isExplicitSlackAskFoundQuestion(question: string): boolean {
   const clean = question.trim();
   if (clean.length < 4 || CASUAL.test(clean) || CATALOGUE.test(clean)) return false;
@@ -712,6 +754,25 @@ function formatSlackAnswerText(answer: string, sources: Array<{ title: string; u
   return `*Ask Found*\n${escapeSlackText(answer).slice(0, 2800)}${sourceText}`;
 }
 
+function formatPriorWorkDmText(match: SlackPriorWorkMatch, sourceText: string, event: { channelId?: string; eventId?: string; teamId?: string; timestamp?: string }): string {
+  const record = match.record;
+  const sourceLink = safeSlackSourceUrl(record.source_url);
+  const sourceLine = sourceLink ? `\nSource: <${sourceLink}|${escapeSlackText(record.source)} receipt>` : "";
+  const original = event.channelId && event.teamId && event.timestamp
+    ? `\nOriginal Slack message: <${slackMessageUrl(event.teamId, event.channelId, event.timestamp)}|open message>`
+    : "";
+  return `♻️ *Prior work found* · ${match.confidence}% · ${match.classification.replace("_", " ")}
+
+${escapeSlackText(record.author_name ?? "Company knowledge")} has already explored “${escapeSlackText(record.title)}”.
+Status: ${escapeSlackText(record.metadata?.status ?? "Indexed")}
+
+Why it matches: ${escapeSlackText(match.reason)}
+
+Check whether this was implemented before starting new work.${sourceLine}${original}
+
+_Private to you · Found did not post in the public channel._`;
+}
+
 function escapeSlackText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -765,6 +826,10 @@ function safeSlackSourceUrl(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+function slackMessageUrl(teamId: string, channelId: string, timestamp: string): string {
+  return `https://app.slack.com/client/${encodeURIComponent(teamId)}/${encodeURIComponent(channelId)}/p${encodeURIComponent(timestamp.replace(".", ""))}`;
 }
 
 export async function recordSlackSyncFailure(teamId: string): Promise<void> {

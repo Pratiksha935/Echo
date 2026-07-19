@@ -36,6 +36,7 @@ oauth_config:
       - chat:write
       - chat:write.public
       - commands
+      - im:history
       - im:write
       - users:read
       - users:read.email
@@ -46,6 +47,7 @@ settings:
       - app_home_opened
       - app_mention
       - message.channels
+      - message.im
   interactivity:
     is_enabled: true
     request_url: https://sage-profiterole-3b1c22.netlify.app/api/slack/interactions
