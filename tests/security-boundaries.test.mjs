@@ -193,6 +193,26 @@ test("Slack desktop users get a private native battlecard surface, not public bo
   assert.match(slack, /There are deliberately no call sites from Slack event ingestion/);
 });
 
+test("Slack native Ask Found is signed, private, and source-grounded", async () => {
+  const [commands, interactions, slack] = await Promise.all([
+    source("app/api/slack/commands/route.ts"),
+    source("app/api/slack/interactions/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  assert.match(commands, /x-slack-request-timestamp/);
+  assert.match(commands, /x-slack-signature/);
+  assert.match(commands, /response_type: "ephemeral"/);
+  assert.match(commands, /answerSlackQuestion/);
+  assert.match(commands, /\/found ask/);
+  assert.doesNotMatch(commands, /chat\.postMessage/);
+  assert.match(interactions, /view_submission/);
+  assert.match(interactions, /response_action: "update"/);
+  assert.match(slack, /buildSlackAskPrompt/);
+  assert.match(slack, /queryHermes/);
+  assert.match(slack, /I couldn’t find enough evidence in company knowledge to answer this/);
+  assert.match(slack, /Do not add generic advice, outside knowledge, or assumptions/);
+});
+
 test("browser Slack sharing is tenant-authenticated and recipient constrained", async () => {
   const [targets, share, slack, background] = await Promise.all([
     source("app/api/browser/slack-targets/route.ts"),
@@ -309,7 +329,7 @@ test("onboarding keeps source consent explicit and browser state honest", async 
   assert.match(onboarding, /It does not approve Google Workspace or Slack access/);
   assert.match(onboarding, /this page never pretends to detect it/);
   assert.match(onboarding, /Chrome Web Store publishing is still pending/);
-  assert.match(onboarding, /\/found-extension-v0\.5\.8\.zip/);
+  assert.match(onboarding, /\/found-extension-v0\.5\.9\.zip/);
   assert.match(onboarding, /remove older Found versions/i);
 });
 

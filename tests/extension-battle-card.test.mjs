@@ -106,8 +106,8 @@ test("workspace pairing has a dedicated visible confirmation surface", async () 
   assert.match(popupScript, /Found will show the avatar on open pages and auto-open only strong matches\./);
   assert.match(popup, /id="connect"/);
   assert.match(popup, /Connect or switch workspace/);
-  assert.match(manifest, /"version": "0\.5\.8"/);
-  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.8"/);
+  assert.match(manifest, /"version": "0\.5\.9"/);
+  assert.match(popupScript, /EXTENSION_VERSION = "0\.5\.9"/);
 });
 
 test("Found never matches or renders a battlecard inside its own product", async () => {
@@ -364,7 +364,7 @@ test("battlecards can ask Hermes through the authenticated extension worker", as
     source("app/api/browser/ask/route.ts"),
     source("extension/content.css"),
   ]);
-  assert.match(content, /ASK HERMES/);
+  assert.match(content, /ASK FOUND/);
   assert.match(content, /function askHermes/);
   assert.match(content, /type: "found:ask-hermes"/);
   assert.match(content, /recordId: latestMatch\.id/);

@@ -209,9 +209,9 @@ test("production browser route returns an explicit no-match response", async () 
   assert.deepEqual(await response.json(), { match: null });
 });
 
-test("downloadable v0.5.8 ZIP is byte-aligned with every required production extension file", async () => {
+test("downloadable v0.5.9 ZIP is byte-aligned with every required production extension file", async () => {
   const required = ["manifest.json", "background.js", "content.js", "content.css", "update.css", "popup.html", "popup.js", "popup.css", "README.md"];
-  const archive = new URL("public/found-extension-v0.5.8.zip", root);
+  const archive = new URL("public/found-extension-v0.5.9.zip", root);
   const entries = (await command("unzip", ["-Z1", archive.pathname])).trim().split("\n").sort();
   assert.deepEqual(entries, [...required].sort());
   for (const name of required) {
@@ -223,7 +223,7 @@ test("downloadable v0.5.8 ZIP is byte-aligned with every required production ext
   }
   const manifest = JSON.parse(await command("unzip", ["-p", archive.pathname, "manifest.json"]));
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, "0.5.8");
+  assert.equal(manifest.version, "0.5.9");
   assert.deepEqual(manifest.background, { service_worker: "background.js" });
   assert.deepEqual(manifest.content_scripts[0].js, ["content.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["content.css", "update.css"]);

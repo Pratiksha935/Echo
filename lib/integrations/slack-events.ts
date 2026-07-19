@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { HermesUnavailableError, queryHermes } from "../hermes/client";
 import { loadConnectionCredential } from "./credentials";
 import { serviceRest } from "./service-rest";
 
@@ -41,6 +42,7 @@ export type SlackBrowserShare = {
   recipients: SlackShareRecipient[];
   senderEmail: string;
 };
+export type SlackQuestionAnswer = { answer: string; sources: Array<{ title: string; url: string }> };
 
 const CLUSTERS: Array<SlackMemoryMatch & { terms: string[] }> = [
   { department:"Engineering",sourceRecordId:"ENG-PLAT-014",title:"Developer portal and service maturity scorecards",terms:["developer portal","service catalog","scorecard","backstage","golden path"] },
@@ -92,6 +94,34 @@ export async function openSlackBattlecard(input: SlackBattlecardRequest): Promis
     view: buildBattlecardModal(match, text),
   });
   return { opened: true };
+}
+
+export async function answerSlackQuestion(input: { question: string; teamId?: string }): Promise<SlackQuestionAnswer> {
+  const question = input.question.trim().slice(0, 700);
+  if (!input.teamId || question.length < 4) {
+    return { answer: "Ask Found a company-knowledge question with at least four characters.", sources: [] };
+  }
+  const connection = (await findConnection(input.teamId))[0];
+  if (!connection) {
+    return { answer: "Found is not connected to this Slack workspace yet. Connect Slack from Found integrations first.", sources: [] };
+  }
+  const [records, updates] = await Promise.all([
+    serviceRest<SlackAskRecord[]>(`/knowledge_records?select=source,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&order=source_updated_at.desc&limit=80`),
+    serviceRest<SlackAskUpdate[]>(`/memory_updates?select=current_title,update_text,origin,original_source_url,created_at&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&order=created_at.desc&limit=20`).catch(() => []),
+  ]);
+  const prompt = buildSlackAskPrompt({ question, records: rankSlackAskRecords(records, question).slice(0, 10), updates: updates.slice(0, 8) });
+  try {
+    const answer = await queryHermes(prompt, connection.organisation_id);
+    return {
+      answer,
+      sources: rankSlackAskRecords(records, question).slice(0, 3).map(record => ({ title: record.title, url: record.source_url })),
+    };
+  } catch (error) {
+    if (error instanceof HermesUnavailableError) {
+      return { answer: "Hermes is temporarily unavailable, so Found is staying silent instead of guessing.", sources: [] };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -329,14 +359,36 @@ async function postEphemeralShortcutNotice(responseUrl: string | undefined, text
 function buildBattlecardModal(match: SlackMemoryMatch, sourceText: string) {
   return {
     type: "modal",
+    callback_id: "found_slack_battlecard",
     title: { type: "plain_text", text: "Found" },
     close: { type: "plain_text", text: "Close" },
+    submit: { type: "plain_text", text: "Ask Found" },
+    private_metadata: JSON.stringify({ sourceText: sourceText.slice(0, 900), title: match.title }),
     blocks: [
       { type: "header", text: { type: "plain_text", text: "Prior work found" } },
       { type: "section", text: { type: "mrkdwn", text: `*${match.title}*\nDepartment: ${match.department}\nSource: Slack + workspace memory` } },
       { type: "section", text: { type: "mrkdwn", text: `*Why it matched*\nThis Slack message overlaps with an existing indexed initiative. Review the source receipt before starting duplicate work.` } },
       { type: "section", text: { type: "mrkdwn", text: `*Selected message*\n>${sourceText.slice(0, 900).replace(/\n/g, "\n>")}` } },
+      { type: "input", block_id: "found_ask", optional: false, label: { type: "plain_text", text: "Ask Found" }, element: { type: "plain_text_input", action_id: "question", max_length: 700, placeholder: { type: "plain_text", text: "Ask who owns this, what changed, or what source says…" } } },
       { type: "context", elements: [{ type: "mrkdwn", text: "Private to you · no public channel reply was posted." }] },
+    ],
+  };
+}
+
+export function buildSlackAskAnswerModal(input: { answer: string; question: string; sources: Array<{ title: string; url: string }> }) {
+  const sourceLines = input.sources.length
+    ? input.sources.map(source => `• <${source.url}|${escapeSlackText(source.title).slice(0, 90)}>`).join("\n")
+    : "No source receipts available.";
+  return {
+    type: "modal",
+    title: { type: "plain_text", text: "Found" },
+    close: { type: "plain_text", text: "Close" },
+    blocks: [
+      { type: "header", text: { type: "plain_text", text: "Ask Found" } },
+      { type: "section", text: { type: "mrkdwn", text: `*Question*\n${escapeSlackText(input.question).slice(0, 700)}` } },
+      { type: "section", text: { type: "mrkdwn", text: `*Answer from company memory*\n${escapeSlackText(input.answer).slice(0, 2600)}` } },
+      { type: "section", text: { type: "mrkdwn", text: `*Source receipts*\n${sourceLines}` } },
+      { type: "context", elements: [{ type: "mrkdwn", text: "Private to you · Found answers only from indexed company memory." }] },
     ],
   };
 }
@@ -423,7 +475,7 @@ function inferSlackTitle(text: string): string {
 }
 
 async function findConnection(teamId: string): Promise<SlackConnection[]> {
-  return serviceRest(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&limit=1`);
+  return serviceRest(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&status=in.(connected,pending)&order=updated_at.desc&limit=1`);
 }
 
 async function findOrganisationConnection(organisationId: string): Promise<SlackConnection[]> {
@@ -455,6 +507,48 @@ function buildBrowserShareMessage(input: SlackBrowserShare): string {
 
 function escapeSlackText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+type SlackAskRecord = { author_name: string | null; body: string; department: string | null; metadata: { status?: string } | null; source: string; source_url: string; title: string };
+type SlackAskUpdate = { created_at: string; current_title: string; origin: string; original_source_url: string; update_text: string };
+
+function buildSlackAskPrompt(input: { question: string; records: SlackAskRecord[]; updates: SlackAskUpdate[] }): string {
+  return `You are Hermes, Found's Slack-native company memory layer.
+Answer this Slack user only from the source receipts and append-only memory updates below.
+If evidence is insufficient, reply exactly: I couldn’t find enough evidence in company knowledge to answer this.
+Do not add generic advice, outside knowledge, or assumptions.
+Keep the answer concise and cite source names/links inline.
+
+Question:
+${input.question}
+
+Source receipts:
+${input.records.map((record, index) => `${index + 1}. ${record.source} · ${record.title}
+Owner: ${record.author_name ?? "Owner not indexed"}
+Department: ${record.department ?? "Unknown"}
+Status: ${record.metadata?.status ?? "Indexed"}
+Link: ${record.source_url}
+Evidence: ${record.body.slice(0, 1200)}`).join("\n\n") || "None indexed."}
+
+Memory updates:
+${input.updates.map((update, index) => `${index + 1}. ${update.origin} · ${update.created_at}
+Title: ${update.current_title}
+Link: ${update.original_source_url}
+Update: ${update.update_text.slice(0, 700)}`).join("\n\n") || "None indexed."}`;
+}
+
+function rankSlackAskRecords(records: SlackAskRecord[], question: string): SlackAskRecord[] {
+  const terms = new Set(question.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []);
+  if (!terms.size) return records;
+  return records
+    .map(record => {
+      const haystack = `${record.title} ${record.department ?? ""} ${record.body}`.toLowerCase();
+      let score = 0;
+      for (const term of terms) if (haystack.includes(term)) score += 1;
+      return { record, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(item => item.record);
 }
 
 export async function recordSlackSyncFailure(teamId: string): Promise<void> {

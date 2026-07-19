@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { openSlackBattlecard } from "../../../../lib/integrations/slack-events";
+import { answerSlackQuestion, buildSlackAskAnswerModal, openSlackBattlecard } from "../../../../lib/integrations/slack-events";
 
 type SlackInteractionPayload = {
   message?: { text?: string };
@@ -9,6 +9,11 @@ type SlackInteractionPayload = {
   trigger_id?: string;
   type?: string;
   user?: { id?: string };
+  view?: {
+    callback_id?: string;
+    private_metadata?: string;
+    state?: { values?: Record<string, Record<string, { value?: string }>> };
+  };
 };
 
 export async function POST(request: NextRequest) {
@@ -16,6 +21,18 @@ export async function POST(request: NextRequest) {
   if (!validSlackSignature(request, raw)) return new NextResponse(null, { status: 401 });
   const payload = parseInteraction(raw);
   if (!payload) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+
+  if (payload.type === "view_submission" && payload.view?.callback_id === "found_slack_battlecard") {
+    const question = payload.view.state?.values?.found_ask?.question?.value?.trim() ?? "";
+    if (question.length < 4) {
+      return NextResponse.json({ response_action: "errors", errors: { found_ask: "Ask a question with at least four characters." } });
+    }
+    const result = await answerSlackQuestion({ question, teamId: payload.team?.id }).catch(() => ({ answer: "Hermes is temporarily unavailable, so Found is staying silent instead of guessing.", sources: [] }));
+    return NextResponse.json({
+      response_action: "update",
+      view: buildSlackAskAnswerModal({ answer: result.answer, question, sources: result.sources }),
+    });
+  }
 
   if (!["message_action", "shortcut"].includes(payload.type ?? "")) {
     return NextResponse.json({ ok: true });

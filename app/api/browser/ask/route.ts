@@ -33,27 +33,32 @@ export async function POST(request: NextRequest) {
   const memberships = await serviceRest<Array<{ id: string }>>(`/memberships?select=id&organisation_id=eq.${encodeURIComponent(token.organisationId)}&user_id=eq.${encodeURIComponent(token.userId)}&limit=1`);
   if (!memberships[0]) return NextResponse.json({ error: "workspace_access_revoked" }, { status: 403, headers });
 
-  const body = await request.json().catch(() => null) as { question?: unknown; recordId?: unknown } | null;
+  const body = await request.json().catch(() => null) as { pageText?: unknown; pageTitle?: unknown; pageUrl?: unknown; question?: unknown; recordId?: unknown } | null;
   const recordId = text(body?.recordId, 220);
   const question = text(body?.question, 700);
-  if (!recordId || question.length < 4) return NextResponse.json({ error: "invalid_question" }, { status: 400, headers });
+  const pageTitle = text(body?.pageTitle, 500);
+  const pageText = text(body?.pageText, 3_000);
+  const pageUrl = text(body?.pageUrl, 2_000);
+  if (question.length < 4) return NextResponse.json({ error: "invalid_question" }, { status: 400, headers });
 
-  const primaryRows = await serviceRest<KnowledgeRow[]>(
-    `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&external_id=eq.${encodeURIComponent(recordId)}&limit=1`,
-  );
-  const primary = primaryRows[0];
-  if (!primary) return NextResponse.json({ error: "record_not_found" }, { status: 404, headers });
-
-  const titleKey = normaliseTitle(primary.title);
-  const relatedRows = await serviceRest<KnowledgeRow[]>(
+  const allRows = await serviceRest<KnowledgeRow[]>(
     `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=source_updated_at.desc&limit=100`,
   );
-  const related = uniqueRows([primary, ...relatedRows.filter(row => normaliseTitle(row.title) === titleKey)]).slice(0, 8);
+  const primary = recordId ? allRows.find(row => row.external_id === recordId) : null;
+  const titleKey = primary ? normaliseTitle(primary.title) : "";
+  const related = uniqueRows(
+    primary
+      ? [primary, ...allRows.filter(row => normaliseTitle(row.title) === titleKey)]
+      : rankRowsForPage(allRows, `${pageTitle} ${pageText}`).slice(0, 8),
+  ).slice(0, 8);
+  if (!related.length) return NextResponse.json({ error: "record_not_found" }, { status: 404, headers });
   const updates = await serviceRest<MemoryUpdateRow[]>(
-    `/memory_updates?select=current_title,update_text,origin,original_source_url,created_at&organisation_id=eq.${encodeURIComponent(token.organisationId)}&source_record_id=eq.${encodeURIComponent(recordId)}&order=created_at.desc&limit=6`,
+    recordId
+      ? `/memory_updates?select=current_title,update_text,origin,original_source_url,created_at&organisation_id=eq.${encodeURIComponent(token.organisationId)}&source_record_id=eq.${encodeURIComponent(recordId)}&order=created_at.desc&limit=6`
+      : `/memory_updates?select=current_title,update_text,origin,original_source_url,created_at&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=created_at.desc&limit=6`,
   ).catch(() => []);
 
-  const prompt = buildPrompt({ organisationName: token.organisationName, question, records: related, updates });
+  const prompt = buildPrompt({ organisationName: token.organisationName, pageText, pageTitle, pageUrl, question, records: related, updates });
   try {
     const answer = await queryHermes(prompt, token.organisationId);
     return NextResponse.json({ answer, sources: related.map(toSource) }, { headers });
@@ -63,7 +68,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function buildPrompt(input: { organisationName: string; question: string; records: KnowledgeRow[]; updates: MemoryUpdateRow[] }): string {
+function buildPrompt(input: { organisationName: string; pageText: string; pageTitle: string; pageUrl: string; question: string; records: KnowledgeRow[]; updates: MemoryUpdateRow[] }): string {
   return `You are Hermes, Found's decision and memory layer for ${input.organisationName}.
 Answer the user's battlecard question only from the source receipts and memory updates below.
 If the evidence is insufficient, reply exactly: I couldn’t find enough evidence in company knowledge to answer this.
@@ -72,6 +77,11 @@ Keep the answer concise, useful, and cite source names/links inline.
 
 Question:
 ${input.question}
+
+Current page context:
+Title: ${input.pageTitle || "Not provided"}
+URL: ${input.pageUrl || "Not provided"}
+Excerpt: ${input.pageText ? input.pageText.slice(0, 1500) : "Not provided"}
 
 Source receipts:
 ${input.records.map((record, index) => `${index + 1}. ${record.source} · ${record.title}
@@ -108,6 +118,21 @@ function text(value: unknown, max: number): string {
 
 function normaliseTitle(value: string): string {
   return value.toLowerCase().replace(/^\[[^\]]+\]\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function rankRowsForPage(rows: KnowledgeRow[], pageContext: string): KnowledgeRow[] {
+  const terms = new Set(pageContext.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []);
+  if (!terms.size) return rows.slice(0, 8);
+  return rows
+    .map(row => {
+      const haystack = `${row.title} ${row.department ?? ""} ${row.body}`.toLowerCase();
+      let score = 0;
+      for (const term of terms) if (haystack.includes(term)) score += 1;
+      return { row, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .filter(item => item.score > 0)
+    .map(item => item.row);
 }
 
 function uniqueRows(rows: KnowledgeRow[]): KnowledgeRow[] {
