@@ -12,6 +12,7 @@ export type WorkspaceMembership = {
 
 export type IntegrationConnection = {
   externalWorkspaceName: string | null;
+  grantedScopes: string[];
   lastSyncedAt: string | null;
   provider: string;
   status: "pending" | "connected" | "attention" | "disconnected";
@@ -44,6 +45,7 @@ type MembershipRow = { organisation_id: string; role: FoundRole };
 type OrganisationRow = { id: string; name: string; slug: string };
 type ConnectionRow = {
   external_workspace_name: string | null;
+  granted_scopes: string[] | null;
   last_synced_at: string | null;
   provider: string;
   status: IntegrationConnection["status"];
@@ -106,11 +108,12 @@ export async function listIntegrationConnections(organisationId: string): Promis
   const context = await getSupabaseAuthContext();
   if (!context) return [];
   const rows = await userRest<ConnectionRow[]>(
-    `/integration_connections?select=provider,status,external_workspace_name,last_synced_at&organisation_id=eq.${encodeURIComponent(organisationId)}`,
+    `/integration_connections?select=provider,status,external_workspace_name,granted_scopes,last_synced_at&organisation_id=eq.${encodeURIComponent(organisationId)}`,
     context.accessToken,
   );
   return rows.map(row => ({
     externalWorkspaceName: row.external_workspace_name,
+    grantedScopes: row.granted_scopes ?? [],
     lastSyncedAt: row.last_synced_at,
     provider: row.provider,
     status: row.status,

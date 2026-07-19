@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { IntegrationConnection } from "../../lib/auth/workspace";
 import { integrationCatalog, type IntegrationProvider } from "../../lib/integrations/catalog";
 import type { RuntimeReadiness } from "../../lib/integrations/readiness";
+import { missingSlackScopes } from "../../lib/integrations/slack-scopes";
 import styles from "./onboarding.module.css";
 
 type Props = {
@@ -24,7 +25,7 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
   const google = statusByProvider.get("google");
   const slack = statusByProvider.get("slack");
   const googleApproved = approved(google);
-  const slackApproved = approved(slack);
+  const slackApproved = approved(slack) && missingSlackScopes(slack?.grantedScopes).length === 0;
   const hermesReady = runtimeReadiness.hermes;
   const readyForWorkspace = googleApproved && slackApproved && hermesReady;
   const completedRequired = 1 + Number(hermesReady) + Number(googleApproved) + Number(slackApproved);
@@ -80,13 +81,13 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       <Step id="google" number="05" title="Google Workspace" status={providerStatus(google, configuredProviders.includes("google"))} complete={googleApproved}>
         <p>This is a separate Google Workspace consent for read-only Drive and Docs access. Your Google sign-in alone does not approve indexing.</p>
         <ScopeList values={["Drive files · read only", "Google Docs · read only", "Identity · email"]}/>
-        {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <Link className={styles.action} href="/auth/integrations/google" prefetch={false}>REVIEW GOOGLE WORKSPACE CONSENT ↗</Link> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
+        {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <><ConnectionIssue connection={google}/><Link className={styles.action} href="/auth/integrations/google" prefetch={false}>{google ? "RECONNECT GOOGLE WORKSPACE ↗" : "REVIEW GOOGLE WORKSPACE CONSENT ↗"}</Link></> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
       <Step id="slack" number="06" title="Slack" status={providerStatus(slack, configuredProviders.includes("slack"))} complete={slackApproved}>
         <p>Slack has its own consent screen and can be connected before or after Google Workspace. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or public channels.</p>
         <ScopeList values={["Public channels · read", "Public messages · read", "Users · read", "Selected links · user-initiated send"]}/>
-        {slackApproved ? <Connection connection={slack!}/> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
+        {slackApproved ? <Connection connection={slack!}/> : configuredProviders.includes("slack") ? <><ConnectionIssue connection={slack} missing={missingSlackScopes(slack?.grantedScopes)}/><Link className={styles.action} href="/auth/slack" prefetch={false}>{slack ? "RECONNECT SLACK & APPROVE REQUIRED ACCESS ↗" : "REVIEW SLACK CONSENT ↗"}</Link></> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
       <Step id="dashboard" number="07" title="Enter Found" status={readyForWorkspace ? "READY" : "LOCKED UNTIL RUNTIME AND SOURCE CONSENT"} complete={readyForWorkspace} locked={!readyForWorkspace}>
@@ -112,7 +113,14 @@ function Step({ children, complete = false, id, locked = false, number, status, 
 function ScopeList({ values }: { values: string[] }) { return <ul className={styles.scopes}>{values.map(value => <li key={value}>{value}</li>)}</ul>; }
 function DisabledAction({ children }: { children: React.ReactNode }) { return <button className={styles.action} disabled>{children}</button>; }
 function Connection({ connection }: { connection: IntegrationConnection }) { return <div className={styles.connection}><b>Authorisation saved</b><span>{connection.externalWorkspaceName ?? "Approved source"}</span><small>{connection.lastSyncedAt ? `Indexed ${new Date(connection.lastSyncedAt).toLocaleString()}` : "Indexing has not completed"}</small></div>; }
-function approved(connection?: IntegrationConnection): boolean { return Boolean(connection && connection.status !== "disconnected"); }
+function ConnectionIssue({ connection, missing = [] }: { connection?: IntegrationConnection; missing?: string[] }) {
+  if (!connection) return null;
+  const detail = missing.length
+    ? `Missing Slack permissions: ${missing.join(", ")}. Found cannot send private answers until Slack grants them.`
+    : "This authorisation needs attention. Reconnect the source before relying on indexing or private answers.";
+  return <div className={styles.pending}><b>{connection.externalWorkspaceName ?? "Connected source"}</b><br/>{detail}</div>;
+}
+function approved(connection?: IntegrationConnection): boolean { return connection?.status === "connected"; }
 function providerStatus(connection: IntegrationConnection | undefined, configured: boolean): string {
   if (!connection) return configured ? "READY FOR CONSENT" : "ADMIN SETUP REQUIRED";
   if (connection.status === "disconnected") return "DISCONNECTED";
@@ -122,6 +130,7 @@ function providerStatus(connection: IntegrationConnection | undefined, configure
 function providerName(provider?: string): string { return integrationCatalog.find(item => item.provider === provider)?.name ?? "The source"; }
 function integrationError(code: string): string {
   if (code === "admin_required" || code === "workspace_forbidden") return "Only a workspace owner or admin can connect sources.";
+  if (code === "slack_scope_missing") return "Slack connected, but required read and private-message permissions were not granted. Reconnect Slack and approve every requested permission.";
   if (code.endsWith("_not_configured")) return `${providerName(code.replace("_not_configured", ""))} needs OAuth credentials added by the Found administrator.`;
   if (code === "connection_storage_failed") return "Authorisation completed, but the encrypted connection could not be stored. Nothing was indexed.";
   if (code.includes("authorization_failed") || code === "invalid_integration_callback") return "The provider did not complete authorisation. Please try again.";
@@ -129,5 +138,6 @@ function integrationError(code: string): string {
 }
 function connectionFeedback(provider: string | undefined, connection: IntegrationConnection | undefined): string {
   if (!connection) return `${providerName(provider)} did not return a saved authorisation.`;
+  if (connection.status === "attention") return `${providerName(provider)} needs attention. Reconnect it before testing indexing or private answers.`;
   return connection.lastSyncedAt ? `${providerName(provider)} is authorised and its approved content was indexed.` : `${providerName(provider)} is authorised. Indexing has not completed.`;
 }

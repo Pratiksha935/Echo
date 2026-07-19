@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { HermesUnavailableError, queryHermes } from "../hermes/client";
+import { queryHermes } from "../hermes/client";
 import { loadSlackConnectionCredential } from "./credentials";
+import { selectEvidenceExcerpt } from "./knowledge-evidence.mjs";
 import { serviceRest } from "./service-rest";
 import { CASUAL, CATALOGUE, classifySlackMessageText, isSlackDmKnowledgeQuestion } from "./slack-message-gate.mjs";
 import { parseHermesPriorWorkDecision, parseHermesSlackAnswer } from "./slack-hermes-contract.mjs";
+import { missingSlackScopes, SLACK_PRIVATE_DM_SCOPES } from "./slack-scopes";
 
 type SlackConnection = { granted_scopes?: string[] | null; id: string; organisation_id: string };
 type SlackBackfillConnection = SlackConnection & { external_workspace_id: string };
@@ -67,6 +69,14 @@ const CLUSTERS: Array<SlackMemoryMatch & { terms: string[] }> = [
 
 const SLACK_REQUEST_TIMEOUT_MS = 7_000;
 const SLACK_BACKFILL_BUDGET_MS = 18_000;
+const SLACK_AUTHORIZATION_ERRORS = new Set(["account_inactive", "invalid_auth", "missing_scope", "not_authed", "token_expired", "token_revoked"]);
+
+class SlackApiError extends Error {
+  constructor(readonly code: string) {
+    super(`Slack API request failed: ${code}`);
+    this.name = "SlackApiError";
+  }
+}
 
 export function isMeaningfulSlackWork(text: string): boolean {
   const clean = text.trim();
@@ -158,20 +168,15 @@ ${JSON.stringify({
       evidence: record.body.replace(/\s+/g, " ").trim().slice(0, 850),
     })),
   })}`;
-  try {
-    const response = await queryHermes(prompt, input.organisationId);
-    const decision = parseHermesPriorWorkDecision(response, input.candidates.length) as { candidateIndex: number; classification: SlackPriorWorkMatch["classification"]; confidence: number; reason: string } | null;
-    if (!decision) return null;
-    return {
-      classification: decision.classification,
-      confidence: decision.confidence,
-      reason: decision.reason,
-      record: input.candidates[decision.candidateIndex],
-    };
-  } catch (error) {
-    if (error instanceof HermesUnavailableError || error instanceof SyntaxError) return null;
-    throw error;
-  }
+  const response = await queryHermes(prompt, input.organisationId);
+  const decision = parseHermesPriorWorkDecision(response, input.candidates.length) as { candidateIndex: number; classification: SlackPriorWorkMatch["classification"]; confidence: number; reason: string } | null;
+  if (!decision) return null;
+  return {
+    classification: decision.classification,
+    confidence: decision.confidence,
+    reason: decision.reason,
+    record: input.candidates[decision.candidateIndex],
+  };
 }
 
 export async function openSlackAskModal(input: { initialQuestion?: string; teamId?: string; triggerId?: string }): Promise<{ opened: boolean; reason?: string }> {
@@ -265,7 +270,11 @@ export async function notifySlackAuthorAboutPriorWork(input: { channelId?: strin
   const classification = classifySlackMessage(text);
   if (classification === "CASUAL" || classification === "CATALOGUE_QUERY") return;
   const connection = (await findConnection(input.teamId))[0];
-  if (!connection) return;
+  // Keep the durable event retryable when OAuth is stale or lacks the private
+  // messaging scopes. Marking it succeeded here would permanently lose the DM.
+  if (!connection) throw new Error("slack_workspace_requires_reauthorisation");
+  const missingDmScopes = missingSlackScopes(connection.granted_scopes, SLACK_PRIVATE_DM_SCOPES);
+  if (missingDmScopes.length) throw new Error(`slack_workspace_missing_dm_scopes:${missingDmScopes.join(",")}`);
   const credential = await loadSlackConnectionCredential(connection.id);
   if (!await isEligibleSlackMember(credential.accessToken, input.userId, input.teamId)) return;
   const deliveryId = await claimSlackDmDelivery({
@@ -342,10 +351,14 @@ export async function answerSlackQuestion(input: { context?: string; excludeExte
   if (!connection) {
     return { answer: "Found is not connected to this Slack workspace yet. Connect Slack from Found integrations first.", sources: [] };
   }
-  const [records, updates] = await Promise.all([
+  const [recentRecords, exactIdentifierRecords, updates] = await Promise.all([
     serviceRest<SlackAskRecord[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&visibility=eq.workspace&order=source_updated_at.desc&limit=80`),
+    loadExactIdentifierRecords(connection.organisation_id, question),
     serviceRest<SlackAskUpdate[]>(`/memory_updates?select=current_title,update_text,origin,original_source_url,source_record_id,created_at&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&order=created_at.desc&limit=20`).catch(() => []),
   ]);
+  // Exact structured IDs must not disappear behind the recent-record cap. This
+  // is especially important for operational rows such as RLP-7842.
+  const records = dedupeSlackAskRecords([...exactIdentifierRecords, ...recentRecords]);
   const eligibleRecords = records.filter(record => !input.excludeExternalId || record.external_id !== input.excludeExternalId);
   const rankedRecords = rankSlackAskRecords(eligibleRecords, question).slice(0, 10);
   const visibleExternalIds = new Set(rankedRecords.map(record => record.external_id));
@@ -358,15 +371,8 @@ export async function answerSlackQuestion(input: { context?: string; excludeExte
     ...visibleUpdates.map(update => ({ source_url: update.original_source_url, title: `${update.current_title} · memory update` })),
   ];
   const prompt = buildSlackAskPrompt({ context: input.context?.slice(0, 3_000) ?? "", question, records: rankedRecords, updates: visibleUpdates });
-  try {
-    const response = await queryHermes(prompt, connection.organisation_id);
-    return parseHermesSlackAnswer(response, evidence) as SlackQuestionAnswer;
-  } catch (error) {
-    if (error instanceof HermesUnavailableError || error instanceof SyntaxError) {
-      return { answer: "Found could not answer from company memory right now.", sources: [], verdict: "unavailable" };
-    }
-    throw error;
-  }
+  const response = await queryHermes(prompt, connection.organisation_id);
+  return parseHermesSlackAnswer(response, evidence) as SlackQuestionAnswer;
 }
 
 /**
@@ -463,14 +469,14 @@ export async function processQueuedSlackEvent(externalEventId: string): Promise<
     const result = await processSlackEvent(event.payload);
     await finishEvent(event.id, result ? "succeeded" : "ignored");
     return true;
-  } catch {
+  } catch (error) {
     const availableAt = new Date(Date.now() + Math.min(3_600, 2 ** event.attempts * 30) * 1_000).toISOString();
     await serviceRest(`/ingestion_events?id=eq.${event.id}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ status: "failed", error_code: "slack_event_processing_failed", available_at: availableAt }),
     });
-    await recordSlackSyncFailure(event.external_workspace_id);
+    await recordSlackSyncFailure(event.external_workspace_id, error);
     return false;
   }
 }
@@ -597,7 +603,7 @@ async function slackApi<T>(method: string, accessToken: string, body?: unknown):
     signal: AbortSignal.timeout(SLACK_REQUEST_TIMEOUT_MS),
   });
   const payload = await response.json().catch(() => null) as (T & { error?: string; ok?: boolean }) | null;
-  if (!response.ok || !payload?.ok) throw new Error(payload?.error ?? "Slack API request failed.");
+  if (!response.ok || !payload?.ok) throw new SlackApiError(payload?.error ?? "unknown_error");
   return payload;
 }
 
@@ -769,7 +775,7 @@ async function finishEvent(id: string, status: "succeeded" | "ignored"): Promise
 }
 
 async function deleteSlackMemory(teamId: string, channelId: string, timestamp: string): Promise<void> {
-  const connections = await findConnection(teamId);
+  const connections = await findWorkspaceBinding(teamId);
   const connection = connections[0];
   if (!connection) return;
   const externalId = `slack:${channelId}:${timestamp}`;
@@ -777,7 +783,7 @@ async function deleteSlackMemory(teamId: string, channelId: string, timestamp: s
 }
 
 export async function appendSlackMemory(input: { channelId: string; eventId: string; match: SlackMemoryMatch; teamId: string; text: string; timestamp: string; userId: string }): Promise<void> {
-  const connections = await findConnection(input.teamId);
+  const connections = await findWorkspaceBinding(input.teamId);
   const connection = connections[0];
   if (!connection) return;
   const messageId = input.timestamp.replace(".", "");
@@ -827,8 +833,16 @@ async function findConnection(teamId: string): Promise<SlackConnection[]> {
   return connections.length === 1 ? connections : [];
 }
 
+// A signed Slack event can still be bound to its organisation when outbound
+// OAuth needs repair. This keeps source ingestion working while private replies
+// remain fail-closed behind findConnection() and the explicit scope gate.
+async function findWorkspaceBinding(teamId: string): Promise<SlackConnection[]> {
+  const connections = await serviceRest<SlackConnection[]>(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(teamId)}&status=in.(connected,attention)&order=updated_at.desc&limit=2`);
+  return connections.length === 1 ? connections : [];
+}
+
 async function findOrganisationConnection(organisationId: string): Promise<SlackConnection[]> {
-  return serviceRest(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&organisation_id=eq.${encodeURIComponent(organisationId)}&status=in.(connected,pending)&order=updated_at.desc&limit=1`);
+  return serviceRest(`/integration_connections?select=id,organisation_id,granted_scopes&provider=eq.slack&organisation_id=eq.${encodeURIComponent(organisationId)}&status=eq.connected&order=updated_at.desc&limit=1`);
 }
 
 function hasSlackScope(connection: SlackConnection, scope: string): boolean {
@@ -978,7 +992,7 @@ function buildSlackAskPrompt(input: { context: string; question: string; records
       department: record.department ?? "Unknown",
       status: record.metadata?.status ?? "Indexed",
       link: record.source_url,
-      evidence: record.body.slice(0, 1200),
+      evidence: selectEvidenceExcerpt(record.body, input.question, 1200),
     })),
     ...input.updates.map((update, index) => ({
       id: input.records.length + index + 1,
@@ -1022,6 +1036,29 @@ function rankSlackAskRecords(records: SlackAskRecord[], question: string): Slack
     .map(item => item.record);
 }
 
+function structuredIdentifiers(question: string): string[] {
+  return [...new Set(question.toUpperCase().match(/\b[A-Z]{2,12}-\d{2,16}\b/g) ?? [])].slice(0, 5);
+}
+
+async function loadExactIdentifierRecords(organisationId: string, question: string): Promise<SlackAskRecord[]> {
+  const identifiers = structuredIdentifiers(question);
+  if (!identifiers.length) return [];
+  const results = await Promise.all(identifiers.map(identifier => serviceRest<SlackAskRecord[]>(
+    `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(organisationId)}&visibility=eq.workspace&body=ilike.*${encodeURIComponent(identifier)}*&order=source_updated_at.desc&limit=20`,
+  ).catch(() => [])));
+  return dedupeSlackAskRecords(results.flat());
+}
+
+function dedupeSlackAskRecords(records: SlackAskRecord[]): SlackAskRecord[] {
+  const seen = new Set<string>();
+  return records.filter(record => {
+    const key = `${record.source}:${record.external_id || record.source_url}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function safeSlackSourceUrl(value: string): string | null {
   try {
     const url = new URL(value);
@@ -1035,14 +1072,20 @@ function slackMessageUrl(teamId: string, channelId: string, timestamp: string): 
   return `https://app.slack.com/client/${encodeURIComponent(teamId)}/${encodeURIComponent(channelId)}/p${encodeURIComponent(timestamp.replace(".", ""))}`;
 }
 
-export async function recordSlackSyncFailure(teamId: string): Promise<void> {
+export async function recordSlackSyncFailure(teamId: string, error?: unknown): Promise<void> {
   try {
-    const connection = (await findConnection(teamId))[0];
+    const connection = (await findWorkspaceBinding(teamId))[0];
     if (!connection) return;
     const finishedAt = new Date().toISOString();
-    await Promise.allSettled([
-      serviceRest(`/integration_connections?id=eq.${connection.id}`, { body:JSON.stringify({status: "attention",updated_at:finishedAt}),headers:{Prefer:"return=minimal"},method:"PATCH" }),
-      serviceRest("/integration_sync_runs", { body:JSON.stringify({id:randomUUID(),organisation_id:connection.organisation_id,connection_id:connection.id,status: "failed",records_seen:1,records_written:0,error_code: "slack_event_ingestion_failed",started_at:finishedAt,finished_at:finishedAt}),headers:{Prefer:"return=minimal"},method:"POST" }),
-    ]);
+    const permanentAuthorizationFailure = error instanceof SlackApiError && SLACK_AUTHORIZATION_ERRORS.has(error.code);
+    const writes: Array<Promise<unknown>> = [
+      serviceRest("/integration_sync_runs", { body:JSON.stringify({id:randomUUID(),organisation_id:connection.organisation_id,connection_id:connection.id,status: "failed",records_seen:1,records_written:0,error_code: permanentAuthorizationFailure ? `slack_${error.code}` : "slack_event_processing_failed",started_at:finishedAt,finished_at:finishedAt}),headers:{Prefer:"return=minimal"},method:"POST" }),
+    ];
+    // Transient Hermes, database and rate-limit failures must not disable a
+    // healthy workspace. Only permanent Slack auth/scope errors need repair.
+    if (permanentAuthorizationFailure) {
+      writes.push(serviceRest(`/integration_connections?id=eq.${connection.id}`, { body:JSON.stringify({status: "attention",updated_at:finishedAt}),headers:{Prefer:"return=minimal"},method:"PATCH" }));
+    }
+    await Promise.allSettled(writes);
   } catch { /* Failure reporting must never escape to Slack. */ }
 }

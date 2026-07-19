@@ -6,20 +6,47 @@ const root = new URL("../", import.meta.url);
 const source = path => readFile(new URL(path, root), "utf8");
 
 test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing", async () => {
-  const [route, catalog] = await Promise.all([
+  const [route, scopes, catalog] = await Promise.all([
     source("app/auth/slack/route.ts"),
+    source("lib/integrations/slack-scopes.ts"),
     source("lib/integrations/catalog.ts"),
   ]);
-  for (const text of [route, catalog]) {
+  for (const text of [route, scopes, catalog]) {
     assert.doesNotMatch(text, /groups:(?:history|read)/);
   }
-  assert.match(route, /"channels:history"/);
-  assert.match(route, /"channels:read"/);
-  assert.match(route, /"users:read"/);
-  assert.match(route, /"users:read.email"/);
-  assert.match(route, /"im:write"/);
-  assert.match(route, /"chat:write"/);
-  assert.match(route, /"chat:write.public"/);
+  assert.match(route, /SLACK_REQUIRED_SCOPES/);
+  assert.match(scopes, /"channels:history"/);
+  assert.match(scopes, /"channels:read"/);
+  assert.match(scopes, /"users:read"/);
+  assert.match(scopes, /"users:read.email"/);
+  assert.match(scopes, /"im:write"/);
+  assert.match(scopes, /"chat:write"/);
+  assert.match(scopes, /"chat:write.public"/);
+});
+
+test("Slack signed ingestion remains bound while private delivery fails closed and retries", async () => {
+  const [callback, slack] = await Promise.all([
+    source("app/auth/slack/callback/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  assert.match(callback, /missingSlackScopes/);
+  assert.match(callback, /status: missingScopes\.length \? "attention" : "connected"/);
+  assert.match(slack, /function findWorkspaceBinding/);
+  assert.match(slack, /status=in\.\(connected,attention\)/);
+  assert.match(slack, /appendSlackMemory[\s\S]*findWorkspaceBinding/);
+  assert.match(slack, /missingSlackScopes\(connection\.granted_scopes, SLACK_PRIVATE_DM_SCOPES\)/);
+  assert.match(slack, /slack_workspace_requires_reauthorisation/);
+  assert.match(slack, /status: "failed", error_code: "slack_event_processing_failed"/);
+  assert.doesNotMatch(slack, /HermesUnavailableError \|\| error instanceof SyntaxError\) return null/);
+});
+
+test("Slack Ask Found retrieves exact structured IDs beyond the recent-record window", async () => {
+  const slack = await source("lib/integrations/slack-events.ts");
+  assert.match(slack, /function structuredIdentifiers/);
+  assert.match(slack, /\[A-Z\]\{2,12\}.*\\d\{2,16\}/);
+  assert.match(slack, /loadExactIdentifierRecords\(connection\.organisation_id, question\)/);
+  assert.match(slack, /dedupeSlackAskRecords\(\[\.\.\.exactIdentifierRecords, \.\.\.recentRecords\]\)/);
+  assert.match(slack, /selectEvidenceExcerpt\(record\.body, input\.question, 1200\)/);
 });
 
 test("the production Slack manifest wires web and desktop native surfaces", async () => {
@@ -280,10 +307,11 @@ test("Slack native Ask Found is signed, private, and source-grounded", async () 
 });
 
 test("Slack public work intent DMs only strong Hermes matches and DM follow-ups answer privately", async () => {
-  const [route, slack, oauth, catalog, deliveryMigration] = await Promise.all([
+  const [route, slack, oauth, scopes, catalog, deliveryMigration] = await Promise.all([
     source("app/api/slack/events/route.ts"),
     source("lib/integrations/slack-events.ts"),
     source("app/auth/slack/route.ts"),
+    source("lib/integrations/slack-scopes.ts"),
     source("lib/integrations/catalog.ts"),
     source("supabase/migrations/0005_slack_dm_deliveries.sql"),
   ]);
@@ -321,7 +349,9 @@ test("Slack public work intent DMs only strong Hermes matches and DM follow-ups 
   assert.match(slack, /Untrusted Slack message and indexed evidence \(JSON\)/);
   assert.match(slack, /answerSlackQuestion/);
   assert.match(slack, /chat\.postMessage/);
-  assert.match(oauth, /"im:history"/);
+  assert.match(slack, /throw new Error\("slack_workspace_requires_reauthorisation"\)/);
+  assert.match(oauth, /SLACK_REQUIRED_SCOPES/);
+  assert.match(scopes, /"im:history"/);
   assert.match(catalog, /"im:history"/);
   assert.match(deliveryMigration, /unique \(organisation_id, external_event_id\)/);
   assert.match(deliveryMigration, /claim_slack_dm_delivery/);
