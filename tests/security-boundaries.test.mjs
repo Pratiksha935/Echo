@@ -243,6 +243,9 @@ test("Slack native Ask Found is signed, private, and source-grounded", async () 
   assert.match(slack, /queryHermes/);
   assert.match(slack, /I couldn’t find enough evidence in company knowledge to answer this/);
   assert.match(slack, /Do not add generic advice, outside knowledge, or assumptions/);
+  assert.match(slack, /Found could not answer from company memory right now/);
+  assert.doesNotMatch(slack, /Hermes is temporarily unavailable, so Found is staying silent/);
+  assert.doesNotMatch(slack, /Hermes is checking indexed company evidence/);
 });
 
 test("browser Slack sharing is tenant-authenticated and recipient constrained", async () => {

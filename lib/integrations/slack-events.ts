@@ -256,7 +256,7 @@ export async function answerSlackQuestion(input: { question: string; teamId?: st
     };
   } catch (error) {
     if (error instanceof HermesUnavailableError) {
-      return { answer: "Hermes is temporarily unavailable, so Found is staying silent instead of guessing.", sources: [] };
+      return { answer: "Found could not answer from company memory right now.", sources: [] };
     }
     throw error;
   }
@@ -515,7 +515,7 @@ function buildSlackBattlecardLoadingModal(sourceText: string) {
     blocks: [
       { type: "header", text: { type: "plain_text", text: "Checking prior work" } },
       { type: "section", text: { type: "mrkdwn", text: `*Selected message*\n>${escapeSlackText(sourceText).slice(0, 900).replace(/\n/g, "\n>")}` } },
-      { type: "context", elements: [{ type: "mrkdwn", text: "Private to you · Hermes is checking indexed company evidence." }] },
+      { type: "context", elements: [{ type: "mrkdwn", text: "Private to you · Found is checking indexed company evidence." }] },
     ],
   };
 }
