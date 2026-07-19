@@ -27,13 +27,14 @@ test("the production Slack manifest wires web and desktop native surfaces", asyn
   assert.match(manifest, /name: Found Memory/);
   assert.match(manifest, /display_name: found-memory/);
   assert.match(manifest, /name: Ask company memory/);
-  for (const scope of ["app_mentions:read", "channels:history", "channels:read", "chat:write", "commands", "im:write", "users:read", "users:read.email"]) {
+  for (const scope of ["app_mentions:read", "channels:history", "channels:read", "chat:write", "commands", "im:history", "im:write", "users:read", "users:read.email"]) {
     assert.match(manifest, new RegExp(`- ${scope.replace(".", "\\.")}`));
   }
   assert.match(manifest, /callback_id: found_ask/);
   assert.match(manifest, /callback_id: found_check_prior_work/);
   assert.match(manifest, /command: \/found/);
-  assert.match(manifest, /bot_events:[\s\S]*- app_home_opened[\s\S]*- app_mention[\s\S]*- message\.channels/);
+  assert.match(manifest, /messages_tab_enabled: true/);
+  assert.match(manifest, /bot_events:[\s\S]*- app_home_opened[\s\S]*- app_mention[\s\S]*- message\.channels[\s\S]*- message\.im/);
   assert.match(manifest, /request_url: https:\/\/sage-profiterole-3b1c22\.netlify\.app\/api\/slack\/interactions/);
   assert.match(manifest, /token_rotation_enabled: true/);
 });
@@ -245,10 +246,11 @@ test("Slack desktop users get a private native battlecard surface, not public bo
 });
 
 test("Slack native Ask Found is signed, private, and source-grounded", async () => {
-  const [commands, interactions, slack] = await Promise.all([
+  const [commands, interactions, slack, hermesContract] = await Promise.all([
     source("app/api/slack/commands/route.ts"),
     source("app/api/slack/interactions/route.ts"),
     source("lib/integrations/slack-events.ts"),
+    source("lib/integrations/slack-hermes-contract.mjs"),
   ]);
   assert.match(commands, /x-slack-request-timestamp/);
   assert.match(commands, /x-slack-signature/);
@@ -263,7 +265,9 @@ test("Slack native Ask Found is signed, private, and source-grounded", async () 
   assert.match(slack, /answerSlackQuestion/);
   assert.match(slack, /postSlackAskResponse/);
   assert.match(slack, /reviewSlackPriorWorkWithHermes/);
-  assert.match(slack, /confidence < 85/);
+  assert.match(slack, /parseHermesPriorWorkDecision/);
+  assert.match(hermesContract, /confidence < 85/);
+  assert.match(hermesContract, /\["exact", "same_idea", "conflict"\]/);
   assert.match(slack, /False positives are more damaging than missed weak matches/);
   assert.match(slack, /queryHermes\(prompt, input\.organisationId\)/);
   assert.match(slack, /buildSlackAskPrompt/);
@@ -273,6 +277,57 @@ test("Slack native Ask Found is signed, private, and source-grounded", async () 
   assert.match(slack, /Found could not answer from company memory right now/);
   assert.doesNotMatch(slack, /Hermes is temporarily unavailable, so Found is staying silent/);
   assert.doesNotMatch(slack, /Hermes is checking indexed company evidence/);
+});
+
+test("Slack public work intent DMs only strong Hermes matches and DM follow-ups answer privately", async () => {
+  const [route, slack, oauth, catalog, deliveryMigration] = await Promise.all([
+    source("app/api/slack/events/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+    source("app/auth/slack/route.ts"),
+    source("lib/integrations/catalog.ts"),
+    source("supabase/migrations/0005_slack_dm_deliveries.sql"),
+  ]);
+  assert.match(route, /\["channel", "im"\]\.includes\(event\.channel_type\)/);
+  assert.match(route, /await enqueueSlackEvent\(payload\)/);
+  assert.match(route, /processQueuedSlackEvent\(payload\.event_id!/);
+  assert.match(route, /payload\.is_ext_shared_channel/);
+  assert.match(route, /event\.bot_id \|\| event\.bot_profile \|\| event\.app_id/);
+  assert.doesNotMatch(route, /chat\.postMessage|chat\.postEphemeral/);
+  assert.match(slack, /export async function notifySlackAuthorAboutPriorWork/);
+  assert.match(slack, /classifySlackMessage\(text\)/);
+  assert.match(slack, /reviewSlackPriorWorkWithHermes/);
+  assert.match(slack, /parseHermesPriorWorkDecision/);
+  assert.match(slack, /visibility=eq\.workspace/);
+  assert.match(slack, /record\.external_id !== currentExternalId/);
+  assert.match(slack, /slack_dm_deliveries/);
+  assert.match(slack, /event\.channel_type === "im"/);
+  assert.match(slack, /respondToSlackDirectMessage/);
+  assert.match(slack, /notifySlackAuthorAboutPriorWork/);
+  assert.match(slack, /payload\.is_ext_shared_channel/);
+  assert.match(slack, /memberTeamId === expectedTeamId/);
+  assert.match(slack, /respondToSlackMention/);
+  assert.match(slack, /conversations\.open/);
+  assert.match(slack, /Private to you · Found did not post in the public channel/);
+  assert.match(slack, /export async function respondToSlackDirectMessage/);
+  assert.match(slack, /isSlackDmKnowledgeQuestion\(question\)/);
+  assert.match(slack, /loadSlackDirectMessageContext/);
+  assert.match(slack, /shouldDeliverSlackAnswer/);
+  assert.match(slack, /parseHermesSlackAnswer/);
+  assert.match(slack, /excludeExternalId: currentExternalId/);
+  assert.match(slack, /record\.external_id !== input\.excludeExternalId/);
+  assert.match(slack, /visibleExternalIds\.has\(update\.source_record_id\)/);
+  assert.match(slack, /input\.records\.length \+ index \+ 1/);
+  assert.match(slack, /Untrusted user input and evidence \(JSON\)/);
+  assert.match(slack, /Untrusted Slack message and indexed evidence \(JSON\)/);
+  assert.match(slack, /answerSlackQuestion/);
+  assert.match(slack, /chat\.postMessage/);
+  assert.match(oauth, /"im:history"/);
+  assert.match(catalog, /"im:history"/);
+  assert.match(deliveryMigration, /unique \(organisation_id, external_event_id\)/);
+  assert.match(deliveryMigration, /claim_slack_dm_delivery/);
+  assert.match(deliveryMigration, /claim_slack_ingestion_event/);
+  assert.match(deliveryMigration, /enforce_single_slack_workspace_binding/);
+  assert.doesNotMatch(deliveryMigration, /create policy/);
 });
 
 test("browser Slack sharing is tenant-authenticated and recipient constrained", async () => {
@@ -309,14 +364,18 @@ test("exact Google source lookups are not limited to the recent-memory window", 
 });
 
 test("provider credentials are encrypted server-side before service-role persistence", async () => {
-  const [callback, slackCallback, secrets, store] = await Promise.all([
+  const [callback, slackCallback, secrets, store, deliveryMigration] = await Promise.all([
     source("app/auth/integrations/[provider]/callback/route.ts"),
     source("app/auth/slack/callback/route.ts"),
     source("lib/integrations/secrets.ts"),
     source("lib/integrations/store.ts"),
+    source("supabase/migrations/0005_slack_dm_deliveries.sql"),
   ]);
   assert.match(callback, /encryptIntegrationSecret/);
   assert.match(slackCallback, /encryptIntegrationSecret/);
+  assert.match(slackCallback, /slack_workspace_already_connected/);
+  assert.match(store, /IntegrationWorkspaceConflictError/);
+  assert.match(deliveryMigration, /enforce_single_slack_workspace_binding/);
   assert.match(secrets, /AES-GCM/);
   assert.match(secrets, /key\.byteLength !== 32/);
   assert.match(store, /integration_secrets/);

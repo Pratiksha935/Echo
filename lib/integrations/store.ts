@@ -10,10 +10,24 @@ type ConnectionWrite = {
   status?: "pending" | "connected";
 };
 
+export class IntegrationWorkspaceConflictError extends Error {
+  constructor(provider: string) {
+    super(`${provider} workspace is already connected to another Found organisation.`);
+    this.name = "IntegrationWorkspaceConflictError";
+  }
+}
+
 export async function saveIntegrationConnection(
   input: ConnectionWrite,
   secret: { ciphertext: string; iv: string },
 ): Promise<string> {
+  if (input.provider === "slack") {
+    const conflicts = await serviceRest<Array<{ id: string }>>(
+      `/integration_connections?select=id&provider=eq.slack&external_workspace_id=eq.${encodeURIComponent(input.externalWorkspaceId)}&status=neq.disconnected&organisation_id=neq.${encodeURIComponent(input.organisationId)}&limit=1`,
+      { method: "GET" },
+    );
+    if (conflicts.length) throw new IntegrationWorkspaceConflictError("Slack");
+  }
   const rows = await serviceRest<{ id: string }[]>(
     "/integration_connections?on_conflict=organisation_id,provider,external_workspace_id",
     {
