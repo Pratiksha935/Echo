@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getFoundUser } from "../../../auth";
 import { getFoundWorkspace } from "../../../../lib/auth/workspace";
 import { encryptIntegrationSecret } from "../../../../lib/integrations/secrets";
-import { saveIntegrationConnection } from "../../../../lib/integrations/store";
+import { IntegrationWorkspaceConflictError, saveIntegrationConnection } from "../../../../lib/integrations/store";
 import { publicRequestOrigin } from "../../../../lib/auth/origin";
 
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
@@ -85,7 +85,11 @@ export async function GET(request: NextRequest) {
       grantedScopes: installation.scope?.split(",").filter(Boolean) ?? [],
       status: "connected",
     }, encrypted);
-  } catch {
+  } catch (error) {
+    if (error instanceof IntegrationWorkspaceConflictError) {
+      destination.searchParams.set("error", "slack_workspace_already_connected");
+      return NextResponse.redirect(destination);
+    }
     destination.searchParams.set("error", "connection_storage_failed");
     return NextResponse.redirect(destination);
   }

@@ -1,11 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { after, NextRequest, NextResponse } from "next/server";
-import { enqueueSlackEvent, notifySlackAuthorAboutPriorWork, publishSlackHome, respondToSlackDirectMessage, respondToSlackMention, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
+import { enqueueSlackEvent, processQueuedSlackEvent, publishSlackHome, type SlackEnvelope } from "../../../../lib/integrations/slack-events";
 
 type ChallengeEnvelope = SlackEnvelope & {
   challenge?: string;
-  event?: { bot_id?: string; channel?: string; channel_type?: string; subtype?: string; text?: string; ts?: string; type?: string; user?: string };
+  event?: { app_id?: string; bot_id?: string; bot_profile?: unknown; channel?: string; channel_type?: string; subtype?: string; text?: string; thread_ts?: string; ts?: string; type?: string; user?: string };
   event_id?: string;
+  is_ext_shared_channel?: boolean;
   team_id?: string;
   type?: string;
 };
@@ -17,33 +18,23 @@ export async function POST(request: NextRequest) {
   if (!payload) return NextResponse.json({ error:"invalid_request" }, { status:400 });
   if (payload.type === "url_verification" && payload.challenge) return NextResponse.json({ challenge:payload.challenge });
   const event = payload.event;
-  if (!event || !payload.team_id || event.bot_id) {
+  if (!event || !payload.team_id || event.bot_id || event.bot_profile || event.app_id || payload.is_ext_shared_channel) {
     return NextResponse.json({ ok:true });
   }
   if (event.type === "app_home_opened" && event.user) {
     after(() => publishSlackHome({ teamId: payload.team_id!, userId: event.user! }).catch(() => undefined));
     return NextResponse.json({ ok:true });
   }
-  if (event.type === "app_mention" && event.channel && event.user && event.text) {
-    after(() => respondToSlackMention({ channelId: event.channel!, teamId: payload.team_id!, text: event.text!, threadTs: event.ts, userId: event.user! }).catch(() => undefined));
+  if (event.type === "app_mention" && event.channel && event.user && event.text && payload.event_id) {
+    await enqueueSlackEvent(payload);
+    after(() => processQueuedSlackEvent(payload.event_id!).catch(() => undefined));
     return NextResponse.json({ ok:true });
   }
-  if (event.type === "message" && event.channel_type === "im" && event.channel && event.user && event.text) {
-    after(() => respondToSlackDirectMessage({ channelId: event.channel!, teamId: payload.team_id!, text: event.text!, userId: event.user! }).catch(() => undefined));
+  if (event.type !== "message" || !event.channel || !payload.event_id || (event.channel_type && !["channel", "im"].includes(event.channel_type))) {
     return NextResponse.json({ ok:true });
   }
-  if (event.type !== "message" || (event.channel_type && event.channel_type !== "channel") || !event.channel || !payload.event_id) {
-    return NextResponse.json({ ok:true });
-  }
-  after(() => enqueueSlackEvent(payload).catch(() => undefined));
-  after(() => notifySlackAuthorAboutPriorWork({
-    channelId: event.channel!,
-    eventId: payload.event_id!,
-    teamId: payload.team_id!,
-    text: event.text,
-    timestamp: event.ts,
-    userId: event.user,
-  }).catch(() => undefined));
+  await enqueueSlackEvent(payload);
+  after(() => processQueuedSlackEvent(payload.event_id!).catch(() => undefined));
   return NextResponse.json({ ok:true });
 }
 

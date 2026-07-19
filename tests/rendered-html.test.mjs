@@ -170,7 +170,19 @@ test("rejects unsigned Slack event delivery", async () => {
 
 test("accepts signed public Slack events silently and ignores weak matches", async () => {
   const previousSecret = process.env.SLACK_SIGNING_SECRET;
+  const previousSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const previousServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalFetch = globalThis.fetch;
   process.env.SLACK_SIGNING_SECRET = "test-slack-signing-secret";
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+  globalThis.fetch = async input => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.startsWith("https://supabase.test/rest/v1/ingestion_events")) return new Response(null, { status: 204 });
+    return originalFetch(input);
+  };
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-signed-slack`);
   const { default: worker } = await import(workerUrl.href);
@@ -190,8 +202,15 @@ test("accepts signed public Slack events silently and ignores weak matches", asy
   );
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true });
+  globalThis.fetch = originalFetch;
   if (previousSecret === undefined) delete process.env.SLACK_SIGNING_SECRET;
   else process.env.SLACK_SIGNING_SECRET = previousSecret;
+  if (previousSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  else process.env.NEXT_PUBLIC_SUPABASE_URL = previousSupabaseUrl;
+  if (previousSupabaseKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = previousSupabaseKey;
+  if (previousServiceKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  else process.env.SUPABASE_SERVICE_ROLE_KEY = previousServiceKey;
 });
 
 test("keeps Slack ingestion public-only and silent while explicit browser shares can post", async () => {
@@ -217,7 +236,7 @@ test("keeps Slack ingestion public-only and silent while explicit browser shares
   assert.match(migration, /unique index memory_updates_external_event_idx/);
 });
 
-test("Slack native endpoints acknowledge before slow DB, Hermes, or Slack API work", async () => {
+test("Slack message events are durably queued before acknowledgement and slow work is deferred", async () => {
   const [eventsRoute, interactionsRoute, commandsRoute, slackNative] = await Promise.all([
     readFile(new URL("../app/api/slack/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/slack/interactions/route.ts", import.meta.url), "utf8"),
@@ -225,10 +244,12 @@ test("Slack native endpoints acknowledge before slow DB, Hermes, or Slack API wo
     readFile(new URL("../lib/integrations/slack-events.ts", import.meta.url), "utf8"),
   ]);
   assert.match(eventsRoute, /import \{ after, NextRequest, NextResponse \} from "next\/server"/);
-  assert.match(eventsRoute, /after\(\(\) => enqueueSlackEvent\(payload\)\.catch/);
+  assert.match(eventsRoute, /await enqueueSlackEvent\(payload\)/);
+  assert.match(eventsRoute, /after\(\(\) => processQueuedSlackEvent\(payload\.event_id!/);
   assert.match(eventsRoute, /after\(\(\) => publishSlackHome/);
-  assert.match(eventsRoute, /after\(\(\) => respondToSlackMention/);
-  assert.doesNotMatch(eventsRoute, /await enqueueSlackEvent|await publishSlackHome|await respondToSlackMention/);
+  assert.match(slackNative, /event\.type === "app_mention"/);
+  assert.doesNotMatch(eventsRoute, /after\(\(\) => respondToSlackMention/);
+  assert.doesNotMatch(eventsRoute, /await (?:publishSlackHome|respondToSlackMention|notifySlackAuthorAboutPriorWork|respondToSlackDirectMessage)/);
 
   assert.match(interactionsRoute, /import \{ after, NextRequest, NextResponse \} from "next\/server"/);
   assert.match(interactionsRoute, /buildSlackAskLoadingModal/);
