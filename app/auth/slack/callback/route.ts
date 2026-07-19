@@ -12,9 +12,12 @@ const SLACK_ORG_COOKIE = "found_slack_oauth_org";
 type SlackOAuthResponse = {
   access_token?: string;
   error?: string;
+  expires_in?: number;
   ok: boolean;
+  refresh_token?: string;
   scope?: string;
   team?: { id?: string; name?: string };
+  token_type?: string;
 };
 
 export async function GET(request: NextRequest) {
@@ -66,7 +69,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const encrypted = await encryptIntegrationSecret(installation.access_token);
+    const encrypted = await encryptIntegrationSecret(JSON.stringify({
+      accessToken: installation.access_token,
+      expiresAt: installation.expires_in
+        ? new Date(Date.now() + installation.expires_in * 1000).toISOString()
+        : undefined,
+      refreshToken: installation.refresh_token,
+      tokenType: installation.token_type,
+    }));
     await saveIntegrationConnection({
       organisationId,
       provider: "slack",

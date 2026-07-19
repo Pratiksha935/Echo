@@ -1,17 +1,17 @@
 display_information:
-  name: Found
+  name: Found Memory
   description: Private, source-grounded company memory across Slack web and desktop.
   background_color: "#0b2345"
 features:
   app_home:
     home_tab_enabled: true
     messages_tab_enabled: false
-    messages_tab_read_only_enabled: true
+    messages_tab_read_only_enabled: false
   bot_user:
-    display_name: Found
+    display_name: found-memory
     always_online: false
   shortcuts:
-    - name: Ask Found
+    - name: Ask company memory
       callback_id: found_ask
       description: Ask a private question from indexed company memory.
       type: global
@@ -51,4 +51,4 @@ settings:
     request_url: https://sage-profiterole-3b1c22.netlify.app/api/slack/interactions
   org_deploy_enabled: false
   socket_mode_enabled: false
-  token_rotation_enabled: false
+  token_rotation_enabled: true
