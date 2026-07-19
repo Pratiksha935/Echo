@@ -5,6 +5,7 @@ import { getFoundWorkspace } from "../../../../lib/auth/workspace";
 import { encryptIntegrationSecret } from "../../../../lib/integrations/secrets";
 import { IntegrationWorkspaceConflictError, saveIntegrationConnection } from "../../../../lib/integrations/store";
 import { publicRequestOrigin } from "../../../../lib/auth/origin";
+import { missingSlackScopes } from "../../../../lib/integrations/slack-scopes";
 
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
 const SLACK_ORG_COOKIE = "found_slack_oauth_org";
@@ -68,6 +69,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(destination);
   }
 
+  const grantedScopes = installation.scope?.split(",").filter(Boolean) ?? [];
+  const missingScopes = missingSlackScopes(grantedScopes);
+
   try {
     const encrypted = await encryptIntegrationSecret(JSON.stringify({
       accessToken: installation.access_token,
@@ -82,8 +86,8 @@ export async function GET(request: NextRequest) {
       provider: "slack",
       externalWorkspaceId: installation.team.id,
       externalWorkspaceName: installation.team.name ?? installation.team.id,
-      grantedScopes: installation.scope?.split(",").filter(Boolean) ?? [],
-      status: "connected",
+      grantedScopes,
+      status: missingScopes.length ? "attention" : "connected",
     }, encrypted);
   } catch (error) {
     if (error instanceof IntegrationWorkspaceConflictError) {
@@ -94,7 +98,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(destination);
   }
 
-  destination.searchParams.set("connected", "slack");
+  if (missingScopes.length) destination.searchParams.set("error", "slack_scope_missing");
+  else destination.searchParams.set("connected", "slack");
   return NextResponse.redirect(destination);
 }
 

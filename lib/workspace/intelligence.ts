@@ -1,4 +1,6 @@
 import type { MemoryUpdate, WorkspaceKnowledgeRecord } from "../auth/workspace";
+import { readHermesKnowledgeNormalization } from "./knowledge-normalization";
+import { presentKnowledgeRecord, type KnowledgePresentation } from "./presentation";
 
 export const departments = ["Product", "GTM", "Sales", "Engineering", "Research", "Browser"] as const;
 export type Department = typeof departments[number];
@@ -18,6 +20,7 @@ export type DecisionMemory = {
   latestText: string;
   latestInput: string | null;
   owner: string;
+  presentation: KnowledgePresentation;
   sources: DecisionSource[];
   status: string;
   title: string;
@@ -28,30 +31,40 @@ export type DecisionMemory = {
 export function buildDecisionMemory(records: WorkspaceKnowledgeRecord[], updates: MemoryUpdate[]): DecisionMemory[] {
   const grouped = new Map<string, WorkspaceKnowledgeRecord[]>();
   for (const record of records) {
-    const key = normaliseTitle(record.title);
+    const normalizedType = readHermesKnowledgeNormalization(record.metadata)?.type;
+    const recordType = String(record.metadata?.record_kind ?? record.metadata?.recordKind ?? record.metadata?.record_type ?? record.metadata?.recordType ?? normalizedType ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+    const key = recordType === "sheet_row" ? `sheet-row:${record.externalId}` : normaliseTitle(record.title);
     grouped.set(key, [...(grouped.get(key) ?? []), record]);
   }
   return [...grouped.values()].map(group => {
     const ordered = [...group].sort((a,b) => time(b.sourceUpdatedAt) - time(a.sourceUpdatedAt));
     const latest = ordered[0];
+    const presentation = presentKnowledgeRecord(latest);
+    const normalized = readHermesKnowledgeNormalization(latest.metadata);
     const relatedUpdates = updates.filter(update => normaliseTitle(update.currentTitle) === normaliseTitle(latest.title) || ordered.some(record => record.externalId === update.sourceRecordId))
       .sort((a,b) => time(b.createdAt) - time(a.createdAt));
     const latestUpdate = relatedUpdates[0];
-    const sources = uniqueSources(ordered.map(record => ({ externalId:record.externalId,kind:record.source,recordedAt:record.sourceUpdatedAt,summary:record.body,url:record.sourceUrl })));
+    const sources = uniqueSources(ordered.map(record => ({ externalId:record.externalId,kind:record.source,recordedAt:record.sourceUpdatedAt,summary:presentKnowledgeRecord(record).summary,url:record.sourceUrl })));
     return {
       department: classifyDepartment(latest.department, `${latest.title} ${latest.body} ${latest.source}`),
       id: latest.externalId,
       latestAt: latestUpdate?.createdAt ?? latest.sourceUpdatedAt,
-      latestText: latestUpdate?.updateText ?? latest.body,
+      latestText: latestUpdate?.updateText ?? presentation.summary,
       latestInput: latestUpdate?.updateText ?? null,
-      owner: latest.authorName ?? "Owner not indexed",
+      owner: normalized?.owner ?? readableMetadata(latest.metadata.owner) ?? latest.authorName ?? "Owner not indexed",
+      presentation,
       sources,
-      status: latestUpdate ? "Team input added" : latest.status,
-      title: latest.title,
+      status: latestUpdate ? "Team input added" : normalized?.status ?? latest.status,
+      title: presentation.title,
       updates: relatedUpdates,
-      verifiedText: latest.body,
+      verifiedText: presentation.summary,
     };
   }).sort((a,b) => time(b.latestAt) - time(a.latestAt));
+}
+
+function readableMetadata(value: unknown): string | null {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value).trim() || null;
+  return null;
 }
 
 export function classifyDepartment(value: string | null, evidence = ""): Department {

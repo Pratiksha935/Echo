@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFoundUser } from "../../../auth";
 import { HermesUnavailableError, queryHermes } from "../../../../lib/hermes/client";
-import { getFoundWorkspace, listMemoryUpdates, listWorkspaceKnowledgeRecords } from "../../../../lib/auth/workspace";
+import { findWorkspaceGoogleSheetRows, getFoundWorkspace, listMemoryUpdates, listWorkspaceKnowledgeRecords } from "../../../../lib/auth/workspace";
+import { extractStructuredIdentifiers } from "../../../../lib/integrations/google-sheet-records";
 
 export async function POST(request: NextRequest) {
   const user = await getFoundUser();
@@ -14,10 +15,12 @@ export async function POST(request: NextRequest) {
 
   const workspace = await getFoundWorkspace(requestedOrganisationId);
   if (!workspace) return NextResponse.json({ error: "workspace_forbidden" }, { status: 403 });
-  const [records, updates] = await Promise.all([
+  const [structuredRows, recentRecords, updates] = await Promise.all([
+    findWorkspaceGoogleSheetRows(workspace.organisationId, extractStructuredIdentifiers(message)),
     listWorkspaceKnowledgeRecords(workspace.organisationId, 80),
     listMemoryUpdates(workspace.organisationId),
   ]);
+  const records = uniqueKnowledgeRecords([...structuredRows, ...recentRecords]);
   const evidencePrompt = buildKnowledgePrompt({
     message,
     organisationName: workspace.organisationName,
@@ -66,4 +69,14 @@ Update: ${compact(update.updateText, 700)}`).join("\n\n") || "None indexed."}`;
 
 function compact(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function uniqueKnowledgeRecords<T extends { externalId: string; source: string }>(records: T[]): T[] {
+  const seen = new Set<string>();
+  return records.filter(record => {
+    const key = `${record.source}:${record.externalId}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

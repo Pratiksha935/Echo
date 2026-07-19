@@ -112,7 +112,11 @@ test("onboarding status is derived from persisted live connections and never inv
   assert.match(setup, /new Map\(connections\.map\(item => \[item\.provider, item\]\)\)/);
   assert.match(setup, /AUTHORISED · INDEXING PENDING/);
   assert.match(setup, /Indexing has not completed/);
-  assert.match(workspaceStore, /\/integration_connections\?select=provider,status,external_workspace_name,last_synced_at&organisation_id=eq\./);
+  assert.match(workspaceStore, /\/integration_connections\?select=provider,status,external_workspace_name,granted_scopes,last_synced_at&organisation_id=eq\./);
+  assert.match(setup, /connection\?\.status === "connected"/);
+  assert.match(setup, /RECONNECT SLACK & APPROVE REQUIRED ACCESS/);
+  assert.match(setup, /Missing required permissions/);
+  assert.match(setup, /missingSlackScopes\(slack\?\.grantedScopes\)/);
   assert.doesNotMatch(page + setup + workspaceStore, /seedDemoWorkspace|notion-rental-kb|slack-reloop-seed/);
   assert.doesNotMatch(authCallback, /seedDemoWorkspace|DEMO_ACCESS_EMAIL|DEMO_ACCESS_CODE/);
 });

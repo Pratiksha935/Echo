@@ -12,6 +12,7 @@ export type WorkspaceMembership = {
 
 export type IntegrationConnection = {
   externalWorkspaceName: string | null;
+  grantedScopes: string[];
   lastSyncedAt: string | null;
   provider: string;
   status: "pending" | "connected" | "attention" | "disconnected";
@@ -22,6 +23,7 @@ export type WorkspaceKnowledgeRecord = {
   body: string;
   department: string | null;
   externalId: string;
+  metadata: Record<string, unknown>;
   source: string;
   sourceUrl: string;
   sourceUpdatedAt: string;
@@ -44,9 +46,16 @@ type MembershipRow = { organisation_id: string; role: FoundRole };
 type OrganisationRow = { id: string; name: string; slug: string };
 type ConnectionRow = {
   external_workspace_name: string | null;
+  granted_scopes: string[] | null;
   last_synced_at: string | null;
   provider: string;
   status: IntegrationConnection["status"];
+};
+type KnowledgeMetadata = Record<string, unknown> & {
+  record_kind?: string;
+  row_number?: number;
+  sheet_title?: string;
+  status?: string;
 };
 type KnowledgeRow = {
   author_name: string | null;
@@ -57,7 +66,7 @@ type KnowledgeRow = {
   source_url: string;
   source_updated_at: string;
   title: string;
-  metadata: { status?: string } | null;
+  metadata: KnowledgeMetadata | null;
 };
 type MemoryUpdateRow = {
   actor_user_id: string | null;
@@ -106,11 +115,12 @@ export async function listIntegrationConnections(organisationId: string): Promis
   const context = await getSupabaseAuthContext();
   if (!context) return [];
   const rows = await userRest<ConnectionRow[]>(
-    `/integration_connections?select=provider,status,external_workspace_name,last_synced_at&organisation_id=eq.${encodeURIComponent(organisationId)}`,
+    `/integration_connections?select=provider,status,external_workspace_name,granted_scopes,last_synced_at&organisation_id=eq.${encodeURIComponent(organisationId)}`,
     context.accessToken,
   );
   return rows.map(row => ({
     externalWorkspaceName: row.external_workspace_name,
+    grantedScopes: row.granted_scopes ?? [],
     lastSyncedAt: row.last_synced_at,
     provider: row.provider,
     status: row.status,
@@ -127,17 +137,31 @@ export async function listWorkspaceKnowledgeRecords(organisationId: string, limi
     limit: String(Math.min(Math.max(limit, 1), 200)),
   });
   const rows = await userRest<KnowledgeRow[]>(`/knowledge_records?${query}`, context.accessToken);
-  return rows.map(row => ({
-    authorName: row.author_name,
-    body: row.body,
-    department: row.department,
-    externalId: row.external_id,
-    source: row.source,
-    sourceUrl: row.source_url,
-    sourceUpdatedAt: row.source_updated_at,
-    status: row.metadata?.status ?? "Indexed",
-    title: row.title,
+  return rows.map(toWorkspaceKnowledgeRecord);
+}
+
+export async function findWorkspaceGoogleSheetRows(organisationId: string, identifiers: string[]): Promise<WorkspaceKnowledgeRecord[]> {
+  const context = await getSupabaseAuthContext();
+  if (!context || !identifiers.length) return [];
+  const rows = await Promise.all([...new Set(identifiers)].slice(0, 4).map(identifier => {
+    const query = new URLSearchParams({
+      select: "source,external_id,title,body,author_name,department,source_url,source_updated_at,metadata",
+      organisation_id: `eq.${organisationId}`,
+      visibility: "eq.workspace",
+      source: "eq.Google Sheets",
+      "metadata->>record_kind": "eq.sheet_row",
+      "metadata->>row_key_normalized": `eq.${identifier}`,
+      limit: "10",
+    });
+    return userRest<KnowledgeRow[]>(`/knowledge_records?${query}`, context.accessToken).catch(() => []);
   }));
+  const seen = new Set<string>();
+  return rows.flat().filter(row => {
+    const key = `${row.source}:${row.external_id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(toWorkspaceKnowledgeRecord);
 }
 
 export async function getWorkspaceKnowledgeRecord(organisationId: string, externalId: string): Promise<WorkspaceKnowledgeRecord | null> {
@@ -148,17 +172,31 @@ export async function getWorkspaceKnowledgeRecord(organisationId: string, extern
     context.accessToken,
   );
   const row = rows[0];
-  return row ? {
+  return row ? toWorkspaceKnowledgeRecord(row) : null;
+}
+
+function toWorkspaceKnowledgeRecord(row: KnowledgeRow): WorkspaceKnowledgeRecord {
+  return {
     authorName: row.author_name,
     body: row.body,
     department: row.department,
     externalId: row.external_id,
+    metadata: row.metadata ?? {},
     source: row.source,
     sourceUrl: row.source_url,
     sourceUpdatedAt: row.source_updated_at,
-    status: row.metadata?.status ?? "Indexed",
+    status: readableKnowledgeStatus(row.metadata),
     title: row.title,
-  } : null;
+  };
+}
+
+function readableKnowledgeStatus(metadata: KnowledgeMetadata | null): string {
+  const status = metadata?.status?.trim();
+  if (status && status !== "Indexed row") return status;
+  if (metadata?.record_kind === "sheet_row" && metadata.sheet_title && metadata.row_number) {
+    return `${metadata.sheet_title} · row ${metadata.row_number}`;
+  }
+  return status || "Indexed";
 }
 
 export async function listMemoryUpdates(organisationId: string): Promise<MemoryUpdate[]> {

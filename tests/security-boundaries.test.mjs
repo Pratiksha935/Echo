@@ -6,20 +6,47 @@ const root = new URL("../", import.meta.url);
 const source = path => readFile(new URL(path, root), "utf8");
 
 test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing", async () => {
-  const [route, catalog] = await Promise.all([
+  const [route, scopes, catalog] = await Promise.all([
     source("app/auth/slack/route.ts"),
+    source("lib/integrations/slack-scopes.ts"),
     source("lib/integrations/catalog.ts"),
   ]);
-  for (const text of [route, catalog]) {
+  for (const text of [route, scopes, catalog]) {
     assert.doesNotMatch(text, /groups:(?:history|read)/);
   }
-  assert.match(route, /"channels:history"/);
-  assert.match(route, /"channels:read"/);
-  assert.match(route, /"users:read"/);
-  assert.match(route, /"users:read.email"/);
-  assert.match(route, /"im:write"/);
-  assert.match(route, /"chat:write"/);
-  assert.match(route, /"chat:write.public"/);
+  assert.match(route, /SLACK_REQUIRED_SCOPES/);
+  assert.match(scopes, /"channels:history"/);
+  assert.match(scopes, /"channels:read"/);
+  assert.match(scopes, /"users:read"/);
+  assert.match(scopes, /"users:read.email"/);
+  assert.match(scopes, /"im:write"/);
+  assert.match(scopes, /"chat:write"/);
+  assert.match(scopes, /"chat:write.public"/);
+});
+
+test("Slack signed ingestion remains bound while private delivery fails closed and retries", async () => {
+  const [callback, slack] = await Promise.all([
+    source("app/auth/slack/callback/route.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  assert.match(callback, /missingSlackScopes/);
+  assert.match(callback, /status: missingScopes\.length \? "attention" : "connected"/);
+  assert.match(slack, /function findWorkspaceBinding/);
+  assert.match(slack, /status=in\.\(connected,attention\)/);
+  assert.match(slack, /appendSlackMemory[\s\S]*findWorkspaceBinding/);
+  assert.match(slack, /missingSlackScopes\(connection\.granted_scopes, SLACK_PRIVATE_DM_SCOPES\)/);
+  assert.match(slack, /slack_workspace_requires_reauthorisation/);
+  assert.match(slack, /status: "failed", error_code: "slack_event_processing_failed"/);
+  assert.doesNotMatch(slack, /HermesUnavailableError \|\| error instanceof SyntaxError\) return null/);
+});
+
+test("Slack Ask Found retrieves exact structured IDs beyond the recent-record window", async () => {
+  const slack = await source("lib/integrations/slack-events.ts");
+  assert.match(slack, /extractStructuredIdentifiers/);
+  assert.match(slack, /loadStructuredSlackAskRecords\(connection\.organisation_id, retrievalText\)/);
+  assert.match(slack, /loadLegacyExactIdentifierRecords\(connection\.organisation_id, retrievalText\)/);
+  assert.match(slack, /uniqueSlackAskRecords\(\[\.\.\.structuredRecords, \.\.\.legacyExactRecords, \.\.\.recentRecords\]\)/);
+  assert.match(slack, /selectEvidenceExcerpt\(record\.body, input\.question, 1200\)/);
 });
 
 test("the production Slack manifest wires web and desktop native surfaces", async () => {
@@ -168,14 +195,14 @@ test("workspace Ask Found uses indexed memory and stays closed-world", async () 
 test("decision timelines include a private Ask Found entry point", async () => {
   const decision = await source("app/workspace/decision/[recordId]/page.tsx");
   assert.match(decision, /const askFoundHref=`\/workspace\?ask=/);
-  assert.match(decision, /ASK FOUND ABOUT THIS DECISION/);
-  assert.match(decision, /Hermes powers the answer from indexed company memory/);
+  assert.match(decision, /ASK FOUND ABOUT THIS RECORD/);
+  assert.match(decision, /Hermes answers only from indexed company memory/);
   assert.doesNotMatch(decision, /Ask Hermes/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
   const google = await source("lib/integrations/google-sync.ts");
-  assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);
+  assert.match(google, /mapSettledWithConcurrency\([\s\S]*toKnowledgeRecords/);
   assert.match(google, /status: unreadableFiles \? "partial" : "succeeded"/);
   assert.match(google, /error_code: unreadableFiles \? "google_files_unreadable" : null/);
   assert.match(google, /status: "failed",[\s\S]*error_code: errorCode/);
@@ -200,6 +227,41 @@ test("Google ingestion is not limited to bracket-prefixed demo document names", 
   assert.match(google, /function inferDepartment/);
   assert.match(google, /call center/);
   assert.match(google, /human in the loop/);
+});
+
+test("Google Sheets are indexed as stable searchable rows and stale rows are removed", async () => {
+  const [google, rows, slack, workspace, workspaceAsk, browserAsk, migration] = await Promise.all([
+    source("lib/integrations/google-sync.ts"),
+    source("lib/integrations/google-sheet-records.ts"),
+    source("lib/integrations/slack-events.ts"),
+    source("lib/auth/workspace.ts"),
+    source("app/api/knowledge/query/route.ts"),
+    source("app/api/browser/ask/route.ts"),
+    source("supabase/migrations/0006_google_sheet_rows.sql"),
+  ]);
+  assert.match(google, /sheets\.googleapis\.com/);
+  assert.match(google, /values:batchGet/);
+  assert.match(google, /KNOWLEDGE_WRITE_BATCH_SIZE/);
+  assert.match(google, /GOOGLE_FILE_CONCURRENCY/);
+  assert.match(google, /mapSettledWithConcurrency/);
+  assert.match(google, /deleteStaleSheetRows/);
+  assert.match(google, /metadata->>google_sync_generation/);
+  assert.match(google, /deleteGoogleFiles/);
+  assert.match(rows, /record_kind: "sheet_row"/);
+  assert.match(rows, /row_key_normalized/);
+  assert.match(rows, /next_action/);
+  assert.match(rows, /ready_for_dispatch/);
+  assert.match(slack, /loadStructuredSlackAskRecords/);
+  assert.match(slack, /metadata->>record_kind/);
+  assert.match(slack, /metadata->>row_key_normalized/);
+  assert.match(workspace, /findWorkspaceGoogleSheetRows/);
+  assert.match(workspace, /metadata->>row_key_normalized/);
+  assert.match(workspaceAsk, /extractStructuredIdentifiers/);
+  assert.match(workspaceAsk, /findWorkspaceGoogleSheetRows/);
+  assert.match(browserAsk, /loadStructuredGoogleSheetRows/);
+  assert.match(browserAsk, /metadata->>row_key_normalized/);
+  assert.match(migration, /knowledge_records_google_sheet_row_key_idx/);
+  assert.match(migration, /knowledge_records_google_sheet_file_generation_idx/);
 });
 
 test("Slack event ingestion enforces signatures, a five-minute timestamp window, and message permalinks", async () => {
@@ -280,10 +342,11 @@ test("Slack native Ask Found is signed, private, and source-grounded", async () 
 });
 
 test("Slack public work intent DMs only strong Hermes matches and DM follow-ups answer privately", async () => {
-  const [route, slack, oauth, catalog, deliveryMigration] = await Promise.all([
+  const [route, slack, oauth, scopes, catalog, deliveryMigration] = await Promise.all([
     source("app/api/slack/events/route.ts"),
     source("lib/integrations/slack-events.ts"),
     source("app/auth/slack/route.ts"),
+    source("lib/integrations/slack-scopes.ts"),
     source("lib/integrations/catalog.ts"),
     source("supabase/migrations/0005_slack_dm_deliveries.sql"),
   ]);
@@ -321,7 +384,9 @@ test("Slack public work intent DMs only strong Hermes matches and DM follow-ups 
   assert.match(slack, /Untrusted Slack message and indexed evidence \(JSON\)/);
   assert.match(slack, /answerSlackQuestion/);
   assert.match(slack, /chat\.postMessage/);
-  assert.match(oauth, /"im:history"/);
+  assert.match(slack, /throw new Error\("slack_workspace_requires_reauthorisation"\)/);
+  assert.match(oauth, /SLACK_REQUIRED_SCOPES/);
+  assert.match(scopes, /"im:history"/);
   assert.match(catalog, /"im:history"/);
   assert.match(deliveryMigration, /unique \(organisation_id, external_event_id\)/);
   assert.match(deliveryMigration, /claim_slack_dm_delivery/);
@@ -474,11 +539,12 @@ test("team input remains separate from verified company knowledge", async () => 
     source("lib/workspace/intelligence.ts"),
     source("app/workspace/decision/[recordId]/page.tsx"),
   ]);
-  assert.match(intelligence, /verifiedText: latest\.body/);
+  assert.match(intelligence, /verifiedText: presentation\.summary/);
+  assert.match(intelligence, /presentKnowledgeRecord\(latest\)/);
   assert.match(intelligence, /latestInput: latestUpdate\?\.updateText \?\? null/);
-  assert.match(decisionPage, /VERIFIED DECISION/);
+  assert.match(decisionPage, /decision\.presentation\.eyebrow/);
   assert.match(decisionPage, /LATEST TEAM INPUT/);
-  assert.match(decisionPage, /pending verification|until it is verified/i);
+  assert.match(decisionPage, /separate from user input/i);
 });
 
 test("decision detail pages render exact browser and Slack records instead of falling back to overview", async () => {
@@ -490,12 +556,17 @@ test("decision detail pages render exact browser and Slack records instead of fa
 });
 
 test("decision detail pages summarize captured articles instead of dumping full page text", async () => {
-  const decisionPage = await source("app/workspace/decision/[recordId]/page.tsx");
-  assert.match(decisionPage, /memorySummary\(decision\.verifiedText\)/);
-  assert.match(decisionPage, /memorySummary\(event\.body\)/);
-  assert.match(decisionPage, /Captured page context:/);
-  assert.match(decisionPage, /Captured page:/);
-  assert.match(decisionPage, /compactText\(context,220\)/);
+  const [decisionPage, presentation] = await Promise.all([
+    source("app/workspace/decision/[recordId]/page.tsx"),
+    source("lib/workspace/presentation.ts"),
+  ]);
+  assert.match(decisionPage, /decision\.presentation\.summary/);
+  assert.match(decisionPage, /summarizeKnowledgeText\(event\.body\)/);
+  assert.match(presentation, /Captured page context:/);
+  assert.match(presentation, /Captured page:/);
+  assert.match(presentation, /compactNarrative\(capturedContext/);
+  assert.match(decisionPage, /StructuredEvidence/);
+  assert.match(decisionPage, /SPREADSHEET|presentation\.kind!=="spreadsheet"/);
 });
 
 test("connector readiness requires the complete auth and webhook boundary", async () => {

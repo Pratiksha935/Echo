@@ -7,7 +7,7 @@ type ConnectionWrite = {
   grantedScopes: string[];
   organisationId: string;
   provider: Exclude<IntegrationProvider, "read_ai">;
-  status?: "pending" | "connected";
+  status?: "pending" | "connected" | "attention";
 };
 
 export class IntegrationWorkspaceConflictError extends Error {

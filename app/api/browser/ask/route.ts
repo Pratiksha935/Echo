@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyBrowserToken } from "../../../../lib/auth/browser-token";
 import { HermesUnavailableError, queryHermes } from "../../../../lib/hermes/client";
+import { extractStructuredIdentifiers } from "../../../../lib/integrations/google-sheet-records";
 import { serviceRest } from "../../../../lib/integrations/service-rest";
 
 const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
@@ -41,15 +42,19 @@ export async function POST(request: NextRequest) {
   const pageUrl = text(body?.pageUrl, 2_000);
   if (question.length < 4) return NextResponse.json({ error: "invalid_question" }, { status: 400, headers });
 
-  const allRows = await serviceRest<KnowledgeRow[]>(
-    `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=source_updated_at.desc&limit=100`,
-  );
+  const [structuredRows, recentRows] = await Promise.all([
+    loadStructuredGoogleSheetRows(token.organisationId, question),
+    serviceRest<KnowledgeRow[]>(
+      `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(token.organisationId)}&order=source_updated_at.desc&limit=100`,
+    ),
+  ]);
+  const allRows = uniqueRows([...structuredRows, ...recentRows]);
   const primary = recordId ? allRows.find(row => row.external_id === recordId) : null;
   const titleKey = primary ? normaliseTitle(primary.title) : "";
   const related = uniqueRows(
     primary
-      ? [primary, ...allRows.filter(row => normaliseTitle(row.title) === titleKey)]
-      : rankRowsForPage(allRows, `${pageTitle} ${pageText}`).slice(0, 8),
+      ? [...structuredRows, primary, ...allRows.filter(row => normaliseTitle(row.title) === titleKey)]
+      : [...structuredRows, ...rankRowsForPage(allRows, `${pageTitle} ${pageText}`).slice(0, 8)],
   ).slice(0, 8);
   if (!related.length) return NextResponse.json({ error: "record_not_found" }, { status: 404, headers });
   const updates = await serviceRest<MemoryUpdateRow[]>(
@@ -143,6 +148,24 @@ function uniqueRows(rows: KnowledgeRow[]): KnowledgeRow[] {
     seen.add(key);
     return true;
   });
+}
+
+async function loadStructuredGoogleSheetRows(organisationId: string, question: string): Promise<KnowledgeRow[]> {
+  const identifiers = extractStructuredIdentifiers(question);
+  if (!identifiers.length) return [];
+  const results = await Promise.all(identifiers.map(identifier => {
+    const query = new URLSearchParams({
+      select: "source,external_id,title,body,author_name,department,source_url,metadata",
+      organisation_id: `eq.${organisationId}`,
+      visibility: "eq.workspace",
+      source: "eq.Google Sheets",
+      "metadata->>record_kind": "eq.sheet_row",
+      "metadata->>row_key_normalized": `eq.${identifier}`,
+      limit: "10",
+    });
+    return serviceRest<KnowledgeRow[]>(`/knowledge_records?${query}`).catch(() => []);
+  }));
+  return uniqueRows(results.flat());
 }
 
 function toSource(record: KnowledgeRow) {

@@ -29,7 +29,7 @@ The current build also proves an append-only learning loop: a user can verify th
 
 ## Activation required
 
-1. Create a Supabase project and apply `0001_found_foundation.sql`, `0002_found_control_plane.sql`, then `0003_memory_updates.sql`.
+1. Create a Supabase project and apply every SQL file in `supabase/migrations/` in numeric order.
 2. Add the Supabase public URL/key and service-role key to Netlify.
 3. Generate `INTEGRATION_ENCRYPTION_KEY` with `openssl rand -base64 32`.
 4. Register the provider callback URLs documented in `README.md` and add their credentials to Netlify.

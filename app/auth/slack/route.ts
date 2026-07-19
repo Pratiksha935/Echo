@@ -4,21 +4,10 @@ import { getFoundUser } from "../../auth";
 import { getFoundWorkspace } from "../../../lib/auth/workspace";
 import { randomBase64Url } from "../../../lib/auth/session";
 import { publicRequestOrigin } from "../../../lib/auth/origin";
+import { SLACK_REQUIRED_SCOPES } from "../../../lib/integrations/slack-scopes";
 
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
 const SLACK_ORG_COOKIE = "found_slack_oauth_org";
-const SLACK_SCOPES = [
-  "app_mentions:read",
-  "channels:history",
-  "channels:read",
-  "chat:write",
-  "chat:write.public",
-  "commands",
-  "im:history",
-  "im:write",
-  "users:read",
-  "users:read.email",
-];
 
 export async function GET(request: NextRequest) {
   const user = await getFoundUser();
@@ -41,7 +30,7 @@ export async function GET(request: NextRequest) {
   const redirectUri = `${appUrl}/auth/slack/callback`;
   const authorize = new URL("https://slack.com/oauth/v2/authorize");
   authorize.searchParams.set("client_id", clientId);
-  authorize.searchParams.set("scope", SLACK_SCOPES.join(","));
+  authorize.searchParams.set("scope", SLACK_REQUIRED_SCOPES.join(","));
   authorize.searchParams.set("redirect_uri", redirectUri);
   authorize.searchParams.set("state", state);
   return NextResponse.redirect(authorize);
