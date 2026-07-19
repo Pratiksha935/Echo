@@ -214,16 +214,18 @@ test("accepts signed public Slack events silently and ignores weak matches", asy
 });
 
 test("keeps Slack ingestion public-only and silent while explicit browser shares can post", async () => {
-  const [oauth, catalog, events, migration] = await Promise.all([
+  const [oauth, scopes, catalog, events, migration] = await Promise.all([
     readFile(new URL("../app/auth/slack/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/integrations/slack-scopes.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/integrations/catalog.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/integrations/slack-events.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/migrations/0003_memory_updates.sql", import.meta.url), "utf8"),
   ]);
   assert.doesNotMatch(oauth + catalog, /groups:history|groups:read/);
-  assert.match(oauth, /chat:write/);
-  assert.match(oauth, /app_mentions:read/);
-  assert.match(oauth, /commands/);
+  assert.match(oauth, /SLACK_REQUIRED_SCOPES/);
+  assert.match(scopes, /chat:write/);
+  assert.match(scopes, /app_mentions:read/);
+  assert.match(scopes, /commands/);
   assert.match(catalog, /Slack web and desktop users get private Ask Found modals/);
   assert.match(events, /There are deliberately no call sites from Slack event ingestion/);
   assert.match(events, /workspace_id: input\.teamId/);
@@ -231,7 +233,7 @@ test("keeps Slack ingestion public-only and silent while explicit browser shares
   assert.match(events, /author_id: input\.userId/);
   assert.match(events, /message_timestamp: input\.timestamp/);
   assert.match(events, /on_conflict=organisation_id,origin,external_event_id/);
-  assert.match(events, /error_code: "slack_event_ingestion_failed"/);
+  assert.match(events, /error_code: "slack_event_processing_failed"/);
   assert.match(events, /status: "attention"/);
   assert.match(migration, /unique index memory_updates_external_event_idx/);
 });
