@@ -42,10 +42,10 @@ test("Slack signed ingestion remains bound while private delivery fails closed a
 
 test("Slack Ask Found retrieves exact structured IDs beyond the recent-record window", async () => {
   const slack = await source("lib/integrations/slack-events.ts");
-  assert.match(slack, /function structuredIdentifiers/);
-  assert.match(slack, /\[A-Z\]\{2,12\}.*\\d\{2,16\}/);
-  assert.match(slack, /loadExactIdentifierRecords\(connection\.organisation_id, question\)/);
-  assert.match(slack, /dedupeSlackAskRecords\(\[\.\.\.exactIdentifierRecords, \.\.\.recentRecords\]\)/);
+  assert.match(slack, /extractStructuredIdentifiers/);
+  assert.match(slack, /loadStructuredSlackAskRecords\(connection\.organisation_id, retrievalText\)/);
+  assert.match(slack, /loadLegacyExactIdentifierRecords\(connection\.organisation_id, retrievalText\)/);
+  assert.match(slack, /uniqueSlackAskRecords\(\[\.\.\.structuredRecords, \.\.\.legacyExactRecords, \.\.\.recentRecords\]\)/);
   assert.match(slack, /selectEvidenceExcerpt\(record\.body, input\.question, 1200\)/);
 });
 
@@ -202,7 +202,7 @@ test("decision timelines include a private Ask Found entry point", async () => {
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
   const google = await source("lib/integrations/google-sync.ts");
-  assert.match(google, /Promise\.allSettled\([\s\S]*toKnowledgeRecord/);
+  assert.match(google, /mapSettledWithConcurrency\([\s\S]*toKnowledgeRecords/);
   assert.match(google, /status: unreadableFiles \? "partial" : "succeeded"/);
   assert.match(google, /error_code: unreadableFiles \? "google_files_unreadable" : null/);
   assert.match(google, /status: "failed",[\s\S]*error_code: errorCode/);
@@ -227,6 +227,41 @@ test("Google ingestion is not limited to bracket-prefixed demo document names", 
   assert.match(google, /function inferDepartment/);
   assert.match(google, /call center/);
   assert.match(google, /human in the loop/);
+});
+
+test("Google Sheets are indexed as stable searchable rows and stale rows are removed", async () => {
+  const [google, rows, slack, workspace, workspaceAsk, browserAsk, migration] = await Promise.all([
+    source("lib/integrations/google-sync.ts"),
+    source("lib/integrations/google-sheet-records.ts"),
+    source("lib/integrations/slack-events.ts"),
+    source("lib/auth/workspace.ts"),
+    source("app/api/knowledge/query/route.ts"),
+    source("app/api/browser/ask/route.ts"),
+    source("supabase/migrations/0006_google_sheet_rows.sql"),
+  ]);
+  assert.match(google, /sheets\.googleapis\.com/);
+  assert.match(google, /values:batchGet/);
+  assert.match(google, /KNOWLEDGE_WRITE_BATCH_SIZE/);
+  assert.match(google, /GOOGLE_FILE_CONCURRENCY/);
+  assert.match(google, /mapSettledWithConcurrency/);
+  assert.match(google, /deleteStaleSheetRows/);
+  assert.match(google, /metadata->>google_sync_generation/);
+  assert.match(google, /deleteGoogleFiles/);
+  assert.match(rows, /record_kind: "sheet_row"/);
+  assert.match(rows, /row_key_normalized/);
+  assert.match(rows, /next_action/);
+  assert.match(rows, /ready_for_dispatch/);
+  assert.match(slack, /loadStructuredSlackAskRecords/);
+  assert.match(slack, /metadata->>record_kind/);
+  assert.match(slack, /metadata->>row_key_normalized/);
+  assert.match(workspace, /findWorkspaceGoogleSheetRows/);
+  assert.match(workspace, /metadata->>row_key_normalized/);
+  assert.match(workspaceAsk, /extractStructuredIdentifiers/);
+  assert.match(workspaceAsk, /findWorkspaceGoogleSheetRows/);
+  assert.match(browserAsk, /loadStructuredGoogleSheetRows/);
+  assert.match(browserAsk, /metadata->>row_key_normalized/);
+  assert.match(migration, /knowledge_records_google_sheet_row_key_idx/);
+  assert.match(migration, /knowledge_records_google_sheet_file_generation_idx/);
 });
 
 test("Slack event ingestion enforces signatures, a five-minute timestamp window, and message permalinks", async () => {

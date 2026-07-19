@@ -121,6 +121,9 @@ function loadSlackEvents(runtime, { hermesMode }) {
         return { accessToken: "xoxb-test" };
       },
     },
+    "./google-sheet-records": {
+      extractStructuredIdentifiers: text => [...new Set((text.match(/\b[A-Z][A-Z0-9]{1,11}-\d{2,16}\b/gi) ?? []).map(value => value.toLowerCase()))],
+    },
     "./knowledge-evidence.mjs": { selectEvidenceExcerpt: (body, _question, limit) => body.slice(0, limit) },
     "./service-rest": { serviceRest: runtime.serviceRest },
     "./slack-hermes-contract.mjs": hermesContract,

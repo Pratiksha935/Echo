@@ -35,7 +35,7 @@ export const integrationCatalog: IntegrationDefinition[] = [
     provider: "google", name: "Google Workspace", shortName: "GW", accent: "#ffca66", availability: "ready",
     description: "Drive documents, meeting notes and files from explicitly selected folders.",
     ingests: ["Docs", "Drive files", "Sheets", "Calendar metadata"], syncMode: "OAuth + incremental sync",
-    scopes: ["drive.readonly", "documents.readonly", "openid", "email"],
+    scopes: ["drive.readonly", "documents.readonly", "spreadsheets.readonly", "openid", "email"],
   },
   {
     provider: "github", name: "GitHub", shortName: "GH", accent: "#f3f3ef", availability: "ready",

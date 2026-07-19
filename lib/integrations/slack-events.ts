@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { queryHermes } from "../hermes/client";
 import { loadSlackConnectionCredential } from "./credentials";
+import { extractStructuredIdentifiers } from "./google-sheet-records";
 import { selectEvidenceExcerpt } from "./knowledge-evidence.mjs";
 import { serviceRest } from "./service-rest";
 import { CASUAL, CATALOGUE, classifySlackMessageText, isSlackDmKnowledgeQuestion } from "./slack-message-gate.mjs";
@@ -351,16 +352,18 @@ export async function answerSlackQuestion(input: { context?: string; excludeExte
   if (!connection) {
     return { answer: "Found is not connected to this Slack workspace yet. Connect Slack from Found integrations first.", sources: [] };
   }
-  const [recentRecords, exactIdentifierRecords, updates] = await Promise.all([
+  const retrievalText = `${question}\n${input.context ?? ""}`;
+  const [structuredRecords, legacyExactRecords, recentRecords, updates] = await Promise.all([
+    loadStructuredSlackAskRecords(connection.organisation_id, retrievalText),
+    loadLegacyExactIdentifierRecords(connection.organisation_id, retrievalText),
     serviceRest<SlackAskRecord[]>(`/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&visibility=eq.workspace&order=source_updated_at.desc&limit=80`),
-    loadExactIdentifierRecords(connection.organisation_id, question),
     serviceRest<SlackAskUpdate[]>(`/memory_updates?select=current_title,update_text,origin,original_source_url,source_record_id,created_at&organisation_id=eq.${encodeURIComponent(connection.organisation_id)}&order=created_at.desc&limit=20`).catch(() => []),
   ]);
-  // Exact structured IDs must not disappear behind the recent-record cap. This
-  // is especially important for operational rows such as RLP-7842.
-  const records = dedupeSlackAskRecords([...exactIdentifierRecords, ...recentRecords]);
-  const eligibleRecords = records.filter(record => !input.excludeExternalId || record.external_id !== input.excludeExternalId);
-  const rankedRecords = rankSlackAskRecords(eligibleRecords, question).slice(0, 10);
+  // Prefer native row records, retain a legacy CSV lookup until every existing
+  // Sheet has been reindexed, and never hide exact IDs behind the recent cap.
+  const eligibleRecords = uniqueSlackAskRecords([...structuredRecords, ...legacyExactRecords, ...recentRecords])
+    .filter(record => !input.excludeExternalId || record.external_id !== input.excludeExternalId);
+  const rankedRecords = rankSlackAskRecords(eligibleRecords, retrievalText).slice(0, 10);
   const visibleExternalIds = new Set(rankedRecords.map(record => record.external_id));
   const visibleSourceUrls = new Set(rankedRecords.map(record => record.source_url));
   const visibleUpdates = updates
@@ -977,7 +980,7 @@ function escapeSlackText(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-type SlackAskRecord = { author_name: string | null; body: string; department: string | null; external_id: string; metadata: { status?: string } | null; source: string; source_url: string; title: string };
+type SlackAskRecord = { author_name: string | null; body: string; department: string | null; external_id: string; metadata: { row_key_normalized?: string; status?: string } | null; source: string; source_url: string; title: string };
 type SlackAskUpdate = { created_at: string; current_title: string; origin: string; original_source_url: string; source_record_id: string; update_text: string };
 type SlackAnswerEvidence = { source_url: string; title: string };
 
@@ -1022,34 +1025,51 @@ Untrusted user input and evidence (JSON):
 ${JSON.stringify({ question: input.question, recentPrivateConversation: input.context, evidence })}`;
 }
 
+async function loadStructuredSlackAskRecords(organisationId: string, question: string): Promise<SlackAskRecord[]> {
+  const identifiers = extractStructuredIdentifiers(question);
+  if (!identifiers.length) return [];
+  const select = "source,external_id,title,body,author_name,department,source_url,metadata";
+  const results = await Promise.all(identifiers.map(identifier => {
+    const query = new URLSearchParams({
+      select,
+      organisation_id: `eq.${organisationId}`,
+      visibility: "eq.workspace",
+      source: "eq.Google Sheets",
+      "metadata->>record_kind": "eq.sheet_row",
+      "metadata->>row_key_normalized": `eq.${identifier}`,
+      limit: "10",
+    });
+    return serviceRest<SlackAskRecord[]>(`/knowledge_records?${query}`).catch(() => []);
+  }));
+  return uniqueSlackAskRecords(results.flat());
+}
+
 function rankSlackAskRecords(records: SlackAskRecord[], question: string): SlackAskRecord[] {
   const terms = new Set(question.toLowerCase().match(/[a-z0-9]{4,}/g) ?? []);
+  const identifiers = new Set(extractStructuredIdentifiers(question));
   if (!terms.size) return records;
   return records
     .map(record => {
       const haystack = `${record.title} ${record.department ?? ""} ${record.body}`.toLowerCase();
       let score = 0;
       for (const term of terms) if (haystack.includes(term)) score += 1;
+      if (record.metadata?.row_key_normalized && identifiers.has(record.metadata.row_key_normalized)) score += 100;
       return { record, score };
     })
     .sort((a, b) => b.score - a.score)
     .map(item => item.record);
 }
 
-function structuredIdentifiers(question: string): string[] {
-  return [...new Set(question.toUpperCase().match(/\b[A-Z]{2,12}-\d{2,16}\b/g) ?? [])].slice(0, 5);
-}
-
-async function loadExactIdentifierRecords(organisationId: string, question: string): Promise<SlackAskRecord[]> {
-  const identifiers = structuredIdentifiers(question);
+async function loadLegacyExactIdentifierRecords(organisationId: string, question: string): Promise<SlackAskRecord[]> {
+  const identifiers = extractStructuredIdentifiers(question);
   if (!identifiers.length) return [];
   const results = await Promise.all(identifiers.map(identifier => serviceRest<SlackAskRecord[]>(
     `/knowledge_records?select=source,external_id,title,body,author_name,department,source_url,metadata&organisation_id=eq.${encodeURIComponent(organisationId)}&visibility=eq.workspace&body=ilike.*${encodeURIComponent(identifier)}*&order=source_updated_at.desc&limit=20`,
   ).catch(() => [])));
-  return dedupeSlackAskRecords(results.flat());
+  return uniqueSlackAskRecords(results.flat());
 }
 
-function dedupeSlackAskRecords(records: SlackAskRecord[]): SlackAskRecord[] {
+function uniqueSlackAskRecords(records: SlackAskRecord[]): SlackAskRecord[] {
   const seen = new Set<string>();
   return records.filter(record => {
     const key = `${record.source}:${record.external_id || record.source_url}`;

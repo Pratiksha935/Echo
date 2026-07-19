@@ -24,7 +24,8 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
   const statusByProvider = useMemo(() => new Map(connections.map(item => [item.provider, item])), [connections]);
   const google = statusByProvider.get("google");
   const slack = statusByProvider.get("slack");
-  const googleApproved = approved(google);
+  const googleSheetsScope = "https://www.googleapis.com/auth/spreadsheets.readonly";
+  const googleApproved = approved(google) && Boolean(google?.grantedScopes.includes(googleSheetsScope));
   const slackApproved = approved(slack) && missingSlackScopes(slack?.grantedScopes).length === 0;
   const hermesReady = runtimeReadiness.hermes;
   const readyForWorkspace = googleApproved && slackApproved && hermesReady;
@@ -79,9 +80,9 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
       </Step>
 
       <Step id="google" number="05" title="Google Workspace" status={providerStatus(google, configuredProviders.includes("google"))} complete={googleApproved}>
-        <p>This is a separate Google Workspace consent for read-only Drive and Docs access. Your Google sign-in alone does not approve indexing.</p>
-        <ScopeList values={["Drive files · read only", "Google Docs · read only", "Identity · email"]}/>
-        {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <><ConnectionIssue connection={google}/><Link className={styles.action} href="/auth/integrations/google" prefetch={false}>{google ? "RECONNECT GOOGLE WORKSPACE ↗" : "REVIEW GOOGLE WORKSPACE CONSENT ↗"}</Link></> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
+        <p>This is a separate Google Workspace consent for read-only Drive, Docs, and Sheets access. Your Google sign-in alone does not approve indexing.</p>
+        <ScopeList values={["Drive files · read only", "Google Docs · read only", "Google Sheets · read only", "Identity · email"]}/>
+        {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <><ConnectionIssue connection={google} missing={google && !google.grantedScopes.includes(googleSheetsScope) ? ["Google Sheets · read only"] : []}/><Link className={styles.action} href="/auth/integrations/google" prefetch={false}>{google ? "RECONNECT GOOGLE WORKSPACE ↗" : "REVIEW GOOGLE WORKSPACE CONSENT ↗"}</Link></> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
       <Step id="slack" number="06" title="Slack" status={providerStatus(slack, configuredProviders.includes("slack"))} complete={slackApproved}>
@@ -116,7 +117,7 @@ function Connection({ connection }: { connection: IntegrationConnection }) { ret
 function ConnectionIssue({ connection, missing = [] }: { connection?: IntegrationConnection; missing?: string[] }) {
   if (!connection) return null;
   const detail = missing.length
-    ? `Missing Slack permissions: ${missing.join(", ")}. Found cannot send private answers until Slack grants them.`
+    ? `Missing required permissions: ${missing.join(", ")}. Reconnect this source and approve them before relying on indexing or private answers.`
     : "This authorisation needs attention. Reconnect the source before relying on indexing or private answers.";
   return <div className={styles.pending}><b>{connection.externalWorkspaceName ?? "Connected source"}</b><br/>{detail}</div>;
 }

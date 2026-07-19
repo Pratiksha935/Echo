@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { IntegrationCredential } from "./oauth";
 import { loadConnectionCredential, refreshGoogleCredentialIfNeeded, type StoredConnection } from "./credentials";
+import { buildGoogleSheetRows, type GoogleSheetGrid } from "./google-sheet-records";
 import { serviceRest } from "./service-rest";
 
 type DriveFile = {
@@ -21,13 +22,22 @@ type GoogleDocument = {
   };
 };
 
+type GoogleSpreadsheet = {
+  sheets?: Array<{
+    properties?: { index?: number; sheetId?: number; title?: string };
+  }>;
+};
+
+type GoogleValueRange = { values?: unknown[][] };
+type GoogleBatchValues = { valueRanges?: GoogleValueRange[] };
+
 type KnowledgeRecord = {
-  author_name: string;
+  author_name: string | null;
   body: string;
   connection_id: string;
   department: string;
   external_id: string;
-  metadata: { status: string };
+  metadata: Record<string, boolean | number | string | null | undefined> & { status: string };
   organisation_id: string;
   source: string;
   source_updated_at: string;
@@ -36,15 +46,27 @@ type KnowledgeRecord = {
   visibility: "workspace";
 };
 
+type ImportedFile = {
+  fileId: string;
+  records: KnowledgeRecord[];
+  sheetGeneration?: string;
+};
+
 const GOOGLE_DOC = "application/vnd.google-apps.document";
 const GOOGLE_SHEET = "application/vnd.google-apps.spreadsheet";
 const APPROVED_DEPARTMENTS = new Set(["product", "gtm", "sales", "engineering", "research", "browser", "company"]);
 const GOOGLE_REQUEST_TIMEOUT_MS = 6_000;
 const GOOGLE_SYNC_TIMEOUT_MS = 20_000;
+const GOOGLE_FILE_CONCURRENCY = 4;
+const KNOWLEDGE_WRITE_BATCH_SIZE = 200;
+const SHEET_RANGE_BATCH_SIZE = 20;
 
 class GoogleSyncError extends Error {
-  constructor(readonly code: string) {
+  readonly code: string;
+
+  constructor(code: string) {
     super(code);
+    this.code = code;
     this.name = "GoogleSyncError";
   }
 }
@@ -87,26 +109,25 @@ export async function syncGoogleWorkspace(
       ? await listChanges(credential.accessToken, cursor, signal)
       : await listFilesFromStableCursor(credential.accessToken, signal);
     const files = delta.files.filter(isReadableWorkspaceFile);
-    const fileResults = await Promise.allSettled(
-      files.map(file => toKnowledgeRecord(file, organisationId, connectionId, credential.accessToken, signal)),
+    const noLongerReadableIds = delta.files.filter(file => !isReadableWorkspaceFile(file)).map(file => file.id);
+    const fileResults = await mapSettledWithConcurrency(
+      files,
+      GOOGLE_FILE_CONCURRENCY,
+      file => toKnowledgeRecords(file, organisationId, connectionId, credential.accessToken, signal),
     );
-    const records = fileResults
-      .filter((result): result is PromiseFulfilledResult<KnowledgeRecord | null> => result.status === "fulfilled")
-      .map(result => result.value)
-      .filter((record): record is KnowledgeRecord => Boolean(record));
+    const importedFiles = fileResults
+      .filter((result): result is PromiseFulfilledResult<ImportedFile> => result.status === "fulfilled")
+      .map(result => result.value);
+    const records = importedFiles.flatMap(result => result.records);
     const unreadableFiles = fileResults.filter(result => result.status === "rejected").length;
 
-    if (records.length) {
-      await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(records),
-      });
+    await upsertKnowledgeRecords(records);
+    for (const imported of importedFiles) {
+      if (imported.sheetGeneration) {
+        await deleteStaleSheetRows(organisationId, connectionId, imported.fileId, imported.sheetGeneration);
+      }
     }
-    if (delta.removedIds.length) {
-      const ids = delta.removedIds.map(id => `"${id.replaceAll('"', '')}"`).join(",");
-      await serviceRest(`/knowledge_records?organisation_id=eq.${encodeURIComponent(organisationId)}&connection_id=eq.${encodeURIComponent(connectionId)}&external_id=in.(${encodeURIComponent(ids)})`, { method: "DELETE" });
-    }
+    await deleteGoogleFiles(organisationId, connectionId, [...new Set([...delta.removedIds, ...noLongerReadableIds])]);
     const finishedAt = new Date().toISOString();
     // Mark a completed backfill independently of the incremental cursor. Some
     // providers can return a cursor value that PostgREST rejects; that must not
@@ -154,6 +175,66 @@ async function listFilesFromStableCursor(accessToken: string, signal?: AbortSign
   const nextCursor = await getStartPageToken(accessToken, signal);
   const files = await listFiles(accessToken, signal);
   return { files, removedIds: [], nextCursor };
+}
+
+async function upsertKnowledgeRecords(records: KnowledgeRecord[]): Promise<void> {
+  for (let offset = 0; offset < records.length; offset += KNOWLEDGE_WRITE_BATCH_SIZE) {
+    await serviceRest("/knowledge_records?on_conflict=organisation_id,source,external_id", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(records.slice(offset, offset + KNOWLEDGE_WRITE_BATCH_SIZE)),
+    });
+  }
+}
+
+async function mapSettledWithConcurrency<Input, Output>(
+  values: Input[],
+  limit: number,
+  operation: (value: Input) => Promise<Output>,
+): Promise<Array<PromiseSettledResult<Output>>> {
+  const results = new Array<PromiseSettledResult<Output>>(values.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(Math.max(limit, 1), values.length) }, async () => {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: "fulfilled", value: await operation(values[index]) };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function deleteStaleSheetRows(organisationId: string, connectionId: string, fileId: string, generation: string): Promise<void> {
+  const query = new URLSearchParams({
+    organisation_id: `eq.${organisationId}`,
+    connection_id: `eq.${connectionId}`,
+    source: "eq.Google Sheets",
+    "metadata->>google_file_id": `eq.${fileId}`,
+    "metadata->>record_kind": "eq.sheet_row",
+    "metadata->>google_sync_generation": `neq.${generation}`,
+  });
+  await serviceRest(`/knowledge_records?${query}`, { method: "DELETE", headers: { Prefer: "return=minimal" } });
+}
+
+async function deleteGoogleFiles(organisationId: string, connectionId: string, fileIds: string[]): Promise<void> {
+  if (!fileIds.length) return;
+  const inList = `in.(${fileIds.map(quotePostgrestValue).join(",")})`;
+  const base = { organisation_id: `eq.${organisationId}`, connection_id: `eq.${connectionId}` };
+  const fileQuery = new URLSearchParams({ ...base, external_id: inList });
+  const rowsQuery = new URLSearchParams({ ...base, "metadata->>google_file_id": inList });
+  await Promise.all([
+    serviceRest(`/knowledge_records?${fileQuery}`, { method: "DELETE", headers: { Prefer: "return=minimal" } }),
+    serviceRest(`/knowledge_records?${rowsQuery}`, { method: "DELETE", headers: { Prefer: "return=minimal" } }),
+  ]);
+}
+
+function quotePostgrestValue(value: string): string {
+  return `"${value.replaceAll("\\", "").replaceAll('"', "")}"`;
 }
 
 async function recordGoogleSyncFailure(
@@ -241,34 +322,87 @@ async function listChanges(accessToken: string, cursor: string, signal?: AbortSi
   return { files, removedIds, nextCursor };
 }
 
-async function toKnowledgeRecord(
+async function toKnowledgeRecords(
   file: DriveFile,
   organisationId: string,
   connectionId: string,
   accessToken: string,
   signal?: AbortSignal,
-): Promise<KnowledgeRecord | null> {
-  const text = file.mimeType === GOOGLE_DOC
-    ? await readDocument(file.id, accessToken, signal)
-    : await exportSheet(file.id, accessToken, signal);
-  const cleaned = text.replace(/\r/g, "").trim();
-  if (cleaned.length < 40) return null;
+): Promise<ImportedFile> {
+  const sourceUrl = file.webViewLink ?? `https://drive.google.com/open?id=${encodeURIComponent(file.id)}`;
+  const sourceUpdatedAt = file.modifiedTime ?? new Date().toISOString();
+  if (file.mimeType === GOOGLE_DOC) {
+    const text = (await readDocument(file.id, accessToken, signal)).replace(/\r/g, "").trim();
+    if (text.length < 40) return { fileId: file.id, records: [] };
+    const metadata = parseMetadata(text, file.name);
+    return {
+      fileId: file.id,
+      records: [{
+        organisation_id: organisationId,
+        connection_id: connectionId,
+        source: "Google Docs",
+        external_id: file.id,
+        title: metadata.title,
+        body: text.slice(0, 40_000),
+        author_name: metadata.owner,
+        department: metadata.department,
+        source_url: sourceUrl,
+        visibility: "workspace",
+        metadata: { status: metadata.status },
+        source_updated_at: sourceUpdatedAt,
+      }],
+    };
+  }
 
-  const metadata = parseMetadata(cleaned, file.name);
-  return {
+  const generation = randomUUID();
+  const grids = await readSpreadsheet(file.id, accessToken, signal);
+  const preview = grids.flatMap(grid => grid.values.slice(0, 12)).map(row => row.join(" ")).join("\n");
+  const fileMetadata = parseMetadata(preview, file.name);
+  const indexed = buildGoogleSheetRows({
+    fileId: file.id,
+    fileName: fileMetadata.title,
+    generation,
+    grids,
+    sourceUrl,
+  });
+  const fileStatus = indexed.manifest.rowCount
+    ? `${indexed.manifest.rowCount} row${indexed.manifest.rowCount === 1 ? "" : "s"} indexed`
+    : "No tabular rows indexed";
+  const fileRecord: KnowledgeRecord = {
     organisation_id: organisationId,
     connection_id: connectionId,
-    source: file.mimeType === GOOGLE_DOC ? "Google Docs" : "Google Sheets",
+    source: "Google Sheets",
     external_id: file.id,
-    title: metadata.title,
-    body: cleaned.slice(0, 40_000),
-    author_name: metadata.owner,
-    department: metadata.department,
-    source_url: file.webViewLink ?? `https://drive.google.com/open?id=${encodeURIComponent(file.id)}`,
+    title: fileMetadata.title,
+    body: indexed.manifest.body,
+    author_name: fileMetadata.owner,
+    department: fileMetadata.department,
+    source_url: sourceUrl,
     visibility: "workspace",
-    metadata: { status: metadata.status },
-    source_updated_at: file.modifiedTime ?? new Date().toISOString(),
+    metadata: {
+      google_file_id: file.id,
+      record_kind: "sheet_file",
+      row_count: indexed.manifest.rowCount,
+      status: fileStatus,
+      worksheet_count: indexed.manifest.worksheetCount,
+    },
+    source_updated_at: sourceUpdatedAt,
   };
+  const rowRecords = indexed.rows.map(row => ({
+    organisation_id: organisationId,
+    connection_id: connectionId,
+    source: "Google Sheets",
+    external_id: row.externalId,
+    title: row.title,
+    body: row.body,
+    author_name: row.authorName,
+    department: inferDepartment(`${file.name}\n${row.body}`),
+    source_url: row.sourceUrl,
+    visibility: "workspace" as const,
+    metadata: row.metadata,
+    source_updated_at: sourceUpdatedAt,
+  }));
+  return { fileId: file.id, records: [fileRecord, ...rowRecords], sheetGeneration: generation };
 }
 
 async function readDocument(fileId: string, accessToken: string, signal?: AbortSignal): Promise<string> {
@@ -280,10 +414,31 @@ async function readDocument(fileId: string, accessToken: string, signal?: AbortS
     .join("");
 }
 
-async function exportSheet(fileId: string, accessToken: string, signal?: AbortSignal): Promise<string> {
-  const query = new URLSearchParams({ mimeType: "text/csv" });
-  const response = await googleFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?${query}`, accessToken, signal);
-  return response.text();
+async function readSpreadsheet(fileId: string, accessToken: string, signal?: AbortSignal): Promise<GoogleSheetGrid[]> {
+  const metadataQuery = new URLSearchParams({ fields: "sheets(properties(sheetId,title,index))" });
+  const metadataResponse = await googleFetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(fileId)}?${metadataQuery}`, accessToken, signal);
+  const spreadsheet = await metadataResponse.json() as GoogleSpreadsheet;
+  const sheets = (spreadsheet.sheets ?? [])
+    .map(sheet => sheet.properties)
+    .filter((properties): properties is { index?: number; sheetId: number; title: string } => typeof properties?.sheetId === "number" && typeof properties.title === "string")
+    .sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
+  const grids: GoogleSheetGrid[] = [];
+
+  for (let offset = 0; offset < sheets.length; offset += SHEET_RANGE_BATCH_SIZE) {
+    const batch = sheets.slice(offset, offset + SHEET_RANGE_BATCH_SIZE);
+    const query = new URLSearchParams({ majorDimension: "ROWS", valueRenderOption: "FORMATTED_VALUE" });
+    for (const sheet of batch) query.append("ranges", quoteSheetTitle(sheet.title));
+    const response = await googleFetch(`https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(fileId)}/values:batchGet?${query}`, accessToken, signal);
+    const payload = await response.json() as GoogleBatchValues;
+    for (const [index, sheet] of batch.entries()) {
+      grids.push({ sheetId: sheet.sheetId, title: sheet.title, values: payload.valueRanges?.[index]?.values ?? [] });
+    }
+  }
+  return grids;
+}
+
+function quoteSheetTitle(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function parseMetadata(text: string, fileName: string) {
@@ -314,7 +469,8 @@ async function googleFetch(url: string, accessToken: string, parentSignal?: Abor
   const controller = new AbortController();
   const abort = () => controller.abort();
   const timeout = setTimeout(abort, GOOGLE_REQUEST_TIMEOUT_MS);
-  parentSignal?.addEventListener("abort", abort, { once: true });
+  if (parentSignal?.aborted) abort();
+  else parentSignal?.addEventListener("abort", abort, { once: true });
   try {
     const response = await fetch(url, {
       cache: "no-store",
