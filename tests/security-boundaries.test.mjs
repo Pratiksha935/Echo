@@ -22,6 +22,18 @@ test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing"
   assert.match(route, /"chat:write.public"/);
 });
 
+test("the production Slack manifest wires web and desktop native surfaces", async () => {
+  const manifest = await source("public/found-slack-app-manifest.yaml");
+  for (const scope of ["app_mentions:read", "channels:history", "channels:read", "chat:write", "commands", "im:write", "users:read", "users:read.email"]) {
+    assert.match(manifest, new RegExp(`- ${scope.replace(".", "\\.")}`));
+  }
+  assert.match(manifest, /callback_id: found_ask/);
+  assert.match(manifest, /callback_id: found_check_prior_work/);
+  assert.match(manifest, /command: \/found/);
+  assert.match(manifest, /bot_events:[\s\S]*- app_home_opened[\s\S]*- app_mention[\s\S]*- message\.channels/);
+  assert.match(manifest, /request_url: https:\/\/sage-profiterole-3b1c22\.netlify\.app\/api\/slack\/interactions/);
+});
+
 test("continuous ingestion is durable, silent, and authenticated", async () => {
   const route = await source("app/api/slack/events/route.ts");
   const worker = await source("app/api/internal/ingestion/run/route.ts");
@@ -103,7 +115,7 @@ test("browser matching uses Hermes as the final non-exact battlecard decision la
   assert.match(route, /return NextResponse\.json\(\{ match: null, reason: hermesVerdict\.reason \}/);
 });
 
-test("workspace Ask Hermes uses indexed memory and stays closed-world", async () => {
+test("workspace Ask Found uses indexed memory and stays closed-world", async () => {
   const [route, dashboard] = await Promise.all([
     source("app/api/knowledge/query/route.ts"),
     source("app/workspace/workspace-dashboard.tsx"),
@@ -117,8 +129,17 @@ test("workspace Ask Hermes uses indexed memory and stays closed-world", async ()
   assert.match(route, /Do not add external knowledge, generic frameworks, assumptions, or advice/);
   assert.doesNotMatch(route, /internet|web search|fetch\(["']https?:\/\//i);
   assert.match(dashboard, /\/api\/knowledge\/query/);
-  assert.match(dashboard, /ASK HERMES/);
+  assert.match(dashboard, /ASK FOUND/);
   assert.match(dashboard, /Closed-world/);
+  assert.match(dashboard, /Powered by Hermes|POWERED BY HERMES|underlying engine/);
+});
+
+test("decision timelines include a private Ask Found entry point", async () => {
+  const decision = await source("app/workspace/decision/[recordId]/page.tsx");
+  assert.match(decision, /const askFoundHref=`\/workspace\?ask=/);
+  assert.match(decision, /ASK FOUND ABOUT THIS DECISION/);
+  assert.match(decision, /Hermes powers the answer from indexed company memory/);
+  assert.doesNotMatch(decision, /Ask Hermes/);
 });
 
 test("Google ingestion isolates unreadable files and always records a terminal run", async () => {
@@ -202,11 +223,19 @@ test("Slack native Ask Found is signed, private, and source-grounded", async () 
   assert.match(commands, /x-slack-request-timestamp/);
   assert.match(commands, /x-slack-signature/);
   assert.match(commands, /response_type: "ephemeral"/);
-  assert.match(commands, /answerSlackQuestion/);
+  assert.match(commands, /after\(\(\) => postSlackAskResponse/);
   assert.match(commands, /\/found ask/);
   assert.doesNotMatch(commands, /chat\.postMessage/);
   assert.match(interactions, /view_submission/);
+  assert.match(interactions, /after\(\(\) => updateSlackAskModalWithAnswer\(\{ question, teamId:/);
   assert.match(interactions, /response_action: "update"/);
+  assert.doesNotMatch(slack, /hash: input\.hash|\.\.\.\(input\.hash/);
+  assert.match(slack, /answerSlackQuestion/);
+  assert.match(slack, /postSlackAskResponse/);
+  assert.match(slack, /reviewSlackPriorWorkWithHermes/);
+  assert.match(slack, /confidence < 85/);
+  assert.match(slack, /False positives are more damaging than missed weak matches/);
+  assert.match(slack, /queryHermes\(prompt, input\.organisationId\)/);
   assert.match(slack, /buildSlackAskPrompt/);
   assert.match(slack, /queryHermes/);
   assert.match(slack, /I couldn’t find enough evidence in company knowledge to answer this/);

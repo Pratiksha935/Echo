@@ -8,10 +8,12 @@ import { publicRequestOrigin } from "../../../lib/auth/origin";
 const SLACK_STATE_COOKIE = "found_slack_oauth_state";
 const SLACK_ORG_COOKIE = "found_slack_oauth_org";
 const SLACK_SCOPES = [
+  "app_mentions:read",
   "channels:history",
   "channels:read",
   "chat:write",
   "chat:write.public",
+  "commands",
   "im:write",
   "users:read",
   "users:read.email",

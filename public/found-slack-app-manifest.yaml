@@ -1,0 +1,54 @@
+display_information:
+  name: Found
+  description: Private, source-grounded company memory across Slack web and desktop.
+  background_color: "#0b2345"
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: false
+    messages_tab_read_only_enabled: true
+  bot_user:
+    display_name: Found
+    always_online: false
+  shortcuts:
+    - name: Ask Found
+      callback_id: found_ask
+      description: Ask a private question from indexed company memory.
+      type: global
+    - name: Check with Found
+      callback_id: found_check_prior_work
+      description: Check a Slack message for matching prior work.
+      type: message
+  slash_commands:
+    - command: /found
+      description: Ask Found privately from company memory.
+      should_escape: false
+      usage_hint: ask what did we decide about security deposits?
+      url: https://sage-profiterole-3b1c22.netlify.app/api/slack/commands
+oauth_config:
+  redirect_urls:
+    - https://sage-profiterole-3b1c22.netlify.app/auth/slack/callback
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - channels:read
+      - chat:write
+      - chat:write.public
+      - commands
+      - im:write
+      - users:read
+      - users:read.email
+settings:
+  event_subscriptions:
+    request_url: https://sage-profiterole-3b1c22.netlify.app/api/slack/events
+    bot_events:
+      - app_home_opened
+      - app_mention
+      - message.channels
+  interactivity:
+    is_enabled: true
+    request_url: https://sage-profiterole-3b1c22.netlify.app/api/slack/interactions
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

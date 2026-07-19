@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
-import { answerSlackQuestion } from "../../../../lib/integrations/slack-events";
+import { after, NextRequest, NextResponse } from "next/server";
+import { postSlackAskResponse } from "../../../../lib/integrations/slack-events";
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
@@ -8,6 +8,7 @@ export async function POST(request: NextRequest) {
   const form = new URLSearchParams(raw);
   const text = (form.get("text") ?? "").trim();
   const teamId = form.get("team_id") ?? undefined;
+  const responseUrl = form.get("response_url") ?? undefined;
   const question = text.replace(/^ask\b[:\s-]*/i, "").trim();
   if (question.length < 4) {
     return NextResponse.json({
@@ -16,27 +17,15 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  try {
-    const result = await answerSlackQuestion({ question, teamId });
-    return NextResponse.json({
-      response_type: "ephemeral",
-      text: formatAnswer(result.answer, result.sources),
-      unfurl_links: false,
-      unfurl_media: false,
-    });
-  } catch {
-    return NextResponse.json({
-      response_type: "ephemeral",
-      text: "Found could not answer from company memory right now.",
-    });
+  if (responseUrl) {
+    after(() => postSlackAskResponse({ question, responseUrl, teamId }).catch(() => undefined));
   }
-}
-
-function formatAnswer(answer: string, sources: Array<{ title: string; url: string }>): string {
-  const sourceText = sources.length
-    ? `\n\n*Sources*\n${sources.map(source => `• <${source.url}|${escapeSlackText(source.title).slice(0, 90)}>`).join("\n")}`
-    : "";
-  return `*Ask Found*\n${escapeSlackText(answer).slice(0, 2800)}${sourceText}`;
+  return NextResponse.json({
+    response_type: "ephemeral",
+    text: "Ask Found is checking company memory privately. I’ll post the answer here in a moment.",
+    unfurl_links: false,
+    unfurl_media: false,
+  });
 }
 
 function validSlackSignature(request: NextRequest, body: string): boolean {
@@ -49,8 +38,4 @@ function validSlackSignature(request: NextRequest, body: string): boolean {
   const actualBytes = Buffer.from(signature);
   const expectedBytes = Buffer.from(expected);
   return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
-}
-
-function escapeSlackText(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
