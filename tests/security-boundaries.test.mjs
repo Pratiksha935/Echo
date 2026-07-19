@@ -82,7 +82,7 @@ test("browser battle cards use authenticated tenant memory", async () => {
   assert.doesNotMatch(extension, /credentials:\s*"include"/);
 });
 
-test("browser Ask Hermes stays tenant-scoped and closed-world", async () => {
+test("browser Ask Found stays tenant-scoped and closed-world", async () => {
   const [askRoute, content, background] = await Promise.all([
     source("app/api/browser/ask/route.ts"),
     source("extension/content.js"),
@@ -97,6 +97,9 @@ test("browser Ask Hermes stays tenant-scoped and closed-world", async () => {
   assert.match(askRoute, /I couldn’t find enough evidence in company knowledge to answer this/);
   assert.doesNotMatch(askRoute, /getFoundUser|integration_secrets|PATCH|PUT|DELETE/);
   assert.match(content, /type: "found:ask-hermes"/);
+  assert.match(content, /Ask Found is checking indexed source receipts and memory updates/);
+  assert.match(content, /Ask Found is temporarily unavailable/);
+  assert.doesNotMatch(content, /Hermes is checking indexed source receipts|Hermes could not answer/);
   assert.doesNotMatch(content, /\/api\/browser\/ask|authorization: `Bearer/);
   assert.match(background, /\/api\/browser\/ask/);
   assert.match(background, /hermes_unavailable/);

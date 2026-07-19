@@ -357,7 +357,7 @@ test("the extension worker owns the authenticated cross-origin match request", a
   }
 });
 
-test("battlecards can ask Hermes through the authenticated extension worker", async () => {
+test("battlecards can Ask Found through the authenticated extension worker", async () => {
   const [content, background, route, styles] = await Promise.all([
     source("extension/content.js"),
     source("extension/background.js"),
@@ -365,6 +365,8 @@ test("battlecards can ask Hermes through the authenticated extension worker", as
     source("extension/content.css"),
   ]);
   assert.match(content, /ASK FOUND/);
+  assert.match(content, /Ask Found is checking indexed source receipts and memory updates/);
+  assert.match(content, /Ask Found could not answer from company memory right now/);
   assert.match(content, /function askHermes/);
   assert.match(content, /type: "found:ask-hermes"/);
   assert.match(content, /recordId: latestMatch\.id/);

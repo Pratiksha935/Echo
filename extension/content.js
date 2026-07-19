@@ -236,7 +236,7 @@
     const input = view.querySelector(".ec-note");
     const updateText = input.value.trim();
     if (updateText.length < 12) {
-      note.textContent = "Add a short note of at least 12 characters so Hermes knows why this page matters.";
+      note.textContent = "Add a short note of at least 12 characters so Ask Found knows why this page matters.";
       input.focus();
       return;
     }
@@ -471,7 +471,7 @@
     button.disabled = true;
     button.innerHTML = "ASKING…";
     answer.hidden = false;
-    answer.textContent = "Hermes is checking indexed source receipts and memory updates…";
+    answer.textContent = "Ask Found is checking indexed source receipts and memory updates…";
     const result = await chrome.runtime.sendMessage({
       type: "found:ask-hermes",
       ask: {
@@ -492,11 +492,11 @@
       session_expired: "Your Found browser session expired. Reconnect and try again.",
       workspace_access_revoked: "Workspace access changed. Reconnect with an authorised account.",
       record_not_found: "This memory is no longer available in your workspace.",
-      hermes_unavailable: "Hermes is temporarily unavailable. Try again shortly.",
+      hermes_unavailable: "Ask Found is temporarily unavailable. Try again shortly.",
       service_unavailable: "Found is temporarily unavailable. Try again shortly.",
       temporary_network_failure: "Found could not be reached. Try again shortly.",
     };
-    answer.textContent = errors[result?.reason] || "Hermes could not answer from company memory right now.";
+    answer.textContent = errors[result?.reason] || "Ask Found could not answer from company memory right now.";
     button.disabled = false;
     button.innerHTML = "ASK <b>↗</b>";
   }
