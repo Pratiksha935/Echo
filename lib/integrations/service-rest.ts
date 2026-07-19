@@ -13,6 +13,11 @@ export async function serviceRest<T = unknown>(path: string, init: RequestInit =
     },
   });
   if (!response.ok) throw new Error(`Persistence request failed (${response.status}).`);
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  const body = await response.text();
+  if (!body.trim()) return undefined as T;
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    throw new Error("Persistence response was not valid JSON.");
+  }
 }

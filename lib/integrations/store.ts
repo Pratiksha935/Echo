@@ -1,5 +1,5 @@
-import { requireSupabaseServiceConfig } from "../auth/config";
 import type { IntegrationProvider } from "./catalog";
+import { serviceRest } from "./service-rest";
 
 type ConnectionWrite = {
   externalWorkspaceId: string;
@@ -56,21 +56,4 @@ export async function saveIntegrationConnection(
     },
   );
   return connectionId;
-}
-
-async function serviceRest<T = unknown>(path: string, init: RequestInit): Promise<T> {
-  const config = requireSupabaseServiceConfig();
-  const response = await fetch(`${config.url}/rest/v1${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: {
-      apikey: config.serviceRoleKey,
-      authorization: `Bearer ${config.serviceRoleKey}`,
-      "content-type": "application/json",
-      ...init.headers,
-    },
-  });
-  if (!response.ok) throw new Error("Integration persistence failed.");
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
 }
