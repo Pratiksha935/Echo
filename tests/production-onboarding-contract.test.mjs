@@ -96,8 +96,8 @@ test("Google and Slack remain two separate explicit connector consents", async (
   assert.match(setup, /href="\/auth\/slack"/);
   assert.match(google, /buildAuthorizationUrl\(provider, state\)/);
   assert.match(slack, /https:\/\/slack\.com\/oauth\/v2\/authorize/);
-  assert.match(slack, /connections\.some\(connection => connection\.provider === "google"\)/);
-  assert.match(slack, /error=google_required/);
+  assert.doesNotMatch(slack, /connection\.provider === "google"|error=google_required/);
+  assert.match(setup, /can be connected before or after Google Workspace/);
 });
 
 test("onboarding status is derived from persisted live connections and never invented", async () => {

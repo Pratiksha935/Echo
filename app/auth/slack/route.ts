@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { getFoundUser } from "../../auth";
-import { getFoundWorkspace, listIntegrationConnections } from "../../../lib/auth/workspace";
+import { getFoundWorkspace } from "../../../lib/auth/workspace";
 import { randomBase64Url } from "../../../lib/auth/session";
 import { publicRequestOrigin } from "../../../lib/auth/origin";
 
@@ -28,11 +28,6 @@ export async function GET(request: NextRequest) {
   if (!workspace || !["owner", "admin"].includes(workspace.role)) {
     return NextResponse.redirect(new URL("/integrations?error=admin_required", appUrl));
   }
-  const connections = await listIntegrationConnections(workspace.organisationId);
-  if (!connections.some(connection => connection.provider === "google")) {
-    return NextResponse.redirect(new URL("/integrations?error=google_required", appUrl));
-  }
-
   const clientId = process.env.SLACK_CLIENT_ID;
   if (!clientId) return NextResponse.redirect(new URL("/integrations?error=slack_not_configured", appUrl));
 

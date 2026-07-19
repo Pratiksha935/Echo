@@ -49,6 +49,7 @@ test("Slack OAuth persists rotating credentials and refreshes them safely", asyn
   assert.match(callback, /encryptIntegrationSecret\(JSON\.stringify\(\{/);
   assert.match(callback, /refreshToken: installation\.refresh_token/);
   assert.match(callback, /expiresAt: installation\.expires_in/);
+  assert.match(callback, /!installation\.refresh_token \|\| !installation\.expires_in/);
   assert.match(credentials, /export async function loadSlackConnectionCredential/);
   assert.match(credentials, /https:\/\/slack\.com\/api\/oauth\.v2\.access/);
   assert.match(credentials, /authorization: `Basic \$\{Buffer\.from/);

@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     cache: "no-store",
   });
   const installation = (await response.json().catch(() => null)) as SlackOAuthResponse | null;
-  if (!response.ok || !installation?.ok || !installation.access_token || !installation.team?.id) {
+  if (!response.ok || !installation?.ok || !installation.access_token || !installation.refresh_token || !installation.expires_in || !installation.team?.id) {
     destination.searchParams.set("error", "slack_authorization_failed");
     return NextResponse.redirect(destination);
   }

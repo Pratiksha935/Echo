@@ -83,10 +83,10 @@ export default function IntegrationSetup({ connectedProvider, connections, confi
         {googleApproved ? <Connection connection={google!}/> : configuredProviders.includes("google") ? <Link className={styles.action} href="/auth/integrations/google" prefetch={false}>REVIEW GOOGLE WORKSPACE CONSENT ↗</Link> : <DisabledAction>GOOGLE WORKSPACE ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
-      <Step id="slack" number="06" title="Slack" status={googleApproved ? providerStatus(slack, configuredProviders.includes("slack")) : "WAITING FOR GOOGLE"} complete={slackApproved} locked={!googleApproved}>
-        <p>Slack opens its own consent screen after Google. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or public channels.</p>
+      <Step id="slack" number="06" title="Slack" status={providerStatus(slack, configuredProviders.includes("slack"))} complete={slackApproved}>
+        <p>Slack has its own consent screen and can be connected before or after Google Workspace. Found ingests public-channel knowledge silently. It sends a message only when someone explicitly shares a browser link to selected teammates or public channels.</p>
         <ScopeList values={["Public channels · read", "Public messages · read", "Users · read", "Selected links · user-initiated send"]}/>
-        {slackApproved ? <Connection connection={slack!}/> : !googleApproved ? <DisabledAction>APPROVE GOOGLE FIRST</DisabledAction> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
+        {slackApproved ? <Connection connection={slack!}/> : configuredProviders.includes("slack") ? <Link className={styles.action} href="/auth/slack" prefetch={false}>REVIEW SLACK CONSENT ↗</Link> : <DisabledAction>SLACK ADMIN SETUP REQUIRED</DisabledAction>}
       </Step>
 
       <Step id="dashboard" number="07" title="Enter Found" status={readyForWorkspace ? "READY" : "LOCKED UNTIL RUNTIME AND SOURCE CONSENT"} complete={readyForWorkspace} locked={!readyForWorkspace}>
@@ -122,7 +122,6 @@ function providerStatus(connection: IntegrationConnection | undefined, configure
 function providerName(provider?: string): string { return integrationCatalog.find(item => item.provider === provider)?.name ?? "The source"; }
 function integrationError(code: string): string {
   if (code === "admin_required" || code === "workspace_forbidden") return "Only a workspace owner or admin can connect sources.";
-  if (code === "google_required") return "Approve Google Workspace before continuing to Slack.";
   if (code.endsWith("_not_configured")) return `${providerName(code.replace("_not_configured", ""))} needs OAuth credentials added by the Found administrator.`;
   if (code === "connection_storage_failed") return "Authorisation completed, but the encrypted connection could not be stored. Nothing was indexed.";
   if (code.includes("authorization_failed") || code === "invalid_integration_callback") return "The provider did not complete authorisation. Please try again.";
