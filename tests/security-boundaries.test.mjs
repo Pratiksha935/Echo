@@ -24,6 +24,9 @@ test("Slack OAuth permits silent ingestion plus explicit user-initiated sharing"
 
 test("the production Slack manifest wires web and desktop native surfaces", async () => {
   const manifest = await source("public/found-slack-app-manifest.yaml");
+  assert.match(manifest, /name: Found Memory/);
+  assert.match(manifest, /display_name: found-memory/);
+  assert.match(manifest, /name: Ask company memory/);
   for (const scope of ["app_mentions:read", "channels:history", "channels:read", "chat:write", "commands", "im:write", "users:read", "users:read.email"]) {
     assert.match(manifest, new RegExp(`- ${scope.replace(".", "\\.")}`));
   }
@@ -32,6 +35,29 @@ test("the production Slack manifest wires web and desktop native surfaces", asyn
   assert.match(manifest, /command: \/found/);
   assert.match(manifest, /bot_events:[\s\S]*- app_home_opened[\s\S]*- app_mention[\s\S]*- message\.channels/);
   assert.match(manifest, /request_url: https:\/\/sage-profiterole-3b1c22\.netlify\.app\/api\/slack\/interactions/);
+  assert.match(manifest, /token_rotation_enabled: true/);
+});
+
+test("Slack OAuth persists rotating credentials and refreshes them safely", async () => {
+  const [callback, credentials, ingestion] = await Promise.all([
+    source("app/auth/slack/callback/route.ts"),
+    source("lib/integrations/credentials.ts"),
+    source("lib/integrations/slack-events.ts"),
+  ]);
+  assert.match(callback, /refresh_token\?: string/);
+  assert.match(callback, /expires_in\?: number/);
+  assert.match(callback, /encryptIntegrationSecret\(JSON\.stringify\(\{/);
+  assert.match(callback, /refreshToken: installation\.refresh_token/);
+  assert.match(callback, /expiresAt: installation\.expires_in/);
+  assert.match(credentials, /export async function loadSlackConnectionCredential/);
+  assert.match(credentials, /https:\/\/slack\.com\/api\/oauth\.v2\.access/);
+  assert.match(credentials, /authorization: `Basic \$\{Buffer\.from/);
+  assert.match(credentials, /grant_type: "refresh_token"/);
+  assert.match(credentials, /payload\.refresh_token/);
+  assert.match(credentials, /Another serverless invocation may have rotated the one-time refresh token/);
+  assert.match(credentials, /encryptIntegrationSecret\(JSON\.stringify\(credential\)\)/);
+  assert.match(ingestion, /loadSlackConnectionCredential/);
+  assert.doesNotMatch(ingestion, /loadConnectionCredential/);
 });
 
 test("continuous ingestion is durable, silent, and authenticated", async () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { HermesUnavailableError, queryHermes } from "../hermes/client";
-import { loadConnectionCredential } from "./credentials";
+import { loadSlackConnectionCredential } from "./credentials";
 import { serviceRest } from "./service-rest";
 
 type SlackConnection = { granted_scopes?: string[] | null; id: string; organisation_id: string };
@@ -89,7 +89,7 @@ export async function openSlackBattlecard(input: SlackBattlecardRequest): Promis
   const text = input.messageText?.trim() ?? "";
   const connection = (await findConnection(input.teamId))[0];
   if (!connection) return { opened: false, reason: "workspace_not_connected" };
-  const credential = await loadConnectionCredential(connection.id);
+  const credential = await loadSlackConnectionCredential(connection.id);
   const opened = await slackApi<{ view?: { id?: string } }>("views.open", credential.accessToken, {
     trigger_id: input.triggerId,
     view: buildSlackBattlecardLoadingModal(text),
@@ -167,7 +167,7 @@ export async function openSlackAskModal(input: { initialQuestion?: string; teamI
   if (!input.teamId || !input.triggerId) return { opened: false, reason: "invalid_request" };
   const connection = (await findConnection(input.teamId))[0];
   if (!connection) return { opened: false, reason: "workspace_not_connected" };
-  const credential = await loadConnectionCredential(connection.id);
+  const credential = await loadSlackConnectionCredential(connection.id);
   await slackApi("views.open", credential.accessToken, {
     trigger_id: input.triggerId,
     view: buildSlackAskInputModal(input.initialQuestion ?? ""),
@@ -178,7 +178,7 @@ export async function openSlackAskModal(input: { initialQuestion?: string; teamI
 export async function publishSlackHome(input: { teamId: string; userId: string }): Promise<void> {
   const connection = (await findConnection(input.teamId))[0];
   if (!connection) return;
-  const credential = await loadConnectionCredential(connection.id);
+  const credential = await loadSlackConnectionCredential(connection.id);
   await slackApi("views.publish", credential.accessToken, {
     user_id: input.userId,
     view: {
@@ -198,7 +198,7 @@ export async function respondToSlackMention(input: { channelId: string; teamId: 
   if (!isExplicitSlackAskFoundQuestion(question)) return;
   const connection = (await findConnection(input.teamId))[0];
   if (!connection) return;
-  const credential = await loadConnectionCredential(connection.id);
+  const credential = await loadSlackConnectionCredential(connection.id);
   const result = await answerSlackQuestion({ question, teamId: input.teamId });
   await slackApi("chat.postEphemeral", credential.accessToken, {
     channel: input.channelId,
@@ -270,7 +270,7 @@ export async function answerSlackQuestion(input: { question: string; teamId?: st
 export async function listSlackBrowserShareTargets(organisationId: string): Promise<{ channels: SlackShareTarget[]; users: SlackShareTarget[] }> {
   const connection = (await findOrganisationConnection(organisationId))[0];
   if (!connection) throw new Error("slack_not_connected");
-  const credential = await loadConnectionCredential(connection.id);
+  const credential = await loadSlackConnectionCredential(connection.id);
   const [userResult, channelResult] = await Promise.allSettled([
     slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
     listShareableChannels(credential.accessToken, hasSlackScope(connection, "chat:write.public")),
@@ -302,7 +302,7 @@ export async function shareBrowserPageToSlack(input: SlackBrowserShare): Promise
   if (!recipients.length) return { sent: 0 };
   const connection = (await findOrganisationConnection(input.organisationId))[0];
   if (!connection) throw new Error("slack_not_connected");
-  const credential = await loadConnectionCredential(connection.id);
+  const credential = await loadSlackConnectionCredential(connection.id);
   const [userPayload, channels] = await Promise.all([
     slackApi<{ members?: SlackUser[] }>("users.list?limit=200", credential.accessToken),
     listShareableChannels(credential.accessToken, hasSlackScope(connection, "chat:write.public")),
@@ -365,7 +365,7 @@ export async function syncAllSlackConnections(limit = 1): Promise<{ attempted: n
   let succeeded = 0;
   for (const connection of connections) {
     try {
-      const credential = await loadConnectionCredential(connection.id);
+      const credential = await loadSlackConnectionCredential(connection.id);
       await syncSlackHistory(connection, credential.accessToken);
       succeeded += 1;
     } catch {
@@ -584,7 +584,7 @@ export async function updateSlackAskModalWithAnswer(input: { question: string; t
   const connection = (await findConnection(input.teamId))[0];
   if (!connection) return;
   const [credential, result] = await Promise.all([
-    loadConnectionCredential(connection.id),
+    loadSlackConnectionCredential(connection.id),
     answerSlackQuestion({ question: input.question, teamId: input.teamId }).catch(() => ({ answer: "Found could not answer from company memory right now.", sources: [] })),
   ]);
   await slackApi("views.update", credential.accessToken, {
